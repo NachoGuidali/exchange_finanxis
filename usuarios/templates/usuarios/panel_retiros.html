@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h2>Retiros ARS</h2>
+<table>
+  <tr>
+    <th>Usuario</th>
+    <th>Monto</th>
+    <th>Alias</th>
+    <th>CBU</th>
+    <th>Banco</th>
+    <th>Estado</th>
+    <th>Acciones</th>
+  </tr>
+  {% for retiro in retiros_ars %}
+  <tr>
+    <td>{{ retiro.usuario.username }}</td>
+    <td>${{ retiro.monto }}</td>
+    <td>{{ retiro.alias }}</td>
+    <td>{{ retiro.cbu }}</td>
+    <td>{{ retiro.banco }}</td>
+    <td>{{ retiro.estado }}</td>
+    <td>
+      {% if retiro.estado == 'pendiente' %}
+        <form method="post" action="{% url 'aprobar_retiro' retiro.id %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit">✅ Aprobar</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="8">No hay retiros ARS pendientes.</td></tr>
+  {% endfor %}
+</table>
+
+<hr>
+
+<h2>Retiros CRYPTO</h2>
+<table>
+  <tr>
+    <th>Usuario</th>
+    <th>Moneda</th>
+    <th>Monto</th>
+    <th>Wallet</th>
+    <th>Estado</th>
+    <th>Acciones</th>
+  </tr>
+  {% for retiro in retiros_crypto %}
+  <tr>
+    <td>{{ retiro.usuario.username }}</td>
+    <td>{{ retiro.moneda }}</td>
+    <td>{{ retiro.monto }}</td>
+    <td>{{ retiro.direccion_wallet }}</td>
+    <td>{{ retiro.estado }}</td>
+    <td>
+      {% if retiro.estado == 'pendiente' %}
+        <form method="post" action="{% url 'aprobar_retiro_cripto' retiro.id %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit">✅ Aprobar</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+  {% empty %}
+  <tr><td colspan="7">No hay retiros CRYPTO pendientes.</td></tr>
+  {% endfor %}
+</table>
+
+</body>
+</html>

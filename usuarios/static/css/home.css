@@ -1,0 +1,23 @@
+
+:root{
+  --bg-ink:#010318;
+  --neon:#D2FF00;
+}
+.neon-shadow{ box-shadow: 0 0 24px rgba(210,255,0,0.25), 0 0 64px rgba(210,255,0,0.12); }
+.radial-glow{
+  position: relative;
+  overflow: hidden;
+}
+.radial-glow:before{
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background: radial-gradient(600px 600px at 60% 30%, rgba(210,255,0,0.12), transparent 60%);
+  pointer-events: none;
+}
+.card{
+  background: #0B0F19;
+  border: 1px solid #1f2430;
+  border-radius: 16px;
+}
+.card:hover{ border-color: var(--neon); box-shadow: 0 0 24px rgba(210,255,0,0.18); }

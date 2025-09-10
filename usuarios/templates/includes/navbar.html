@@ -1,0 +1,55 @@
+{% load static %}
+
+<header class="border-b border-white/10 bg-black/50 backdrop-blur supports-[backdrop-filter]:bg-black/40">
+  <nav class="container flex h-16 items-center justify-between gap-4">
+    <a href="{% url 'dashboard' %}" class="group inline-flex items-center gap-3">
+      <img src="{% static 'img/logo.png' %}" alt="Finanxis" class="h-10 w-auto">
+      
+    </a>
+
+    <button class="lg:hidden rounded-md border border-white/10 p-2 text-white/80" data-mobile-toggle aria-label="Toggle menu">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+    </button>
+
+    <ul class="hidden items-center gap-6 lg:flex">
+      <li><a href="{% url 'dashboard' %}" class="text-white/70 hover:text-white transition">Dashboard</a></li>
+      <li><a href="{% url 'operar' %}" class="text-white/70 hover:text-white transition">Operar</a></li>
+      {% if request.user.is_staff or request.user.is_superuser %}
+      <li><a href="{% url 'panel_admin' %}" class="text-white/70 hover:text-white transition">Admin</a></li>
+      {% endif %}
+    </ul>
+
+    <div class="hidden items-center gap-2 lg:flex">
+      {% if request.user.is_authenticated %}
+        <form method="post" action="{% url 'logout' %}" class="inline">
+          {% csrf_token %}
+          <button type="submit" class="rounded-md px-3 py-2 text-sm text-white/80 hover:text-white">Cerrar sesión</button>
+        </form>
+      {% else %}
+        <a href="{% url 'login' %}" class="rounded-md px-3 py-2 text-sm text-white/80 hover:text-white">Iniciar sesión</a>
+        <a href="{% url 'registro' %}" class="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-black hover:bg-[#e60f25] shadow-soft">Crear cuenta</a>
+      {% endif %}
+    </div>
+  </nav>
+
+  <div class="container lg:hidden">
+    <ul class="hidden flex-col gap-4 py-4" data-mobile-menu>
+      <li><a href="{% url 'dashboard' %}" class="block text-white/90">Dashboard</a></li>
+      <li><a href="{% url 'operar' %}" class="block text-white/90">Operar</a></li>
+      {% if request.user.is_staff or request.user.is_superuser %}
+        <li><a href="{% url 'panel_admin' %}" class="block text-white/90">Admin</a></li>
+      {% endif %}
+      {% if request.user.is_authenticated %}
+        <li>
+          <form method="post" action="{% url 'logout' %}" class="inline">
+            {% csrf_token %}
+            <button type="submit" class="rounded-md px-3 py-2 text-sm text-white/80 hover:text-white">Cerrar sesión</button>
+          </form>
+        </li>
+      {% else %}
+        <li><a href="{% url 'login' %}" class="block text-white/90">Iniciar sesión</a></li>
+        <li><a href="{% url 'registro' %}" class="block text-white/90">Crear cuenta</a></li>
+      {% endif %}
+    </ul>
+  </div>
+</header>

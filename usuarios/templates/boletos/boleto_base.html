@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; color:#111; }
+    .box { border:1px solid #E5E7EB; border-radius:12px; padding:16px; margin-bottom:12px; }
+    .muted { color:#6B7280; font-size:12px; }
+    .h1 { font-size:20px; font-weight:700; margin:0 0 4px; }
+    .row { display:flex; gap:12px; }
+    .col { flex:1; }
+    .kv { margin:4px 0; }
+    .kv b { display:inline-block; min-width:180px; }
+    .foot { font-size:11px; color:#374151; line-height:1.35; margin-top:8px; }
+    .pill { display:inline-block; border:1px solid #D1D5DB; border-radius:999px; padding:2px 8px; font-size:12px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <div class="row" style="align-items:center; justify-content:space-between;">
+      <div>
+        <div class="h1">{{ titulo }}</div>
+        <div class="muted">Número: {{ numero }} — Emitido: {{ fecha_emision }}</div>
+      </div>
+      <div><span class="pill">{{ estado|default:"Completo" }}</span></div>
+    </div>
+  </div>
+
+  <div class="box">
+    <div class="h1">Detalles</div>
+    <div class="kv"><b>Monto debitado:</b> {{ monto_debitado_fmt }}</div>
+    {% if comision_total_fmt %}<div class="kv"><b>Comisión:</b> {{ comision_total_fmt }}</div>{% endif %}
+    <div class="kv"><b>Monto a convertir:</b> {{ monto_origen_fmt }}</div>
+    <div class="kv"><b>Tasa de cambio:</b> {{ tasa_fmt }}</div>
+    <div class="kv"><b>Monto acreditado:</b> {{ monto_destino_fmt }}</div>
+  </div>
+
+  <div class="box">
+    <div class="h1">Partes</div>
+    <div class="row">
+      <div class="col">
+        <div class="kv"><b>Cliente:</b> {{ cliente.nombre }}</div>
+        <div class="kv"><b>Documento:</b> {{ cliente.doc_tipo }} {{ cliente.doc_nro }}</div>
+        <div class="kv"><b>Domicilio:</b> {{ cliente.domicilio }}</div>
+        <div class="kv"><b>Contacto:</b> {{ cliente.email }} — {{ cliente.telefono }}</div>
+        <div class="kv"><b>KYC/Verificación:</b> {{ cliente.estado_verificacion }}</div>
+      </div>
+      <div class="col">
+        <div class="kv"><b>Proveedor:</b> {{ psav.nombre }}</div>
+        <div class="kv"><b>CUIT:</b> {{ psav.cuit }}</div>
+        <div class="kv"><b>Domicilio:</b> {{ psav.domicilio }}</div>
+        <div class="kv"><b>Atención al cliente:</b> {{ psav.contacto }}</div>
+        {% if psav.leyenda_psav %}<div class="kv"><b>Registro PSAV:</b> {{ psav.leyenda_psav }}</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  {% if onchain.muestra %}
+  <div class="box">
+    <div class="h1">Datos blockchain</div>
+    <div class="kv"><b>Red:</b> {{ onchain.red }}</div>
+    <div class="kv"><b>Wallet origen:</b> {{ onchain.origen }}</div>
+    <div class="kv"><b>Wallet destino:</b> {{ onchain.destino }}</div>
+    <div class="kv"><b>Hash (TXID):</b> {{ onchain.txid }}</div>
+    <div class="kv"><b>Fecha/hora TX:</b> {{ onchain.fecha_hora }}</div>
+  </div>
+  {% endif %}
+
+  <div class="box">
+    <div class="h1">Identificador</div>
+    <div class="row" style="align-items:center;">
+      <div class="col">
+        <div class="kv"><b>Código de verificación:</b> {{ verificacion_code }}</div>
+        
+        <div class="kv"><b>Verificar en:</b> {{ url_verificacion }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div><img src="data:image/png;base64,{{ qr_base64 }}" width="120" height="120" /></div>
+    <p><b>Declaración de origen de fondos:</b> Las partes declaran que los activos y/o fondos involucrados provienen de actividades lícitas. (PLAyFT)</p>
+    <p><b>Divulgación de riesgos:</b> Los activos virtuales pueden ser altamente volátiles, no tienen curso legal ni garantía estatal; las transacciones pueden ser irreversibles; cambios regulatorios pueden afectar su valor y uso.</p>
+    {% if not psav.leyenda_psav %}
+      <p><b>Aviso:</b> La entidad no declara inscripción como PSAV ante CNV. No se utiliza la leyenda reservada a inscriptos. </p>
+    {% endif %}
+  </div>
+</body>
+</html>
