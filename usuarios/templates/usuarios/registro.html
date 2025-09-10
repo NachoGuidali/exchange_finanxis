@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Crear cuenta — Registro{% endblock %}
+{% block meta_description %}Abrí tu cuenta para operar en el exchange.{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-4xl space-y-6">
+  <h1 class="text-2xl font-semibold">Crear cuenta</h1>
+
+  <!-- Errores generales -->
+  {% if form.non_field_errors %}
+    <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+      {{ form.non_field_errors }}
+    </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" class="space-y-6" onsubmit="this.querySelector('button[type=submit]').disabled = true;">
+    {% csrf_token %}
+
+    <!-- Datos de cuenta -->
+    <div class="rounded-xl border border-ink-200 bg-white p-5 shadow-sm">
+      <h2 class="mb-4 text-lg font-semibold">Datos de cuenta</h2>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Usuario *</label>
+          {{ form.username }}
+          <p class="mt-1 text-xs text-red-600">{{ form.username.errors }}</p>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Email *</label>
+          {{ form.email }}
+          <p class="mt-1 text-xs text-red-600">{{ form.email.errors }}</p>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Contraseña *</label>
+          {{ form.password1 }}
+          {% if form.password1.help_text %}
+            <p class="mt-1 text-xs text-ink-500">{{ form.password1.help_text|safe }}</p>
+          {% endif %}
+          <p class="mt-1 text-xs text-red-600">{{ form.password1.errors }}</p>
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Repetir contraseña *</label>
+          {{ form.password2 }}
+          <p class="mt-1 text-xs text-red-600">{{ form.password2.errors }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Identidad -->
+    <div class="rounded-xl border border-ink-200 bg-white p-5 shadow-sm">
+      <h2 class="mb-4 text-lg font-semibold">Identidad</h2>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Nombre *</label>
+          {{ form.first_name }}
+          <p class="mt-1 text-xs text-red-600">{{ form.first_name.errors }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Apellido *</label>
+          {{ form.last_name }}
+          <p class="mt-1 text-xs text-red-600">{{ form.last_name.errors }}</p>
+        </div>
+      </div>
+
+      <div class="mt-4 grid gap-4 sm:grid-cols-3">
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Tipo de documento *</label>
+          {{ form.doc_tipo }}
+          <p class="mt-1 text-xs text-red-600">{{ form.doc_tipo.errors }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">N° de documento *</label>
+          {{ form.doc_nro }}
+          <p class="mt-1 text-xs text-red-600">{{ form.doc_nro.errors }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Nacionalidad</label>
+          {{ form.nacionalidad }}
+          <p class="mt-1 text-xs text-red-600">{{ form.nacionalidad.errors }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contacto y domicilio -->
+    <div class="rounded-xl border border-ink-200 bg-white p-5 shadow-sm">
+      <h2 class="mb-4 text-lg font-semibold">Contacto y domicilio</h2>
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Teléfono *</label>
+          {{ form.telefono }}
+          <p class="mt-1 text-xs text-red-600">{{ form.telefono.errors }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">Domicilio *</label>
+          {{ form.domicilio }}
+          <p class="mt-1 text-xs text-red-600">{{ form.domicilio.errors }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- KYC: Fotos del DNI -->
+    <div class="rounded-xl border border-ink-200 bg-white p-5 shadow-sm">
+      <h2 class="mb-1 text-lg font-semibold">Verificación de identidad (KYC)</h2>
+      <p class="mb-4 text-sm text-ink-600">Subí fotos claras y legibles de tu DNI. Formatos permitidos: JPG/PNG/WebP. Máx. 5MB por archivo.</p>
+
+      <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">DNI (frente) *</label>
+          {{ form.dni_frente }}
+          <p class="mt-1 text-xs text-red-600">{{ form.dni_frente.errors }}</p>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm text-ink-600">DNI (dorso) *</label>
+          {{ form.dni_dorso }}
+          <p class="mt-1 text-xs text-red-600">{{ form.dni_dorso.errors }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <div class="flex items-center justify-end gap-3">
+      <a href="{% url 'login' %}" class="rounded-md border border-ink-200 px-4 py-2 text-sm">Ya tengo cuenta</a>
+      <button type="submit" class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-700">
+        Crear cuenta
+      </button>
+    </div>
+  </form>
+</section>
+
+<!-- (Opcional) Preview básico de imágenes -->
+<script>
+  document.querySelectorAll('input[type=file]').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
+        alert('Formato inválido. Usá JPG/PNG/WebP.');
+        e.target.value = '';
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Archivo mayor a 5MB.');
+        e.target.value = '';
+      }
+    }, false);
+  });
+</script>
+{% endblock %}

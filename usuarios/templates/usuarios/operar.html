@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block title %}Operar — Finanxis{% endblock %}
+{% block meta_description %}Compra y vende USDT/USD con tus saldos disponibles en Finanxis.{% endblock %}
+
+{% block content %}
+
+<!-- SALDOS -->
+<section class="max-w-5xl mx-auto mb-6">
+  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div class="rounded-lg border border-gray-700 bg-gray-900 p-4">
+      <p class="text-gray-400 text-sm">Saldo ARS</p>
+      <p class="text-xl font-semibold text-white">${{ request.user.saldo_ars }}</p>
+    </div>
+    <div class="rounded-lg border border-gray-700 bg-gray-900 p-4">
+      <p class="text-gray-400 text-sm">Saldo USDT</p>
+      <p class="text-xl font-semibold text-white">{{ request.user.saldo_usdt }}</p>
+    </div>
+    <div class="rounded-lg border border-gray-700 bg-gray-900 p-4">
+      <p class="text-gray-400 text-sm">Saldo USD</p>
+      <p class="text-xl font-semibold text-white">{{ request.user.saldo_usd|default:"0.00" }}</p>
+    </div>
+  </div>
+</section>
+
+<!-- CARD CENTRAL CON PESTAÑAS -->
+<section class="max-w-3xl mx-auto">
+  <div class="rounded-xl border border-gray-700 bg-gray-900 shadow">
+    <!-- Tabs -->
+    <div class="flex items-center gap-2 border-b border-gray-700 px-4 pt-3">
+      <button data-tab="comprar" class="tab-btn active rounded-t-md px-4 py-2 text-sm font-medium text-white border-b-2 border-[#FF1129]">
+        Comprar
+      </button>
+      <button data-tab="vender" class="tab-btn rounded-t-md px-4 py-2 text-sm font-medium text-gray-300 hover:text-white">
+        Vender
+      </button>
+      <button data-tab="swap" class="tab-btn rounded-t-md px-4 py-2 text-sm font-medium text-gray-300 hover:text-white">
+        Swap
+      </button>
+    </div>
+
+    <!-- Contenido de pestañas -->
+    <div class="p-5">
+      <!-- COMPRAR -->
+      <div class="tab-panel" id="panel-comprar">
+        <h1 class="mb-3 text-xl font-semibold text-white">Comprar</h1>
+        <form method="POST" class="space-y-4 op-confirm" onsubmit="this.querySelector('[name=operacion]').value='compra'">
+          {% csrf_token %}
+          <input type="hidden" name="operacion" value="compra" />
+          <div>
+            <label class="mb-1 block text-sm text-gray-300">Moneda</label>
+            <select name="moneda" required
+              class="w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#FF1129]">
+              <option value="USDT" data-venta="{{ cot_usdt.venta }}">USDT — Venta: ${{ cot_usdt.venta }}</option>
+              <option value="USD"  data-venta="{{ cot_usd.venta  }}">USD — Venta: ${{ cot_usd.venta }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm text-gray-300">Monto en ARS</label>
+            <input name="monto" step="0.01" type="number" required
+              class="w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#FF1129]" />
+          </div>
+          <button class="w-full rounded-md bg-[#FF1129] px-4 py-2 font-medium text-white transition hover:bg-red-700">Comprar</button>
+        </form>
+      </div>
+
+      <!-- VENDER -->
+      <div class="tab-panel hidden" id="panel-vender">
+        <h2 class="mb-3 text-xl font-semibold text-white">Vender</h2>
+        <form method="POST" class="space-y-4 op-confirm" onsubmit="this.querySelector('[name=operacion]').value='venta'">
+          {% csrf_token %}
+          <input type="hidden" name="operacion" value="venta" />
+          <div>
+            <label class="mb-1 block text-sm text-gray-300">Moneda</label>
+            <select name="moneda" required
+              class="w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#FF1129]">
+              <option value="USDT" data-compra="{{ cot_usdt.compra }}">USDT — Compra: ${{ cot_usdt.compra }}</option>
+              <option value="USD"  data-compra="{{ cot_usd.compra  }}">USD — Compra: ${{ cot_usd.compra }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm text-gray-300">Monto a vender (USDT/USD)</label>
+            <input name="monto" step="0.01" type="number" required
+              class="w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#FF1129]" />
+          </div>
+          <button class="w-full rounded-md bg-[#FF1129] px-4 py-2 font-medium text-white transition hover:bg-red-700">Vender</button>
+        </form>
+      </div>
+
+      <!-- SWAP -->
+      <div class="tab-panel hidden" id="panel-swap">
+        <h2 class="mb-3 text-xl font-semibold text-white">Swap USD ⇄ USDT</h2>
+        <form method="POST" class="space-y-4 op-confirm" onsubmit="this.querySelector('[name=operacion]').value='swap'">
+          {% csrf_token %}
+          <input type="hidden" name="operacion" value="swap" />
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm text-gray-300">Dirección</label>
+              <select name="swap_direccion" required
+                class="w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#FF1129]">
+                <option value="USD_to_USDT">USD → USDT</option>
+                <option value="USDT_to_USD">USDT → USD</option>
+              </select>
+              <p class="mt-1 text-xs text-gray-400">Tasa base: {{ swap_rate }} | Comisión: {{ swap_fee_bps }} bps</p>
+            </div>
+            <div>
+              <label class="mb-1 block text-sm text-gray-300">Monto (moneda de origen)</label>
+              <input name="monto" step="0.01" type="number" required
+                class="w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-[#FF1129]" />
+            </div>
+          </div>
+          <button class="w-full rounded-md bg-[#FF1129] px-4 py-2 font-medium text-white transition hover:bg-red-700">Convertir</button>
+        </form>
+        <p class="mt-2 text-xs text-gray-400">El crédito se acredita neto de comisión en la moneda destino.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COTIZACIONES + AYUDA (centradas debajo del card) -->
+<section class="max-w-5xl mx-auto mt-8 grid gap-6 md:grid-cols-2">
+  <div class="rounded-xl border border-gray-700 bg-gray-900 p-5">
+    <h3 class="mb-3 text-lg font-semibold text-white">Cotizaciones</h3>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div class="rounded-lg border border-gray-700 bg-gray-800 p-3 text-sm">
+        <p class="font-medium text-white">USDT</p>
+        <p class="text-gray-300">Compra: ${{ cot_usdt.compra }}</p>
+        <p class="text-gray-300">Venta: ${{ cot_usdt.venta }}</p>
+      </div>
+      <div class="rounded-lg border border-gray-700 bg-gray-800 p-3 text-sm">
+        <p class="font-medium text-white">USD</p>
+        <p class="text-gray-300">Compra: ${{ cot_usd.compra }}</p>
+        <p class="text-gray-300">Venta: ${{ cot_usd.venta }}</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="rounded-xl border border-gray-700 bg-gray-900 p-5">
+    <h3 class="mb-3 text-lg font-semibold text-white">Ayuda</h3>
+    <p class="text-sm text-gray-300">
+      Seleccioná la moneda y el monto. Para <span class="font-semibold text-white">Comprar</span> ingresás ARS;
+      para <span class="font-semibold text-white">Vender</span> ingresás la cantidad de USDT/USD.
+      En <span class="font-semibold text-white">Swap</span> seleccionás dirección y monto; se acredita neto de comisión.
+    </p>
+  </div>
+</section>
+
+<!-- JS: Tabs + Confirmaciones -->
+<script>
+(function () {
+  // -------- Tabs --------
+  const tabBtns = document.querySelectorAll('.tab-btn');
+  const panels = {
+    comprar: document.getElementById('panel-comprar'),
+    vender:  document.getElementById('panel-vender'),
+    swap:    document.getElementById('panel-swap'),
+  };
+  function activate(tab) {
+    tabBtns.forEach(b => {
+      const isActive = b.dataset.tab === tab;
+      b.classList.toggle('active', isActive);
+      b.classList.toggle('text-white', isActive);
+      b.classList.toggle('text-gray-300', !isActive);
+      b.classList.toggle('border-b-2', isActive);
+      if (isActive) { b.style.borderColor = '#FF1129'; } else { b.style.borderColor = 'transparent'; }
+    });
+    Object.entries(panels).forEach(([k, el]) => el.classList.toggle('hidden', k !== tab));
+  }
+  tabBtns.forEach(b => b.addEventListener('click', () => activate(b.dataset.tab)));
+  activate('comprar');
+
+  // -------- Confirmaciones --------
+  function fmtARS(v){ return Number(v||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function fmt(v){ return Number(v||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function getSel(form,name){ return form.querySelector('[name="'+name+'"]'); }
+  function selectedOpt(sel){ return sel && sel.selectedOptions ? sel.selectedOptions[0] : null; }
+
+  const SWAP_RATE = Number('{{ swap_rate|default:"1.00" }}');
+  const SWAP_FEE_BPS = Number('{{ swap_fee_bps|default:"100" }}');
+  const FEE_FACTOR = 1 - (SWAP_FEE_BPS / 10000);
+
+  document.querySelectorAll('form.op-confirm').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      const opInput = form.querySelector('[name=operacion]');
+      const op = (opInput && opInput.value || '').toLowerCase();
+      const montoInput = getSel(form, 'monto');
+      const monto = Number(montoInput?.value || 0);
+
+      if (monto <= 0 || Number.isNaN(monto)) {
+        e.preventDefault(); alert('Ingresá un monto válido.'); return;
+      }
+
+      let msg = '¿Confirmar operación?';
+      if (op === 'compra') {
+        const sel = getSel(form, 'moneda');
+        const moneda = sel?.value || '';
+        const opt = selectedOpt(sel);
+        const pv = Number(opt?.dataset?.venta || 0);
+        if (!pv) { e.preventDefault(); alert('No se encontró la cotización de venta.'); return; }
+        const recibe = monto / pv;
+        msg = `Vas a COMPRAR ${moneda} usando $${fmtARS(monto)} ARS.\nCotización de venta ${moneda}: $${fmt(pv)}\nRecibirás: ${fmt(recibe)} ${moneda}\n\n¿Confirmás?`;
+      }
+      else if (op === 'venta') {
+        const sel = getSel(form, 'moneda');
+        const moneda = sel?.value || '';
+        const opt = selectedOpt(sel);
+        const pc = Number(opt?.dataset?.compra || 0);
+        if (!pc) { e.preventDefault(); alert('No se encontró la cotización de compra.'); return; }
+        const recibeARS = monto * pc;
+        msg = `Vas a VENDER ${fmt(monto)} ${moneda}.\nCotización de compra ${moneda}: $${fmt(pc)}\nRecibirás: $${fmtARS(recibeARS)} ARS\n\n¿Confirmás?`;
+      }
+      else if (op === 'swap') {
+        const dir = getSel(form, 'swap_direccion')?.value || '';
+        const pretty = dir === 'USD_to_USDT' ? 'USD → USDT' : 'USDT → USD';
+        let recibe = 0;
+        if (dir === 'USD_to_USDT') {
+          recibe = monto * SWAP_RATE * FEE_FACTOR;
+          msg = `SWAP ${pretty} por ${fmt(monto)}.\nTasa base: ${fmt(SWAP_RATE)} | Comisión: ${SWAP_FEE_BPS} bps\nRecibirás: ${fmt(recibe)} USDT (neto)\n\n¿Confirmás?`;
+        } else if (dir === 'USDT_to_USD') {
+          recibe = (monto / SWAP_RATE) * FEE_FACTOR;
+          msg = `SWAP ${pretty} por ${fmt(monto)}.\nTasa base: ${fmt(SWAP_RATE)} | Comisión: ${SWAP_FEE_BPS} bps\nRecibirás: ${fmt(recibe)} USD (neto)\n\n¿Confirmás?`;
+        } else {
+          e.preventDefault(); alert('Dirección de swap inválida.'); return;
+        }
+      }
+
+      if (!confirm(msg)) { e.preventDefault(); return; }
+      const btn = form.querySelector('button[type=submit],button:not([type])');
+      if (btn){ btn.disabled = true; btn.textContent = 'Procesando...'; }
+    }, false);
+  });
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h2>Solicitudes de Depósito</h2>
+
+<table>
+  <tr>
+    <th>Usuario</th>
+    <th>Monto</th>
+    <th>Comprobante</th>
+    <th>Estado</th>
+    <th>Acción</th>
+  </tr>
+  {% for d in depositos %}
+  <tr>
+    <td>{{ d.usuario.username }}</td>
+    <td>${{ d.monto }}</td>
+    <td>
+      {% if d.comprobante %}
+        <img src="{{ d.comprobante.url }}" width="100">
+      {% endif %}
+    </td>
+    <td>{{ d.estado }}</td>
+    <td>
+      {% if d.estado == 'pendiente' %}
+        <a href="{% url 'aprobar_deposito' d.id %}">Aprobar</a>
+        <a href="{% url 'rechazar_deposito' d.id %}">Rechazar</a>
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
+</body>
+</html>

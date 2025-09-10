@@ -1,0 +1,18 @@
+{% extends 'usuarios/base.html' %}
+{% load static %}
+
+{% block content %}
+<h2>Depósito de USDT</h2>
+<p>Subí el comprobante y el TXID. Recordá usar la red correcta.</p>
+
+<ul>
+  <li>TRC20: {{ datos_wallet.wallet_trc20 }}</li>
+  <li>ERC20: {{ datos_wallet.wallet_erc20 }}</li>
+</ul>
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit">Enviar</button>
+</form>
+{% endblock %}

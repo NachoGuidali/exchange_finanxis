@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Finanxis{% endblock %}
+{% block meta_description %}Resumen de tu cartera, saldos y actividad reciente.{% endblock %}
+
+{% block content %}
+
+<!-- ===== Animaciones on-scroll (mismo sistema que Home) ===== -->
+<style>
+  :root{
+    --reveal-distance: 26px;
+    --reveal-duration: .70s;
+    --reveal-ease: cubic-bezier(.21,.67,.15,.99);
+    --reveal-stagger: .08s;
+  }
+  .reveal{
+    opacity:0; transform:translateY(var(--reveal-distance));
+    transition:opacity var(--reveal-duration) var(--reveal-ease),
+               transform var(--reveal-duration) var(--reveal-ease),
+               scale var(--reveal-duration) var(--reveal-ease);
+    will-change:opacity,transform;
+  }
+  .reveal[data-reveal="right"]{ transform:translateX(var(--reveal-distance)); }
+  .reveal[data-reveal="left"]{ transform:translateX(calc(var(--reveal-distance) * -1)); }
+  .reveal[data-reveal="zoom"]{ transform:translateY(0) scale(.96); }
+  .reveal.show{ opacity:1; transform:none; }
+</style>
+
+<!-- 🔔 Notificaciones flotantes (pegadas al borde derecho) -->
+<div id="notificaciones-fab"
+     class="fixed right-2 sm:right-4 md:right-6 top-24 md:top-28 z-50">
+  <button onclick="toggleNotificaciones()"
+          class="relative h-11 w-11 inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition shadow-glow">
+    🔔
+    <span id="notificaciones-indicador"
+          class="hidden absolute -top-1.5 -right-1.5 bg-brand-red text-black text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+  </button>
+
+  <!-- dropdown anclado a la derecha, ancho seguro en mobile -->
+  <div id="notificaciones-box"
+       class="hidden absolute right-0 mt-2 w-[min(90vw,22rem)] rounded-2xl border border-white/10 bg-black/80 backdrop-blur-sm shadow-glow max-h-[70vh] overflow-y-auto">
+    <div class="px-4 py-3 border-b border-white/10 text-sm font-semibold">Notificaciones</div>
+    <ul id="notificaciones-lista" class="divide-y divide-white/10 text-sm"></ul>
+  </div>
+</div>
+
+
+<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Header -->
+  <div class="flex items-start justify-between gap-4">
+    <div class="reveal" data-reveal="up">
+      <h2 class="text-2xl sm:text-3xl font-extrabold">Hola, {{ request.user.username }}</h2>
+      <p class="text-white/60 mt-1">Este es tu panel: saldos, acciones rápidas y actividad.</p>
+    </div>
+
+    
+  </div>
+
+  <div class="mt-8 grid lg:grid-cols-12 gap-6">
+    <!-- Columna principal -->
+    <div class="lg:col-span-8 space-y-6">
+
+      <!-- Saldos -->
+      <div class="grid sm:grid-cols-3 gap-4" data-stagger>
+        <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5">
+          <p class="text-xs text-white/60">Saldo ARS</p>
+          <p class="mt-1 text-2xl font-extrabold">${{ request.user.saldo_ars }}</p>
+        </div>
+        <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5">
+          <p class="text-xs text-white/60">Saldo USDT</p>
+          <p class="mt-1 text-2xl font-extrabold">{{ request.user.saldo_usdt }}</p>
+        </div>
+        <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5">
+          <p class="text-xs text-white/60">Saldo USD</p>
+          <p class="mt-1 text-2xl font-extrabold">{{ request.user.saldo_usd|default:"0.00" }}</p>
+        </div>
+      </div>
+
+      <!-- Acciones rápidas -->
+      <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5" data-reveal="up">
+        <h3 class="text-lg font-semibold">Acciones rápidas</h3>
+        <div class="mt-4 grid sm:grid-cols-3 lg:grid-cols-3 gap-3">
+          <a href="{% url 'operar' %}"
+   class="rounded-xl bg-primary text-dark font-semibold px-4 py-3 text-sm
+          shadow-soft text-center hover:opacity-90 focus-visible:outline-none
+          focus-visible:ring-2 focus-visible:ring-primary/60">
+  🔁 Comprar / Vender
+</a>
+
+          <a href="{% url 'agregar_saldo' %}" class="rounded-xl border border-white/10 bg-emerald-400/10 text-emerald-300 px-4 py-3 text-sm text-center hover:bg-emerald-400/15">💸 Agregar saldo</a>
+          <a href="{% url 'solicitar_retiro' %}" class="rounded-xl border border-white/10 bg-amber-400/10 text-amber-300 px-4 py-3 text-sm text-center hover:bg-amber-400/15">🏧 Solicitar retiro</a>
+
+          <a href="{% url 'exportar_movimientos_usuario' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-center hover:bg-white/10">📥 Exportar movimientos</a>
+          <a href="{% url 'comprobantes' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-center hover:bg-white/10">🧾 Comprobantes</a>
+          <a href="{% url 'logout' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-center hover:bg-white/10">🚪 Cerrar sesión</a>
+        </div>
+      </div>
+
+      <!-- Notificaciones recientes -->
+      <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5" data-reveal="up">
+        <h3 class="text-lg font-semibold">Notificaciones recientes</h3>
+        <ul class="mt-3 divide-y divide-white/10 text-sm">
+          {% for n in notificaciones %}
+            <li class="py-2 flex items-start gap-2">
+              <span class="mt-1 text-brand-red">●</span>
+              <span>{{ n.fecha|date:"d/m/Y H:i" }} — {{ n.mensaje }}
+                {% if not n.leida %}<strong class="text-brand-red">(nuevo)</strong>{% endif %}</span>
+            </li>
+          {% empty %}
+            <li class="py-4 text-white/60">No hay notificaciones.</li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      <!-- Historial de movimientos -->
+      <div class="reveal" data-reveal="up">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-lg font-semibold">Historial de movimientos</h3>
+          <!-- (Opcional) espacio para filtros -->
+          <!-- <form method="get" class="hidden md:flex items-center gap-2 text-sm">
+            <input name="q" placeholder="Buscar ID o descripción" class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-brand-red">
+            <button class="rounded-lg bg-white/10 px-3 py-2 hover:bg-white/15">Filtrar</button>
+          </form> -->
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
+          <table class="w-full text-xs md:text-sm">
+            <thead class="bg-white/5 text-white/70">
+              <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-left">
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Moneda</th>
+                <th class="text-right">Monto</th>
+                <th class="text-right">Saldo antes</th>
+                <th class="text-right">Saldo después</th>
+                <th>Descripción</th>
+                <th>ID</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-white/10">
+              {% for m in movimientos %}
+                <tr class="hover:bg-white/[.06] transition">
+                  <td class="px-3 py-2 whitespace-nowrap">{{ m.fecha }}</td>
+                  <td class="px-3 py-2">{{ m.get_tipo_display }}</td>
+                  <td class="px-3 py-2">{{ m.moneda }}</td>
+                  <td class="px-3 py-2 text-right">${{ m.monto }}</td>
+                  <td class="px-3 py-2 text-right">${{ m.saldo_antes }}</td>
+                  <td class="px-3 py-2 text-right">${{ m.saldo_despues }}</td>
+                  <td class="px-3 py-2">{{ m.descripcion }}</td>
+                  <td class="px-3 py-2 font-mono text-xs">{{ m.codigo }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="8" class="px-3 py-6 text-center text-white/60">Sin movimientos aún.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="lg:col-span-4 space-y-6">
+
+      <!-- Cotizaciones (sticky) -->
+      <div id="cuadro-cotizaciones"
+           class="reveal sticky top-24 rounded-2xl border border-white/10 bg-[radial-gradient(800px_200px_at_100%_0%,rgba(255,17,41,.18),transparent)] bg-white/5 p-5 text-sm"
+           data-reveal="right">
+        <h4 class="text-center font-semibold text-white">Cotizaciones</h4>
+        <div class="mt-3 grid grid-cols-2 gap-3">
+          <div class="rounded-xl border border-white/10 bg-black/60 p-3">
+            <div class="text-xs text-white/60">USDT</div>
+            <div class="mt-1 flex justify-between"><span>Compra</span><span class="font-semibold">${{ cot_usdt.compra }}</span></div>
+            <div class="mt-1 flex justify-between"><span>Venta</span><span class="font-semibold">${{ cot_usdt.venta }}</span></div>
+          </div>
+          <div class="rounded-xl border border-white/10 bg-black/60 p-3">
+            <div class="text-xs text-white/60">USD</div>
+            <div class="mt-1 flex justify-between"><span>Compra</span><span class="font-semibold">${{ cot_usd.compra }}</span></div>
+            <div class="mt-1 flex justify-between"><span>Venta</span><span class="font-semibold">${{ cot_usd.venta }}</span></div>
+          </div>
+        </div>
+        <p class="mt-3 text-[11px] text-white/50 text-center">Datos de referencia. Pueden variar según volumen y método.</p>
+      </div>
+
+    </aside>
+  </div>
+</section>
+
+<!-- ===== Notificaciones (AJAX) ===== -->
+<script>
+function toggleNotificaciones() {
+  const box = document.getElementById('notificaciones-box');
+  box.classList.toggle('hidden');
+
+  if (!box.classList.contains('hidden')) {
+    fetch('/notificaciones/ajax/')
+      .then(r => r.json())
+      .then(data => {
+        const lista = document.getElementById('notificaciones-lista');
+        lista.innerHTML = '';
+        if (!data.notificaciones || !data.notificaciones.length){
+          lista.innerHTML = '<li class="px-4 py-3 text-white/60">Sin notificaciones.</li>';
+          return;
+        }
+        data.notificaciones.forEach(n => {
+          const li = document.createElement('li');
+          li.className = 'px-4 py-3 hover:bg-white/[.06]';
+          li.textContent = `${n.fecha}: ${n.mensaje}`;
+          lista.appendChild(li);
+        });
+        document.getElementById('notificaciones-indicador').style.display = 'none';
+      });
+  }
+}
+
+function verificarNotificaciones() {
+  fetch('/notificaciones/contar/')
+    .then(r => r.json())
+    .then(data => {
+      const ind = document.getElementById('notificaciones-indicador');
+      if (data.no_leidas > 0) {
+        ind.textContent = data.no_leidas > 9 ? '9+' : data.no_leidas;
+        ind.style.display = 'flex';
+      } else {
+        ind.style.display = 'none';
+      }
+    });
+}
+document.addEventListener('DOMContentLoaded', verificarNotificaciones);
+</script>
+
+<!-- ===== IntersectionObserver para .reveal ===== -->
+<script>
+(function(){
+  const els = document.querySelectorAll('.reveal');
+  const groups = document.querySelectorAll('[data-stagger]');
+  groups.forEach(g=>{
+    Array.from(g.children).forEach((child,i)=>{
+      child.style.transitionDelay = `calc(${getComputedStyle(document.documentElement).getPropertyValue('--reveal-stagger') || '.08s'} * ${i})`;
+    });
+  });
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(({isIntersecting,target})=>{
+      if(isIntersecting){ target.classList.add('show'); io.unobserve(target); }
+    });
+  }, {rootMargin:'0px 0px -10% 0px', threshold:0.08});
+  els.forEach(el=>io.observe(el));
+})();
+</script>
+
+<script>
+  // Cierra el dropdown si clickean fuera
+  document.addEventListener('click', (e) => {
+    const fab = document.getElementById('notificaciones-fab');
+    const box = document.getElementById('notificaciones-box');
+    if (fab && box && !fab.contains(e.target)) {
+      box.classList.add('hidden');
+    }
+  });
+</script>
+
+
+{% endblock %}

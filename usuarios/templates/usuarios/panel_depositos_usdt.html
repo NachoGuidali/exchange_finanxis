@@ -1,0 +1,32 @@
+{% extends 'usuarios/base.html' %}
+
+{% block content %}
+<h2>Depósitos USDT (Admin)</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Usuario</th><th>Monto</th><th>Red</th><th>TXID</th><th>Estado</th><th>Fecha</th><th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for d in depositos %}
+    <tr>
+      <td>{{ d.usuario.username }}</td>
+      <td>{{ d.monto }}</td>
+      <td>{{ d.red }}</td>
+      <td>{{ d.txid }}</td>
+      <td>{{ d.estado }}</td>
+      <td>{{ d.fecha|date:"Y-m-d H:i" }}</td>
+      <td>
+        {% if d.estado == 'pendiente' %}
+          <form method="post" action="{% url 'aprobar_deposito_usdt' d.id %}" style="display:inline">{% csrf_token %}<button>Aprobar</button></form>
+          <form method="post" action="{% url 'rechazar_deposito_usdt' d.id %}" style="display:inline">{% csrf_token %}<button>Rechazar</button></form>
+        {% else %}
+          -
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h2>Historial de {{ usuario.username }}</h2>
+<a href="{% url 'exportar_historial_usuario' usuario.id %}" class="btn">📥 Exportar movimientos de {{ usuario.username }}</a>
+
+<table>
+  <tr>
+    
+    <th>Fecha</th>
+    <th>Tipo</th>
+    <th>Moneda</th>
+    <th>Monto</th>
+    <th>Descripción</th>
+    <th>ID</th>
+  </tr>
+  {% for m in movimientos %}
+    <tr>
+      
+      <td>{{ m.fecha }}</td>
+      <td>{{ m.get_tipo_display }}</td>
+      <td>{{ m.moneda }}</td>
+      <td>{{ m.monto }}</td>
+      <td>{{ m.descripcion }}</td>
+      <td>{{ m.codigo }}</td>
+    </tr>
+  {% endfor %}
+</table>
+
+
+
+
+</body>
+</html>

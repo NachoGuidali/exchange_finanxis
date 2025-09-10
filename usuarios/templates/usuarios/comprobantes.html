@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Comprobantes{% endblock %}
+{% block content %}
+<section class="space-y-4">
+  <h1 class="text-2xl font-semibold">Comprobantes</h1>
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="border-b">
+          <th class="text-left py-2">Fecha</th>
+          <th class="text-left py-2">Número</th>
+          <th class="text-left py-2">Tipo</th>
+          <th class="text-left py-2">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in boletas %}
+        <tr class="border-b">
+          <td class="py-2">{{ b.fecha_emision|date:"d/m/Y H:i" }}</td>
+          <td class="py-2">{{ b.numero }}</td>
+          <td class="py-2">{{ b.get_tipo_display }}</td>
+          <td class="py-2 space-x-2">
+            <a class="text-brand-600" href="{% url 'verificar_boleto' b.numero %}" target="_blank">Ver</a>
+            <a class="text-brand-600" href="{% url 'descargar_boleto' b.numero %}">Descargar PDF</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td class="py-4 text-ink-500" colspan="4">No hay comprobantes aún.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
