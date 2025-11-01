@@ -1,30 +1,97 @@
 {% load static %}
 
-<header class="border-b border-white/10 bg-black/50 backdrop-blur supports-[backdrop-filter]:bg-black/40">
+<header class="border-b border-white/10 bg-black/80 backdrop-blur supports-[backdrop-filter]:bg-black/80">
   <nav class="container flex h-16 items-center justify-between gap-4">
+    <!-- Logo -->
     <a href="{% url 'dashboard' %}" class="group inline-flex items-center gap-3">
       <img src="{% static 'img/logo.png' %}" alt="Finanxis" class="h-10 w-auto">
-      
     </a>
 
+    <!-- Mobile toggle -->
     <button class="lg:hidden rounded-md border border-white/10 p-2 text-white/80" data-mobile-toggle aria-label="Toggle menu">
       <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
     </button>
 
+    <!-- Links desktop -->
     <ul class="hidden items-center gap-6 lg:flex">
-      <li><a href="{% url 'dashboard' %}" class="text-white/70 hover:text-white transition">Dashboard</a></li>
-      <li><a href="{% url 'operar' %}" class="text-white/70 hover:text-white transition">Operar</a></li>
+      <li><a href="{% url 'dashboard' %}" class="text-white/90 hover:text-white transition">Dashboard</a></li>
+      <a href="{% url 'operar' %}" class="text-white/90 hover:text-white transition">Operar</a></li>
+      
       {% if request.user.is_staff or request.user.is_superuser %}
-      <li><a href="{% url 'panel_admin' %}" class="text-white/70 hover:text-white transition">Admin</a></li>
+        <li><a href="{% url 'panel_admin' %}" class="text-white/90 hover:text-white transition">Admin</a></li>
       {% endif %}
     </ul>
 
+    <!-- Acciones / Perfil -->
     <div class="hidden items-center gap-2 lg:flex">
       {% if request.user.is_authenticated %}
-        <form method="post" action="{% url 'logout' %}" class="inline">
-          {% csrf_token %}
-          <button type="submit" class="rounded-md px-3 py-2 text-sm text-white/80 hover:text-white">Cerrar sesión</button>
-        </form>
+        <!-- Dropdown Perfil -->
+        <div class="relative" id="perfil-dropdown">
+          <button
+            id="perfil-toggle"
+            class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            aria-haspopup="menu" aria-expanded="false">
+            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[11px] font-bold text-gray-700">
+              {{ request.user.username|slice:":1"|upper }}
+            </span>
+            <span class="hidden sm:inline">Perfil</span>
+            <svg class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.7a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"/></svg>
+          </button>
+
+          <!-- Menu -->
+          <div
+            id="perfil-menu"
+            class="invisible opacity-0 pointer-events-none absolute right-0 mt-2 w-64 rounded-2xl border border-gray-200 bg-white shadow-lg transition duration-150"
+            role="menu" aria-labelledby="perfil-toggle">
+            <!-- Header usuario -->
+            <div class="px-4 py-3 border-b border-gray-200">
+              <div class="text-sm font-semibold text-gray-900">{{ request.user.username }}</div>
+              <div class="text-xs text-gray-600 truncate">{{ request.user.email }}</div>
+              <div class="mt-1 text-[11px] text-gray-500">
+                {% if request.user.estado_verificacion == 'aprobado' %}✅ Cuenta verificada
+                {% elif request.user.estado_verificacion == 'pendiente' %}⌛ Verificación pendiente
+                {% else %}⚠️ Verificación requerida{% endif %}
+              </div>
+            </div>
+
+            <!-- Acciones -->
+            <div class="p-2">
+              <a href="{% url 'operar' %}" class="flex items-center gap-2 rounded-lg bg-primary/10 text-gray-900 px-3 py-2 hover:bg-primary/15">
+                🔁 <span class="text-sm font-medium">Operar</span>
+              </a>
+              <a href="{% url 'agregar_saldo' %}" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
+                💸 <span class="text-sm">Ingresar saldo</span>
+              </a>
+              <a href="{% url 'solicitar_retiro' %}" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
+                🏧 <span class="text-sm">Retirar</span>
+              </a>
+
+              <div class="my-2 border-t border-gray-200"></div>
+
+              <a href="{% url 'configuracion' %}?tab=perfil" class="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
+                👤 <span class="text-sm">Mi perfil</span>
+              </a>
+              <a href="{% url 'configuracion' %}?tab=seguridad" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
+                🔒 <span class="text-sm">Seguridad</span>
+              </a>
+              <a href="{% url 'configuracion' %}" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
+                ⚙️ <span class="text-sm">Configuración</span>
+              </a>
+              <a href="{% url 'comprobantes' %}" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
+                🧾 <span class="text-sm">Comprobantes</span>
+              </a>
+
+              <div class="my-2 border-t border-gray-200"></div>
+
+              <form method="post" action="{% url 'logout' %}" class="mt-1">
+                {% csrf_token %}
+                <button type="submit" class="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
+                  🚪 <span class="text-sm">Cerrar sesión</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
       {% else %}
         <a href="{% url 'login' %}" class="rounded-md px-3 py-2 text-sm text-white/80 hover:text-white">Iniciar sesión</a>
         <a href="{% url 'registro' %}" class="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-black hover:bg-[#e60f25] shadow-soft">Crear cuenta</a>
@@ -32,14 +99,23 @@
     </div>
   </nav>
 
+  <!-- Mobile menu -->
   <div class="container lg:hidden">
     <ul class="hidden flex-col gap-4 py-4" data-mobile-menu>
       <li><a href="{% url 'dashboard' %}" class="block text-white/90">Dashboard</a></li>
-      <li><a href="{% url 'operar' %}" class="block text-white/90">Operar</a></li>
       {% if request.user.is_staff or request.user.is_superuser %}
         <li><a href="{% url 'panel_admin' %}" class="block text-white/90">Admin</a></li>
       {% endif %}
+
       {% if request.user.is_authenticated %}
+        <li class="mt-2 text-white/60 text-xs uppercase tracking-wide">Perfil</li>
+        <li><a href="{% url 'operar' %}" class="block text-white/90">🔁 Operar</a></li>
+        <li><a href="{% url 'agregar_saldo' %}" class="block text-white/90">💸 Ingresar saldo</a></li>
+        <li><a href="{% url 'solicitar_retiro' %}" class="block text-white/90">🏧 Retirar</a></li>
+        <li><a href="#" class="block text-white/90">👤 Mi perfil</a></li>
+        <li><a href="#" class="block text-white/90">🔒 Seguridad</a></li>
+        <li><a href="#" class="block text-white/90">⚙️ Configuración</a></li>
+        <li><a href="{% url 'comprobantes' %}" class="block text-white/90">🧾 Comprobantes</a></li>
         <li>
           <form method="post" action="{% url 'logout' %}" class="inline">
             {% csrf_token %}

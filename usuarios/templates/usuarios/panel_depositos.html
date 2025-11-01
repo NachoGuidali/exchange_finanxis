@@ -1,40 +1,120 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    <h2>Solicitudes de Depósito</h2>
+{% extends "base.html" %}
+{% block title %}Depósitos ARS — Admin{% endblock %}
 
-<table>
-  <tr>
-    <th>Usuario</th>
-    <th>Monto</th>
-    <th>Comprobante</th>
-    <th>Estado</th>
-    <th>Acción</th>
-  </tr>
-  {% for d in depositos %}
-  <tr>
-    <td>{{ d.usuario.username }}</td>
-    <td>${{ d.monto }}</td>
-    <td>
-      {% if d.comprobante %}
-        <img src="{{ d.comprobante.url }}" width="100">
-      {% endif %}
-    </td>
-    <td>{{ d.estado }}</td>
-    <td>
-      {% if d.estado == 'pendiente' %}
-        <a href="{% url 'aprobar_deposito' d.id %}">Aprobar</a>
-        <a href="{% url 'rechazar_deposito' d.id %}">Rechazar</a>
-      {% endif %}
-    </td>
-  </tr>
-  {% endfor %}
-</table>
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 py-8">
+  <header class="mb-6 flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold">Solicitudes de depósito (ARS)</h1>
+      <p class="text-white/70">Revisá y aprobá/rechazá los depósitos con comprobante.</p>
+    </div>
+    <a href="{% url 'panel_admin' %}" class="rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5">← Volver al panel</a>
+  </header>
 
-</body>
-</html>
+  <div class="overflow-x-auto card p-0">
+    <table class="w-full text-sm">
+      <thead class="bg-white/5 text-primary">
+        <tr>
+          <th class="px-3 py-2 text-left">Usuario</th>
+          <th class="px-3 py-2 text-left">Monto</th>
+          <th class="px-3 py-2 text-left">Comprobante</th>
+          <th class="px-3 py-2 text-left">Estado</th>
+          <th class="px-3 py-2 text-left">Fecha</th>
+          <th class="px-3 py-2 text-left">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in depositos %}
+        <tr class="hover:bg-white/5">
+          <td class="px-3 py-2">
+            <a href="{% url 'admin_usuario_perfil' d.usuario.id %}" class="text-primary hover:underline">{{ d.usuario.username }}</a>
+          </td>
+          <td class="px-3 py-2">${{ d.monto }}</td>
+          <td class="px-3 py-2">
+            {% if d.comprobante %}
+              <div class="flex items-center gap-3">
+                <button type="button"
+                        class="thumb-btn underline text-white/80 hover:text-primary"
+                        data-img="{{ d.comprobante.url }}">
+                  Ver
+                </button>
+                <a href="{{ d.comprobante.url }}" download
+                   class="text-white/60 hover:text-white underline underline-offset-2">
+                  Descargar
+                </a>
+              </div>
+            {% else %}
+              <span class="text-white/40">—</span>
+            {% endif %}
+          </td>
+          <td class="px-3 py-2">
+            <span class="rounded-full px-2 py-1 text-xs
+              {% if d.estado == 'pendiente' %} bg-yellow-500/20 text-yellow-300
+              {% elif d.estado == 'aprobado' %} bg-emerald-500/20 text-emerald-300
+              {% else %} bg-rose-500/20 text-rose-300 {% endif %}">
+              {{ d.estado|capfirst }}
+            </span>
+          </td>
+          <td class="px-3 py-2">{{ d.fecha_subida|date:"d/m/Y H:i" }}</td>
+          <td class="px-3 py-2">
+            {% if d.estado == 'pendiente' %}
+            <div class="flex gap-2">
+              <form method="post" action="{% url 'aprobar_deposito' d.id %}">{% csrf_token %}
+                <button class="rounded-md bg-primary text-black px-3 py-1 font-semibold">Aprobar</button>
+              </form>
+              <form method="post" action="{% url 'rechazar_deposito' d.id %}">{% csrf_token %}
+                <button class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5">Rechazar</button>
+              </form>
+            </div>
+            {% else %}
+              <span class="text-white/60">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="px-3 py-6 text-center text-white/60">No hay depósitos.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Lightbox simple -->
+<script>
+(function(){
+  const overlay = document.createElement('div');
+  overlay.className = 'fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4';
+  overlay.innerHTML = `
+    <div class="max-w-3xl w-full">
+      <div class="relative card p-2">
+        <button type="button" aria-label="Cerrar"
+                class="absolute -top-3 -right-3 rounded-full bg-primary text-black font-bold h-8 w-8">×</button>
+        <img id="lb-img" src="" class="w-full rounded-lg" alt="Comprobante">
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const img   = overlay.querySelector('#lb-img');
+  const close = overlay.querySelector('button');
+
+  function openLightbox(src){
+    // pre-carga
+    const pre = new Image();
+    pre.onload = () => { img.src = src; overlay.classList.remove('hidden'); };
+    pre.onerror = () => { img.src = src; overlay.classList.remove('hidden'); };
+    pre.src = src;
+  }
+  function closeLightbox(){ overlay.classList.add('hidden'); img.src = ''; }
+
+  close.addEventListener('click', closeLightbox);
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) closeLightbox(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeLightbox(); });
+
+  document.querySelectorAll('.thumb-btn').forEach(b=>{
+    b.addEventListener('click', ()=> openLightbox(b.dataset.img));
+  });
+})();
+</script>
+{% endblock %}

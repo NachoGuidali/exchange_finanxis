@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Mis movimientos — Finanxis{% endblock %}
+{% block meta_description %}Consulta y exportá tus movimientos con filtros por fecha, tipo y moneda.{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+  <!-- Header -->
+  <header class="rounded-2xl border border-gray-200 bg-white p-5 lg:p-6 shadow-soft">
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Mis movimientos</h1>
+        <p class="text-gray-600 mt-1">Filtrá por fecha, tipo, moneda o buscá por descripción / ID. Exportá el resultado.</p>
+      </div>
+      <div class="flex gap-2">
+        <!-- Exporta la vista actual con filtros -->
+        <a href="?{{ request.GET.urlencode }}"
+           class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50">↻ Actualizar</a>
+        <a href="{% url 'mis_movimientos' %}"
+           class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50">✖ Limpiar</a>
+        <a href="{% url 'movimientos_exportar' %}?{{ request.GET.urlencode }}"
+           class="rounded-xl bg-primary text-dark px-4 py-2 text-sm font-semibold shadow-soft hover:opacity-90">📥 Exportar CSV</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Filtros -->
+  <form method="get" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <label class="block">
+        <span class="text-xs text-gray-600">Desde</span>
+        <input type="date" name="desde" value="{{ params.desde|default:'' }}"
+               class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
+      </label>
+      <label class="block">
+        <span class="text-xs text-gray-600">Hasta</span>
+        <input type="date" name="hasta" value="{{ params.hasta|default:'' }}"
+               class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
+      </label>
+      <label class="block">
+        <span class="text-xs text-gray-600">Tipo</span>
+        <select name="tipo"
+                class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
+          <option value="">Todos</option>
+          <option value="compra"   {% if params.tipo == 'compra' %}selected{% endif %}>Compra</option>
+          <option value="venta"    {% if params.tipo == 'venta' %}selected{% endif %}>Venta</option>
+          <option value="swap"     {% if params.tipo == 'swap' %}selected{% endif %}>Swap</option>
+          <option value="deposito" {% if params.tipo == 'deposito' %}selected{% endif %}>Depósito</option>
+          <option value="retiro"   {% if params.tipo == 'retiro' %}selected{% endif %}>Retiro</option>
+          <option value="ajuste"   {% if params.tipo == 'ajuste' %}selected{% endif %}>Ajuste</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="text-xs text-gray-600">Moneda</span>
+        <select name="moneda"
+                class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
+          <option value="">Todas</option>
+          <option value="ARS"  {% if params.moneda == 'ARS'  %}selected{% endif %}>ARS</option>
+          <option value="USDT" {% if params.moneda == 'USDT' %}selected{% endif %}>USDT</option>
+          <option value="USD"  {% if params.moneda == 'USD'  %}selected{% endif %}>USD</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="text-xs text-gray-600">Orden</span>
+        <select name="orden"
+                class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
+          <option value="-fecha" {% if params.orden == '-fecha' %}selected{% endif %}>Fecha ↓</option>
+          <option value="fecha"  {% if params.orden == 'fecha'  %}selected{% endif %}>Fecha ↑</option>
+          <option value="-monto" {% if params.orden == '-monto' %}selected{% endif %}>Monto ↓</option>
+          <option value="monto"  {% if params.orden == 'monto'  %}selected{% endif %}>Monto ↑</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="text-xs text-gray-600">Por página</span>
+        <select name="por_pagina"
+                class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
+          {% for n in por_pagina_opts %}
+            <option value="{{ n }}" {% if params.por_pagina == n %}selected{% endif %}>{{ n }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <div class="mt-3 grid gap-3 sm:grid-cols-3">
+      <label class="block sm:col-span-2">
+        <span class="text-xs text-gray-600">Buscar</span>
+        <input type="text" name="q" value="{{ params.q|default:'' }}" placeholder="Descripción o ID…"
+               class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
+      </label>
+      <div class="flex items-end gap-2">
+        <button class="w-full rounded-xl bg-primary text-dark font-semibold px-4 py-2 shadow-soft hover:opacity-90">Aplicar</button>
+        <a href="{% url 'mis_movimientos' %}" class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-center hover:bg-gray-50">Limpiar</a>
+      </div>
+    </div>
+  </form>
+
+  <!-- Totales por moneda -->
+  <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+    <h2 class="text-lg font-semibold text-gray-900">Totales por moneda (según filtros)</h2>
+    <div class="mt-3 overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-600">
+          <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-left">
+            <th>Moneda</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          {% for t in totales %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-3 py-2 text-gray-800">{{ t.moneda }}</td>
+            <td class="px-3 py-2 text-right text-gray-900">
+              {% if t.moneda == 'USDT' %}{{ t.total|floatformat:6 }}{% else %}${{ t.total|floatformat:2 }}{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="2" class="px-3 py-4 text-center text-gray-500">Sin resultados.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="mt-2 text-[11px] text-gray-500">Los totales reflejan el resultado del listado filtrado.</p>
+  </section>
+
+  <!-- Tabla de movimientos -->
+  <section class="rounded-2xl border border-gray-200 bg-white p-0 shadow-card overflow-x-auto">
+    <table class="w-full text-xs md:text-sm">
+      <thead class="bg-gray-50 text-gray-600">
+        <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-left">
+          <th>Fecha</th>
+          <th>Tipo</th>
+          <th>Moneda</th>
+          <th class="text-right">Monto</th>
+          <th class="text-right">Saldo antes</th>
+          <th class="text-right">Saldo después</th>
+          <th>Descripción</th>
+          <th>ID</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        {% for m in page_obj %}
+        <tr class="hover:bg-gray-50 transition">
+          <td class="px-3 py-2 whitespace-nowrap text-gray-700">{{ m.fecha }}</td>
+          <td class="px-3 py-2 text-gray-700">{{ m.get_tipo_display }}</td>
+          <td class="px-3 py-2 text-gray-700">{{ m.moneda }}</td>
+          <td class="px-3 py-2 text-right text-gray-900">
+            {% if m.moneda == 'USDT' %}{{ m.monto }}{% else %}${{ m.monto }}{% endif %}
+          </td>
+          <td class="px-3 py-2 text-right text-gray-900">
+            {% if m.moneda == 'USDT' %}{{ m.saldo_antes }}{% else %}${{ m.saldo_antes }}{% endif %}
+          </td>
+          <td class="px-3 py-2 text-right text-gray-900">
+            {% if m.moneda == 'USDT' %}{{ m.saldo_despues }}{% else %}${{ m.saldo_despues }}{% endif %}
+          </td>
+          <td class="px-3 py-2 text-gray-700">{{ m.descripcion }}</td>
+          <td class="px-3 py-2 font-mono text-[11px] text-gray-600">{{ m.codigo }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="px-3 py-6 text-center text-gray-500">Sin movimientos para los filtros seleccionados.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Paginación -->
+  {% if page_obj.paginator.num_pages > 1 %}
+  <nav class="flex items-center justify-between text-sm">
+    <span class="text-gray-600">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    <div class="flex gap-2">
+      {% if page_obj.has_previous %}
+        <a class="rounded-lg border border-gray-300 px-3 py-1 hover:bg-gray-50"
+           href="?page=1&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">« Primera</a>
+        <a class="rounded-lg border border-gray-300 px-3 py-1 hover:bg-gray-50"
+           href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">‹ Anterior</a>
+      {% endif %}
+      {% if page_obj.has_next %}
+        <a class="rounded-lg border border-gray-300 px-3 py-1 hover:bg-gray-50"
+           href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">Siguiente ›</a>
+        <a class="rounded-lg border border-gray-300 px-3 py-1 hover:bg-gray-50"
+           href="?page={{ page_obj.paginator.num_pages }}&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">Última »</a>
+      {% endif %}
+    </div>
+  </nav>
+  {% endif %}
+
+</section>
+{% endblock %}

@@ -253,8 +253,8 @@
             <h3 class="text-2xl font-extrabold">Protegé tus ahorros, pasalos a USDT/USD</h3>
             <p class="mt-2 text-white/70">No dejes que la inflación se coma tu dinero. Convertí tus pesos en dólares digitales de forma fácil, rápida y segura.</p>
             <div class="mt-6 flex gap-3">
-              <a href="#" class="inline-flex h-11 items-center rounded-xl bg-brand-red px-6 text-sm font-semibold text-black shadow-glow hover:opacity-90">Comenzar</a>
-              <a href="#" class="inline-flex h-11 items-center rounded-xl border border-white/10 px-6 text-sm font-semibold hover:bg-white/10">Documentación</a>
+              <a href="{% url 'login' %}" class="inline-flex h-11 items-center rounded-xl bg-brand-red px-6 text-sm font-semibold text-black shadow-glow hover:opacity-90">Comenzar</a>
+              <!-- <a href="#" class="inline-flex h-11 items-center rounded-xl border border-white/10 px-6 text-sm font-semibold hover:bg-white/10">Documentación</a> -->
             </div>
           </div>
           <div class="flex-1 w-full" data-stagger>
@@ -345,22 +345,38 @@
     </section>
   </main>
 
-  <!-- Footer -->
-  <footer class="border-t border-white/10 bg-black/70">
-    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
-      <div class="flex flex-col sm:flex-row items-center justify-between gap-6 reveal" data-reveal="up">
-        <div class="flex items-center gap-3">
-          <div class="h-12 w-12 "><img src="{% static 'img/logo_solo.png' %}" alt="Finanxis" width="200" height="50"></div>
-          <div class="text-sm text-white/60">© <span class="font-semibold text-white">FINANXIS</span> — Todos los derechos reservados.</div>
-        </div>
-        <nav class="flex items-center gap-6 text-sm text-white/70">
-          <a href="#" class="hover:text-white">Términos</a>
-          <a href="#" class="hover:text-white">Privacidad</a>
-          <a href="#" class="hover:text-white">Soporte</a>
-        </nav>
+<footer class="bottom-0 border-t border-white/10 bg-black/80 backdrop-blur">
+  <div class="container mx-auto px-4">
+    <div class="grid gap-4 py-6 sm:grid-cols-3 sm:items-center">
+      
+      <!-- Izquierda: © -->
+      <div class="order-2 sm:order-1 text-center sm:text-left">
+        <p class="text-sm text-white/60">
+          © {{ now|date:'Y' }} Finanxis. Todos los derechos reservados.
+        </p>
       </div>
+
+      <!-- Centro: Disclaimer obligatorio -->
+      <div class="order-1 sm:order-2">
+        <p class="text-[11px] leading-snug text-white/80 text-center">
+          Ariel Jesús Vandoni - Proveedor de Servicios de Activos Virtuales (PSAV) inscripto bajo el N°13 de la fecha 25 de marzo de 2025 del Registro PSAV – Personas Humanas, en el Registro de Proveedores de Servicios de Activos Virtuales de CNV. 
+          <span class="block sm:inline"></span>
+          Este registro es a los fines del control como Sujeto Obligado ante la Unidad de Información Financiera (UIF) y de todo otro ente regulador facultado a tal efecto, en el marco de sus competencias, y no implica licencia ni supervisión por parte de la COMISIÓN NACIONAL DE VALORES sobre la actividad realizada por el PSAV.
+        </p>
+      </div>
+
+      <!-- Derecha: navegación -->
+      <nav class="order-3 sm:order-3 text-center sm:text-right text-sm text-white/70">
+        <a href="{% url 'operar' %}" class="hover:text-white transition">Operar</a>
+        <span class="mx-3 text-white/20 hidden sm:inline">•</span>
+        <a href="{% url 'dashboard' %}" class="hover:text-white transition">Dashboard</a>
+        <span class="mx-3 text-white/20 hidden sm:inline">•</span>
+        <a href="{% url 'soporte' %}" class="hover:text-white transition">Soporte</a>
+      </nav>
+
     </div>
-  </footer>
+  </div>
+</footer>
 
   <!-- ===================== Script: IntersectionObserver ===================== -->
   <script>

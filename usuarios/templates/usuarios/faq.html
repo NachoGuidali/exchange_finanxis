@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}Preguntas frecuentes — Finanxis{% endblock %}
+{% block meta_description %}Respuestas a las preguntas más comunes sobre Finanxis: compras, ventas, swap, verificación, seguridad, depósitos y retiros.{% endblock %}
+
+{% block content %}
+<section class="container max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <!-- Header -->
+  <header class="mb-6">
+    <h1 class="text-3xl font-extrabold text-gray-900">Preguntas frecuentes</h1>
+    <p class="text-gray-600 mt-1">Encontrá respuestas rápidas. Si no ves lo que buscás, escribinos desde <a href="{% url 'soporte' %}" class="text-primary underline">Soporte</a>.</p>
+  </header>
+
+  <!-- Buscador -->
+  <div class="rounded-2xl border border-gray-200 bg-white p-4 mb-6">
+    <div class="flex flex-col sm:flex-row gap-3 items-center">
+      <div class="relative flex-1">
+        <input id="faq-search" type="search" placeholder="Buscar: depósitos, 2FA, swap, comisiones…"
+               class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 pr-10 focus:border-primary focus:ring-0" />
+        <span class="absolute right-3 top-2.5 text-gray-400">⌕</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="faq-expand" class="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-100">Expandir todo</button>
+        <button id="faq-collapse" class="rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm hover:bg-gray-100">Colapsar todo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bloques de FAQs -->
+  <div id="faq-list" class="space-y-6">
+
+    <!-- Cuenta y seguridad -->
+    <section class="rounded-2xl border border-gray-200 bg-white">
+      <header class="flex items-center justify-between p-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Cuenta y seguridad</h2>
+      </header>
+      <div class="p-4">
+        <details class="group border-b border-gray-200 py-3" id="faq-2fa">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿Cómo activo el doble factor (2FA)?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            Andá a <b>Configuración → Seguridad</b> y activá 2FA. Recomendamos usar una app TOTP (Authy, Google Authenticator).
+          </p>
+        </details>
+        <details class="group border-b border-gray-200 py-3" id="faq-kyc">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿Por qué debo verificar mi identidad (KYC)?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            Es necesario para cumplir normas y habilitar límites mayores. Ingresá en <b>Perfil</b> y completá los pasos.
+          </p>
+        </details>
+        <details class="group py-3" id="faq-pass">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            Olvidé mi contraseña, ¿qué hago?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            Usá la opción <b>“Olvidé mi contraseña”</b> en el inicio de sesión. Si ya iniciás, podés cambiarla en <b>Configuración → Seguridad</b>.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <!-- Operar y cotizaciones -->
+    <section class="rounded-2xl border border-gray-200 bg-white">
+      <header class="flex items-center justify-between p-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Operar y cotizaciones</h2>
+      </header>
+      <div class="p-4">
+        <details class="group border-b border-gray-200 py-3" id="faq-comprar">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿Cómo compro USDT o USD?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            Entrá en <b>Operar → Comprar</b>, elegí la moneda y el monto en ARS. Confirmá y se descuenta del saldo ARS.
+          </p>
+        </details>
+        <details class="group border-b border-gray-200 py-3" id="faq-vender">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿Cómo vendo y retiro a ARS?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            En <b>Operar → Vender</b> ingresás el monto de USDT/USD a vender. El ARS acreditado queda disponible para retiro.
+          </p>
+        </details>
+        <details class="group py-3" id="faq-swap">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿Qué es el swap USD ⇄ USDT y qué comisión tiene?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            El <b>swap</b> convierte entre USD y USDT a una tasa base y una comisión expresada en bps (basis points).
+            El monto destino se acredita <b>neto</b> de comisión.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <!-- Depósitos y retiros -->
+    <section class="rounded-2xl border border-gray-200 bg-white">
+      <header class="flex items-center justify-between p-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Depósitos y retiros</h2>
+      </header>
+      <div class="p-4">
+        <details class="group border-b border-gray-200 py-3" id="faq-depositos">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿Cómo hago un depósito?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            En <b>Agregar saldo</b> verás métodos disponibles. Subí el comprobante si corresponde para acreditación más rápida.
+          </p>
+        </details>
+        <details class="group py-3" id="faq-retiros">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿En cuánto tiempo se acredita un retiro?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            Varía según el método y horario. Generalmente dentro del mismo día hábil. Te notificamos cualquier novedad.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <!-- Sucursales y efectivo -->
+    <section class="rounded-2xl border border-gray-200 bg-white">
+      <header class="flex items-center justify-between p-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Sucursales y efectivo</h2>
+      </header>
+      <div class="p-4">
+        <details class="group border-b border-gray-200 py-3" id="faq-efectivo">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿Puedo convertir a efectivo en sucursales?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            Sí. Generá un código desde tu cuenta y retirá en las sucursales habilitadas en el horario indicado.
+          </p>
+        </details>
+      </div>
+    </section>
+
+    <!-- Comprobantes e impuestos -->
+    <section class="rounded-2xl border border-gray-200 bg-white">
+      <header class="flex items-center justify-between p-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Comprobantes e impuestos</h2>
+      </header>
+      <div class="p-4">
+        <details class="group border-b border-gray-200 py-3" id="faq-comprobantes">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿Dónde veo mis comprobantes?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            En <b>Comprobantes</b> podés ver y descargar el PDF. También validarlos desde “Verificación de comprobante”.
+          </p>
+        </details>
+        <details class="group py-3" id="faq-impuestos">
+          <summary class="flex cursor-pointer items-center justify-between font-medium text-gray-900">
+            ¿Cómo tributan mis operaciones?
+            <span class="transition group-open:rotate-180">⌄</span>
+          </summary>
+          <p class="mt-2 text-sm text-gray-700">
+            Depende de tu situación fiscal. Recomendamos consultar a tu asesor impositivo. Podés exportar movimientos desde tu panel.
+          </p>
+        </details>
+      </div>
+    </section>
+  </div>
+
+  <!-- CTA Soporte -->
+  <div class="mt-8 flex items-center justify-center">
+    <a href="{% url 'soporte' %}"
+       class="rounded-xl bg-primary text-dark font-semibold px-6 py-3 text-sm shadow-soft hover:opacity-90">
+      ¿No encontraste lo que buscás? Contactar Soporte
+    </a>
+  </div>
+</section>
+
+<script>
+(function(){
+  const q = document.getElementById('faq-search');
+  const list = document.getElementById('faq-list');
+  const expand = document.getElementById('faq-expand');
+  const collapse = document.getElementById('faq-collapse');
+  const allDetails = () => list.querySelectorAll('details');
+
+  // Filtro por texto
+  q && q.addEventListener('input', () => {
+    const term = q.value.trim().toLowerCase();
+    allDetails().forEach(d => {
+      const txt = d.textContent.toLowerCase();
+      const match = txt.includes(term);
+      d.parentElement.classList.toggle('hidden', !match); // oculta fila si no hay match
+      if (term && match) d.open = true;
+      if (!term) d.open = false;
+    });
+  });
+
+  // Expandir/colapsar todo
+  expand.addEventListener('click', () => allDetails().forEach(d => d.open = true));
+  collapse.addEventListener('click', () => allDetails().forEach(d => d.open = false));
+
+  // Deep link (ej: /faq/#faq-2fa)
+  if (location.hash) {
+    const target = document.querySelector(location.hash);
+    if (target && target.tagName.toLowerCase() === 'details') target.open = true;
+    target && target.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+})();
+</script>
+{% endblock %}

@@ -1,265 +1,406 @@
 {% extends "base.html" %}
 {% block title %}Dashboard — Finanxis{% endblock %}
-{% block meta_description %}Resumen de tu cartera, saldos y actividad reciente.{% endblock %}
+{% block meta_description %}Panel de trading con saldos, PnL, composición de cartera, cotizaciones y actividad reciente.{% endblock %}
 
 {% block content %}
+<script>document.documentElement.classList.add('js');</script>
 
-<!-- ===== Animaciones on-scroll (mismo sistema que Home) ===== -->
 <style>
-  :root{
-    --reveal-distance: 26px;
-    --reveal-duration: .70s;
-    --reveal-ease: cubic-bezier(.21,.67,.15,.99);
-    --reveal-stagger: .08s;
+  /* Fallback: visible por defecto si JS no carga */
+  .reveal{opacity:1; transform:none}
+
+  /* Solo si hay JS, aplicamos la animación */
+  .js .reveal{
+    opacity:0;
+    transform:translateY(22px);
+    transition:opacity .6s cubic-bezier(.21,.67,.15,.99), transform .6s cubic-bezier(.21,.67,.15,.99);
   }
-  .reveal{
-    opacity:0; transform:translateY(var(--reveal-distance));
-    transition:opacity var(--reveal-duration) var(--reveal-ease),
-               transform var(--reveal-duration) var(--reveal-ease),
-               scale var(--reveal-duration) var(--reveal-ease);
-    will-change:opacity,transform;
-  }
-  .reveal[data-reveal="right"]{ transform:translateX(var(--reveal-distance)); }
-  .reveal[data-reveal="left"]{ transform:translateX(calc(var(--reveal-distance) * -1)); }
-  .reveal[data-reveal="zoom"]{ transform:translateY(0) scale(.96); }
-  .reveal.show{ opacity:1; transform:none; }
+  .js .reveal.show{opacity:1; transform:none}
 </style>
 
-<!-- 🔔 Notificaciones flotantes (pegadas al borde derecho) -->
-<div id="notificaciones-fab"
-     class="fixed right-2 sm:right-4 md:right-6 top-24 md:top-28 z-50">
-  <button onclick="toggleNotificaciones()"
-          class="relative h-11 w-11 inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition shadow-glow">
-    🔔
-    <span id="notificaciones-indicador"
-          class="hidden absolute -top-1.5 -right-1.5 bg-brand-red text-black text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
+<!-- 🔔 Notificaciones (flotante) -->
+<div id="notiFab" class="fixed right-2 sm:right-4 top-24 z-40">
+  <button id="btnNotif" class="relative h-11 w-11 rounded-xl border border-gray-200 bg-white shadow-card hover:bg-gray-50">🔔
+    <span id="badgeNotif" class="hidden absolute -top-1.5 -right-1.5 bg-primary text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
   </button>
-
-  <!-- dropdown anclado a la derecha, ancho seguro en mobile -->
-  <div id="notificaciones-box"
-       class="hidden absolute right-0 mt-2 w-[min(90vw,22rem)] rounded-2xl border border-white/10 bg-black/80 backdrop-blur-sm shadow-glow max-h-[70vh] overflow-y-auto">
-    <div class="px-4 py-3 border-b border-white/10 text-sm font-semibold">Notificaciones</div>
-    <ul id="notificaciones-lista" class="divide-y divide-white/10 text-sm"></ul>
+  <div id="boxNotif" class="hidden mt-2 w-[min(90vw,22rem)] rounded-2xl border border-gray-200 bg-white shadow-lg max-h-[70vh] overflow-y-auto">
+    <div class="px-4 py-3 border-b border-gray-200 text-sm font-semibold">Notificaciones</div>
+    <ul id="listNotif" class="divide-y divide-gray-100 text-sm"></ul>
   </div>
 </div>
 
+<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+  <!-- ===== Encabezado / Estado de cuenta / CTA ===== -->
+  <header class="reveal">
+    <div class="rounded-2xl border border-gray-200 bg-white p-5 lg:p-6 shadow-soft">
+      <div class="grid gap-4 lg:grid-cols-12">
+        <div class="lg:col-span-7">
+          <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Hola, {{ request.user.username }}</h1>
+          <p class="text-gray-600 mt-1">Seguimiento de tu cartera y accesos rápidos para operar.</p>
 
-  <!-- Header -->
-  <div class="flex items-start justify-between gap-4">
-    <div class="reveal" data-reveal="up">
-      <h2 class="text-2xl sm:text-3xl font-extrabold">Hola, {{ request.user.username }}</h2>
-      <p class="text-white/60 mt-1">Este es tu panel: saldos, acciones rápidas y actividad.</p>
+          <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+            <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
+              {% if request.user.estado_verificacion == 'aprobado' %}✅ KYC verificado{% elif request.user.estado_verificacion == 'pendiente' %}⌛ KYC pendiente{% else %}⚠️ KYC requerido{% endif %}
+            </span>
+            <!-- <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
+              {% if request.user.has_2fa %}🔒 2FA activo{% else %}🔓 Activá 2FA{% endif %}
+            </span> -->
+            <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">🧑‍💼 Soporte 24/7</span>
+            <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">🏪 Retiros en sucursales</span>
+          </div>
+        </div>
+
+        <!-- Acciones clave -->
+        <div class="lg:col-span-5 flex flex-col sm:flex-row lg:flex-col gap-3">
+          <a href="{% url 'operar' %}" class="flex-1 inline-flex items-center justify-center rounded-xl bg-primary text-dark font-semibold px-5 py-3 text-sm shadow-soft hover:opacity-90">🚀 Nueva operación</a>
+          <div class="flex gap-3">
+            <a href="{% url 'agregar_saldo' %}" class="flex-1 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-3 text-sm text-center hover:bg-emerald-100">💸 Ingresar</a>
+            <a href="{% url 'solicitar_retiro' %}" class="flex-1 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 px-4 py-3 text-sm text-center hover:bg-amber-100">🏧 Retirar</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== Cabecera de trading: Saldos + Ticker + Atajos ===== -->
+  <section class="reveal grid gap-6 lg:grid-cols-12">
+    <!-- Saldos -->
+    <div class="lg:col-span-5 rounded-2xl border border-gray-200 bg-white p-5">
+      <h3 class="text-sm font-semibold text-gray-900">Saldos disponibles</h3>
+      <div class="mt-3 grid grid-cols-3 gap-3">
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div class="text-xs text-gray-600">ARS</div>
+          <div class="mt-1 text-2xl font-extrabold text-gray-900">${{ request.user.saldo_ars }}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div class="text-xs text-gray-600">USDT</div>
+          <div class="mt-1 text-2xl font-extrabold text-gray-900">{{ request.user.saldo_usdt }}</div>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div class="text-xs text-gray-600">USD</div>
+          <div class="mt-1 text-2xl font-extrabold text-gray-900">{{ request.user.saldo_usd|default:"0.00" }}</div>
+        </div>
+      </div>
+      <p class="mt-2 text-[11px] text-gray-500">Tip: podés exportar movimientos desde <a href="{% url 'mis_movimientos' %}" class="underline">Mis movimientos</a>.</p>
     </div>
 
-    
-  </div>
-
-  <div class="mt-8 grid lg:grid-cols-12 gap-6">
-    <!-- Columna principal -->
-    <div class="lg:col-span-8 space-y-6">
-
-      <!-- Saldos -->
-      <div class="grid sm:grid-cols-3 gap-4" data-stagger>
-        <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5">
-          <p class="text-xs text-white/60">Saldo ARS</p>
-          <p class="mt-1 text-2xl font-extrabold">${{ request.user.saldo_ars }}</p>
+    <!-- Ticker / Cotizaciones -->
+    <div class="lg:col-span-4 rounded-2xl border border-gray-200 bg-white p-5">
+      <h3 class="text-sm font-semibold text-gray-900">Cotizaciones</h3>
+      <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div class="text-xs text-gray-600">USDT</div>
+          <div class="mt-1 flex justify-between"><span class="text-gray-700">Compra</span><span class="font-semibold">${{ cot_usdt.compra }}</span></div>
+          <div class="mt-1 flex justify-between"><span class="text-gray-700">Venta</span><span class="font-semibold">${{ cot_usdt.venta }}</span></div>
         </div>
-        <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5">
-          <p class="text-xs text-white/60">Saldo USDT</p>
-          <p class="mt-1 text-2xl font-extrabold">{{ request.user.saldo_usdt }}</p>
-        </div>
-        <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5">
-          <p class="text-xs text-white/60">Saldo USD</p>
-          <p class="mt-1 text-2xl font-extrabold">{{ request.user.saldo_usd|default:"0.00" }}</p>
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <div class="text-xs text-gray-600">USD</div>
+          <div class="mt-1 flex justify-between"><span class="text-gray-700">Compra</span><span class="font-semibold">${{ cot_usd.compra }}</span></div>
+          <div class="mt-1 flex justify-between"><span class="text-gray-700">Venta</span><span class="font-semibold">${{ cot_usd.venta }}</span></div>
         </div>
       </div>
+      <div class="mt-3 flex gap-2">
+        <a href="{% url 'operar' %}" class="flex-1 rounded-lg bg-primary text-dark text-xs font-semibold px-3 py-2 text-center shadow-soft hover:opacity-90">Operar ahora</a>
+        <a href="{% url 'agregar_saldo' %}" class="flex-1 rounded-lg border border-gray-200 bg-white text-xs px-3 py-2 text-center hover:bg-gray-50">Ingresa saldo</a>
+      </div>
+    </div>
 
-      <!-- Acciones rápidas -->
-      <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5" data-reveal="up">
-        <h3 class="text-lg font-semibold">Acciones rápidas</h3>
-        <div class="mt-4 grid sm:grid-cols-3 lg:grid-cols-3 gap-3">
-          <a href="{% url 'operar' %}"
-   class="rounded-xl bg-primary text-dark font-semibold px-4 py-3 text-sm
-          shadow-soft text-center hover:opacity-90 focus-visible:outline-none
-          focus-visible:ring-2 focus-visible:ring-primary/60">
-  🔁 Comprar / Vender
-</a>
+    <!-- Atajos -->
+    <div class="lg:col-span-3 rounded-2xl border border-gray-200 bg-primary/5 p-5">
+      <h3 class="text-sm font-semibold text-gray-900">Atajos</h3>
+      <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
+        <a class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-center hover:bg-gray-50" href="{% url 'comprobantes' %}">🧾 Comprobantes</a>
+        <a class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-center hover:bg-gray-50" href="{% url 'mis_movimientos' %}">☰ Movimientos</a>
+        <a class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-center hover:bg-gray-50" href="{% url 'soporte' %}">💬 Ayuda</a>
+        <!-- <a class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-center hover:bg-gray-50" href="#">🎁 Referidos</a> -->
+      </div>
+    </div>
+  </section>
 
-          <a href="{% url 'agregar_saldo' %}" class="rounded-xl border border-white/10 bg-emerald-400/10 text-emerald-300 px-4 py-3 text-sm text-center hover:bg-emerald-400/15">💸 Agregar saldo</a>
-          <a href="{% url 'solicitar_retiro' %}" class="rounded-xl border border-white/10 bg-amber-400/10 text-amber-300 px-4 py-3 text-sm text-center hover:bg-amber-400/15">🏧 Solicitar retiro</a>
-
-          <a href="{% url 'exportar_movimientos_usuario' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-center hover:bg-white/10">📥 Exportar movimientos</a>
-          <a href="{% url 'comprobantes' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-center hover:bg-white/10">🧾 Comprobantes</a>
-          <a href="{% url 'logout' %}" class="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-center hover:bg-white/10">🚪 Cerrar sesión</a>
+  <!-- ===== Visualizaciones: PnL + Composición ===== -->
+  <section class="reveal grid gap-6 lg:grid-cols-12">
+    <div class="lg:col-span-8 rounded-2xl border border-gray-200 bg-white p-5">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="text-lg font-semibold text-gray-900">Evolución 30 días — PnL / Flujo</h3>
+        <span class="text-xs text-gray-500">ARS (precio compra)</span>
+      </div>
+      <canvas id="fx-line" height="90"></canvas>
+      <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <p class="text-[11px] text-gray-600">Ingresado</p>
+          <p class="text-lg font-bold text-gray-900">${{ kpi_total_ingresado|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <p class="text-[11px] text-gray-600">Retirado</p>
+          <p class="text-lg font-bold text-gray-900">${{ kpi_total_retirado|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <p class="text-[11px] text-gray-600">Flujo neto</p>
+          <p class="text-lg font-bold text-gray-900">${{ kpi_flujo_neto|floatformat:2 }}</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <p class="text-[11px] text-gray-600">Cartera (ARS)</p>
+          <p class="text-lg font-bold text-gray-900">${{ kpi_cartera_ars|floatformat:2 }}</p>
         </div>
       </div>
+    </div>
 
-      <!-- Notificaciones recientes -->
-      <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5" data-reveal="up">
-        <h3 class="text-lg font-semibold">Notificaciones recientes</h3>
-        <ul class="mt-3 divide-y divide-white/10 text-sm">
-          {% for n in notificaciones %}
-            <li class="py-2 flex items-start gap-2">
-              <span class="mt-1 text-brand-red">●</span>
-              <span>{{ n.fecha|date:"d/m/Y H:i" }} — {{ n.mensaje }}
-                {% if not n.leida %}<strong class="text-brand-red">(nuevo)</strong>{% endif %}</span>
-            </li>
+    <div class="lg:col-span-4 rounded-2xl border border-gray-200 bg-white p-5">
+      <h3 class="text-lg font-semibold text-gray-900 mb-2">Composición de cartera</h3>
+      <canvas id="fx-donut" height="120"></canvas>
+      <p class="text-[11px] text-gray-600 mt-2">Ponderado a ARS. El tooltip muestra unidades originales.</p>
+    </div>
+  </section>
+
+  <!-- ===== Notificaciones recientes ===== -->
+  <!-- <section class="reveal rounded-2xl border border-gray-200 bg-white p-5">
+    <div class="flex items-center justify-between">
+      <h3 class="text-lg font-semibold text-gray-900">Notificaciones recientes</h3>
+      <a href="#" class="text-xs text-primary underline">Ver todas</a>
+    </div>
+    <ul class="mt-3 divide-y divide-gray-100 text-sm">
+      {% for n in notificaciones %}
+        <li class="py-2 flex items-start gap-2">
+          <span class="mt-1 text-primary">●</span>
+          <span class="text-gray-700">{{ n.fecha|date:"d/m/Y H:i" }} — {{ n.mensaje }} {% if not n.leida %}<strong class="text-primary">(nuevo)</strong>{% endif %}</span>
+        </li>
+      {% empty %}
+        <li class="py-4 text-gray-500">No hay notificaciones.</li>
+      {% endfor %}
+    </ul>
+  </section> -->
+
+  <!-- ===== Actividad reciente ===== -->
+  <section class="reveal rounded-2xl border border-gray-200 bg-white p-5">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-lg font-semibold text-gray-900">Actividad reciente</h3>
+      <a href="{% url 'mis_movimientos' %}" class="text-sm text-primary underline">Ver todo</a>
+    </div>
+    <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+      <table class="w-full text-xs md:text-sm">
+        <thead class="bg-gray-50 text-gray-600">
+          <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-left">
+            <th>Fecha</th><th>Tipo</th><th>Moneda</th>
+            <th class="text-right">Monto</th><th class="text-right">Saldo antes</th><th class="text-right">Saldo después</th>
+            <th>Descripción</th><th>ID</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200">
+          {% for m in movimientos %}
+          <tr class="hover:bg-gray-50 transition">
+            <td class="px-3 py-2 whitespace-nowrap text-gray-700">{{ m.fecha }}</td>
+            <td class="px-3 py-2 text-gray-700">{{ m.get_tipo_display }}</td>
+            <td class="px-3 py-2 text-gray-700">{{ m.moneda }}</td>
+            <td class="px-3 py-2 text-right text-gray-900">${{ m.monto }}</td>
+            <td class="px-3 py-2 text-right text-gray-900">${{ m.saldo_antes }}</td>
+            <td class="px-3 py-2 text-right text-gray-900">${{ m.saldo_despues }}</td>
+            <td class="px-3 py-2 text-gray-700">{{ m.descripcion }}</td>
+            <td class="px-3 py-2 font-mono text-xs text-gray-600">{{ m.codigo }}</td>
+          </tr>
           {% empty %}
-            <li class="py-4 text-white/60">No hay notificaciones.</li>
+          <tr><td colspan="8" class="px-3 py-6 text-center text-gray-500">Sin movimientos aún.</td></tr>
           {% endfor %}
-        </ul>
-      </div>
-
-      <!-- Historial de movimientos -->
-      <div class="reveal" data-reveal="up">
-        <div class="flex items-center justify-between mb-3">
-          <h3 class="text-lg font-semibold">Historial de movimientos</h3>
-          <!-- (Opcional) espacio para filtros -->
-          <!-- <form method="get" class="hidden md:flex items-center gap-2 text-sm">
-            <input name="q" placeholder="Buscar ID o descripción" class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-brand-red">
-            <button class="rounded-lg bg-white/10 px-3 py-2 hover:bg-white/15">Filtrar</button>
-          </form> -->
-        </div>
-
-        <div class="overflow-x-auto rounded-2xl border border-white/10 bg-white/5">
-          <table class="w-full text-xs md:text-sm">
-            <thead class="bg-white/5 text-white/70">
-              <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-left">
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Moneda</th>
-                <th class="text-right">Monto</th>
-                <th class="text-right">Saldo antes</th>
-                <th class="text-right">Saldo después</th>
-                <th>Descripción</th>
-                <th>ID</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-white/10">
-              {% for m in movimientos %}
-                <tr class="hover:bg-white/[.06] transition">
-                  <td class="px-3 py-2 whitespace-nowrap">{{ m.fecha }}</td>
-                  <td class="px-3 py-2">{{ m.get_tipo_display }}</td>
-                  <td class="px-3 py-2">{{ m.moneda }}</td>
-                  <td class="px-3 py-2 text-right">${{ m.monto }}</td>
-                  <td class="px-3 py-2 text-right">${{ m.saldo_antes }}</td>
-                  <td class="px-3 py-2 text-right">${{ m.saldo_despues }}</td>
-                  <td class="px-3 py-2">{{ m.descripcion }}</td>
-                  <td class="px-3 py-2 font-mono text-xs">{{ m.codigo }}</td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td colspan="8" class="px-3 py-6 text-center text-white/60">Sin movimientos aún.</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
+        </tbody>
+      </table>
     </div>
+  </section>
 
-    <!-- Sidebar -->
-    <aside class="lg:col-span-4 space-y-6">
-
-      <!-- Cotizaciones (sticky) -->
-      <div id="cuadro-cotizaciones"
-           class="reveal sticky top-24 rounded-2xl border border-white/10 bg-[radial-gradient(800px_200px_at_100%_0%,rgba(255,17,41,.18),transparent)] bg-white/5 p-5 text-sm"
-           data-reveal="right">
-        <h4 class="text-center font-semibold text-white">Cotizaciones</h4>
-        <div class="mt-3 grid grid-cols-2 gap-3">
-          <div class="rounded-xl border border-white/10 bg-black/60 p-3">
-            <div class="text-xs text-white/60">USDT</div>
-            <div class="mt-1 flex justify-between"><span>Compra</span><span class="font-semibold">${{ cot_usdt.compra }}</span></div>
-            <div class="mt-1 flex justify-between"><span>Venta</span><span class="font-semibold">${{ cot_usdt.venta }}</span></div>
-          </div>
-          <div class="rounded-xl border border-white/10 bg-black/60 p-3">
-            <div class="text-xs text-white/60">USD</div>
-            <div class="mt-1 flex justify-between"><span>Compra</span><span class="font-semibold">${{ cot_usd.compra }}</span></div>
-            <div class="mt-1 flex justify-between"><span>Venta</span><span class="font-semibold">${{ cot_usd.venta }}</span></div>
-          </div>
-        </div>
-        <p class="mt-3 text-[11px] text-white/50 text-center">Datos de referencia. Pueden variar según volumen y método.</p>
-      </div>
-
-    </aside>
-  </div>
 </section>
 
-<!-- ===== Notificaciones (AJAX) ===== -->
+<!-- ===== Scripts ===== -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+{# Datos seguros (si no existen en contexto, caerán a vacíos) #}
+{{ chart_labels|json_script:"fxLabels" }}
+{{ chart_deps|json_script:"fxDeps" }}
+{{ chart_rets|json_script:"fxRets" }}
+{{ chart_net|json_script:"fxNet" }}
+
+{{ comp_labels|json_script:"cmpLabels" }}
+{{ comp_units|json_script:"cmpUnits" }}
+{{ comp_ars|json_script:"cmpArs" }}
+
+
 <script>
-function toggleNotificaciones() {
-  const box = document.getElementById('notificaciones-box');
-  box.classList.toggle('hidden');
+/* ==== REVEAL ROBUSTO (fix: usar "target" en vez de "t") ==== */
+(function () {
+  const els = document.querySelectorAll('.reveal');
 
-  if (!box.classList.contains('hidden')) {
-    fetch('/notificaciones/ajax/')
-      .then(r => r.json())
-      .then(data => {
-        const lista = document.getElementById('notificaciones-lista');
-        lista.innerHTML = '';
-        if (!data.notificaciones || !data.notificaciones.length){
-          lista.innerHTML = '<li class="px-4 py-3 text-white/60">Sin notificaciones.</li>';
-          return;
-        }
-        data.notificaciones.forEach(n => {
-          const li = document.createElement('li');
-          li.className = 'px-4 py-3 hover:bg-white/[.06]';
-          li.textContent = `${n.fecha}: ${n.mensaje}`;
-          lista.appendChild(li);
-        });
-        document.getElementById('notificaciones-indicador').style.display = 'none';
-      });
+  // Si no hay JS o no hay elementos, nada que hacer
+  if (!('IntersectionObserver' in window) || !els.length) {
+    els.forEach(el => el.classList.add('show'));
+    return;
   }
-}
 
-function verificarNotificaciones() {
-  fetch('/notificaciones/contar/')
-    .then(r => r.json())
-    .then(data => {
-      const ind = document.getElementById('notificaciones-indicador');
-      if (data.no_leidas > 0) {
-        ind.textContent = data.no_leidas > 9 ? '9+' : data.no_leidas;
-        ind.style.display = 'flex';
-      } else {
-        ind.style.display = 'none';
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(({ isIntersecting, target }) => {  // <<<<<< FIX ACA
+      if (isIntersecting) {
+        target.classList.add('show');
+        io.unobserve(target);
       }
     });
-}
-document.addEventListener('DOMContentLoaded', verificarNotificaciones);
-</script>
+  }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 });
 
-<!-- ===== IntersectionObserver para .reveal ===== -->
-<script>
-(function(){
-  const els = document.querySelectorAll('.reveal');
-  const groups = document.querySelectorAll('[data-stagger]');
-  groups.forEach(g=>{
-    Array.from(g.children).forEach((child,i)=>{
-      child.style.transitionDelay = `calc(${getComputedStyle(document.documentElement).getPropertyValue('--reveal-stagger') || '.08s'} * ${i})`;
-    });
-  });
-  const io = new IntersectionObserver((entries)=>{
-    entries.forEach(({isIntersecting,target})=>{
-      if(isIntersecting){ target.classList.add('show'); io.unobserve(target); }
-    });
-  }, {rootMargin:'0px 0px -10% 0px', threshold:0.08});
-  els.forEach(el=>io.observe(el));
+  els.forEach(el => io.observe(el));
+
+  // Fallback extra: asegura mostrar todo si algo quedó sin observar
+  setTimeout(() => {
+    document.querySelectorAll('.reveal:not(.show)').forEach(el => el.classList.add('show'));
+  }, 900);
 })();
 </script>
 
 <script>
-  // Cierra el dropdown si clickean fuera
-  document.addEventListener('click', (e) => {
-    const fab = document.getElementById('notificaciones-fab');
-    const box = document.getElementById('notificaciones-box');
-    if (fab && box && !fab.contains(e.target)) {
-      box.classList.add('hidden');
+/* ==== CHARTS (Finanxis colors) ==== */
+(function () {
+  // Paleta Finanxis
+  const FX = {
+    primary:  '#FF1129',                        // rojo Finanxis
+    ink:      '#111827',                        // gris oscuro (texto fuerte)
+    cyan:     '#0EA5E9',                        // acento frío
+    tick:     '#4B5563',
+    grid:     'rgba(0,0,0,.06)',
+    alpha: {
+      primary: 'rgba(255, 17, 41, 0.14)',
+      ink:     'rgba(17, 24, 39, 0.10)',
+      cyan:    'rgba(14, 165, 233, 0.16)',
     }
-  });
+  };
+
+  // ===== Datos existentes (no tocamos nombres/estructura)
+  const L = JSON.parse(document.getElementById('fxLabels')?.textContent || '[]');
+  const D = JSON.parse(document.getElementById('fxDeps')?.textContent   || '[]');
+  const R = JSON.parse(document.getElementById('fxRets')?.textContent   || '[]');
+  const N = JSON.parse(document.getElementById('fxNet')?.textContent    || '[]');
+
+  // ===== Línea: Evolución 30 días — PnL / Flujo (colores Finanxis)
+  const c1 = document.getElementById('fx-line');
+  if (c1 && window.Chart){
+    new Chart(c1, {
+      type: 'line',
+      data: {
+        labels: L,
+        datasets: [
+          {
+            label:'Ingresos',
+            data: D,
+            borderColor: FX.primary,
+            backgroundColor: FX.alpha.primary,
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: .25
+          },
+          {
+            label:'Retiros',
+            data: R,
+            borderColor: FX.ink,
+            backgroundColor: FX.alpha.ink,
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: .25
+          },
+          {
+            label:'Neto',
+            data: N,
+            borderColor: FX.cyan,
+            backgroundColor: FX.alpha.cyan,
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: .25
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: true } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: FX.tick } },
+          y: { grid: { color: FX.grid },   ticks: { color: FX.tick } }
+        }
+      }
+    });
+  }
+
+  // ===== Donut: Composición (colores Finanxis)
+  const L2 = JSON.parse(document.getElementById('cmpLabels')?.textContent || '[]'); // p.ej. ['ARS','USDT','USD']
+  const U2 = JSON.parse(document.getElementById('cmpUnits') ?.textContent || '[]');
+  const A2 = JSON.parse(document.getElementById('cmpArs')   ?.textContent || '[]');
+
+  const c2 = document.getElementById('fx-donut');
+  if (c2 && window.Chart){
+    // Mapeo por etiqueta para que el color sea consistente sin importar el orden
+    const colorMap = { 'ARS': FX.ink, 'USDT': FX.primary, 'USD': FX.cyan };
+    const bg = L2.map(l => colorMap[l] || FX.cyan);
+
+    new Chart(c2, {
+      type: 'doughnut',
+      data: {
+        labels: L2,
+        datasets: [{
+          data: A2,
+          backgroundColor: bg,
+          borderColor: bg,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        cutout: '60%',
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const i = ctx.dataIndex;
+                const label = L2[i] ?? '';
+                const ars   = Number(A2[i] ?? 0).toFixed(2);
+                const unit  = Number(U2[i] ?? 0);
+                const unitFmt = (label === 'USDT') ? unit.toFixed(6) : unit.toFixed(2);
+                return `${label}: ${unitFmt} • $${ars} ARS`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+})();
 </script>
 
 
+<script>
+/* ==== NOTIFICACIONES (simple) ==== */
+(function(){
+  const btn = document.getElementById('btnNotif');
+  const box = document.getElementById('boxNotif');
+  const list= document.getElementById('listNotif');
+  const badge= document.getElementById('badgeNotif');
+
+  async function json(u){ const r=await fetch(u,{headers:{'X-Requested-With':'XMLHttpRequest'}}); if(!r.ok) throw new Error(); return r.json(); }
+  async function contar(){
+    try{
+      const d = await json('/notificaciones/contar/');
+      const n = Number(d?.no_leidas||0);
+      if(n>0){ badge.textContent=n>9?'9+':n; badge.classList.remove('hidden'); } else { badge.classList.add('hidden'); }
+    }catch(e){}
+  }
+  async function cargar(){
+    try{
+      const d = await json('/notificaciones/ajax/');
+      list.innerHTML = '';
+      const arr = d?.notificaciones||[];
+      if(!arr.length){ list.innerHTML = '<li class="px-4 py-3 text-gray-500">Sin notificaciones.</li>'; return; }
+      arr.forEach(n=>{
+        const li = document.createElement('li');
+        li.className='px-4 py-3 hover:bg-gray-50'; li.textContent=`${n.fecha}: ${n.mensaje}`;
+        list.appendChild(li);
+      });
+      badge.classList.add('hidden');
+    }catch(e){ list.innerHTML='<li class="px-4 py-3 text-rose-500">Error al cargar.</li>'; }
+  }
+  btn?.addEventListener('click', (e)=>{ e.stopPropagation(); box.classList.toggle('hidden'); if(!box.classList.contains('hidden')) cargar(); });
+  document.addEventListener('click', (e)=>{ if(btn && box && !btn.contains(e.target) && !box.contains(e.target)) box.classList.add('hidden'); });
+  contar(); setInterval(contar, 60000);
+})();
+</script>
 {% endblock %}

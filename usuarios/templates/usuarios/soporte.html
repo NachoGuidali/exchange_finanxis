@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Soporte — Finanxis{% endblock %}
+{% block meta_description %}Contactate con el equipo de soporte de Finanxis: envianos tu consulta o reporte de problema.{% endblock %}
+
+{% block content %}
+<section class="container max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Header -->
+  <header class="mb-6">
+    <h1 class="text-3xl font-extrabold text-gray-900">Soporte</h1>
+    <p class="text-gray-600 mt-1">Estamos para ayudarte. Dejanos tu consulta y te respondemos a la brevedad.</p>
+  </header>
+
+  <div class="grid gap-6 md:grid-cols-3">
+    <!-- Formulario -->
+    <div class="md:col-span-2 rounded-2xl border border-gray-200 bg-white p-5">
+      <form method="post" action="{% url 'soporte' %}" class="grid gap-4">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next_url }}">
+        <label class="block">
+          <span class="block text-xs text-gray-500 mb-1">Asunto</span>
+          <input name="asunto" required placeholder="Ej: Problema con retiro"
+                 class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 focus:border-primary focus:ring-0">
+        </label>
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="block text-xs text-gray-500 mb-1">Categoría</span>
+            <select name="categoria" class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 focus:border-primary focus:ring-0">
+              <option value="operar">Operar (compra/venta/swap)</option>
+              <option value="deposito">Depósito</option>
+              <option value="retiro">Retiro</option>
+              <option value="verificacion">Verificación (KYC)</option>
+              <option value="seguridad">Seguridad / 2FA</option>
+              <option value="otros">Otros</option>
+            </select>
+          </label>
+
+          <label class="block">
+            <span class="block text-xs text-gray-500 mb-1">Email de contacto</span>
+            <input name="email" type="email" required value="{{ request.user.email }}"
+                   class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 focus:border-primary focus:ring-0">
+          </label>
+        </div>
+
+        <label class="block">
+          <span class="block text-xs text-gray-500 mb-1">Mensaje</span>
+          <textarea name="mensaje" rows="5" required
+                    placeholder="Comentá el detalle del caso (fechas, montos, códigos, pantallazos si aplica)…"
+                    class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 focus:border-primary focus:ring-0"></textarea>
+        </label>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <a href="{% url 'faq' %}" class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100">Ver FAQs</a>
+          <button type="submit" class="rounded-xl bg-primary text-dark font-semibold px-5 py-2.5 text-sm shadow-soft hover:opacity-90">
+            Enviar consulta
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Lateral informativo -->
+    <aside class="rounded-2xl border border-gray-200 bg-white p-5 space-y-4 text-sm">
+      <div>
+        <h3 class="font-semibold text-gray-900">Tiempos de respuesta</h3>
+        <p class="text-gray-700 mt-1">Lunes a viernes 10–18h (AR). Prioridad alta para problemas de acceso y seguridad.</p>
+      </div>
+      <div class="border-t border-gray-200 pt-4">
+        <h3 class="font-semibold text-gray-900">Consejos</h3>
+        <ul class="mt-2 list-disc pl-5 text-gray-700">
+          <li>Incluí <b>códigos</b> (comprobante, transacción, retiro).</li>
+          <li>Agregá <b>montos y fechas</b> exactas si aplica.</li>
+          <li>Contanos qué <b>esperabas que pase</b> y qué ocurrió.</li>
+        </ul>
+      </div>
+      <div class="border-t border-gray-200 pt-4">
+        <h3 class="font-semibold text-gray-900">¿Preferís leer?</h3>
+        <p class="text-gray-700">Revisá la <a class="text-primary underline" href="{% url 'faq' %}">sección de Preguntas frecuentes</a>.</p>
+      </div>
+    </aside>
+  </div>
+</section>
+{% endblock %}

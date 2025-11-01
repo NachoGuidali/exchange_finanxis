@@ -1,10 +1,10 @@
-# usuarios/services/boletos.py
 import io, qrcode, base64, hashlib, uuid
 from django.template.loader import render_to_string
 from django.conf import settings
 from django.utils.timezone import localtime
 from django.urls import reverse
 from django.core.files.base import ContentFile
+
 from usuarios.models import BoletoOperacion
 
 def _get_weasyprint_HTML():
@@ -19,11 +19,10 @@ def _qr_b64(text: str) -> str:
     img.save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
-def emitir_boleto(usuario, tipo: str, numero: str, snapshot: dict,
-                  movimiento=None, onchain: dict | None = None):
+def emitir_boleto(usuario, tipo: str, numero: str, snapshot: dict, movimiento=None, onchain: dict | None = None):
     """
-    Renderiza boletos/boleto_base.html una sola vez (sin pdf_sha256 impreso).
-    Calcula SHA-256 de los bytes finales y lo guarda en BoletoOperacion.pdf_sha256.
+    Genera y PERSISTE la boleta según tu modelo BoletoOperacion.
+    Lanza excepción si algo falla (para que la operación sea atómica).
     """
     onchain = onchain or {}
     onchain_ctx = {
@@ -36,14 +35,13 @@ def emitir_boleto(usuario, tipo: str, numero: str, snapshot: dict,
     }
 
     # URL pública de verificación
+    base_url = getattr(settings, "SITE_URL", "http://127.0.0.1:8000").rstrip("/")
     try:
-        ver_url = settings.SITE_URL.rstrip("/") + reverse("verificar_boleto", args=[numero])
+        ver_url = base_url + reverse("verificar_boleto", args=[numero])
     except Exception:
-        ver_url = settings.SITE_URL.rstrip("/") + f"/boletos/{numero}/"
+        ver_url = f"{base_url}/boletos/{numero}/"
 
-    verif_code = uuid.uuid4().hex[:8].upper()  # corto y legible para imprimir
-
-    # 1) Render ÚNICO del PDF (NO incluimos pdf_sha256 en el contenido)
+    # 1) context para el template
     ctx = {
         "titulo": snapshot.get("titulo", "Comprobante"),
         "numero": numero,
@@ -58,26 +56,31 @@ def emitir_boleto(usuario, tipo: str, numero: str, snapshot: dict,
         "psav": snapshot.get("psav", {}),
         "onchain": onchain_ctx,
         "url_verificacion": ver_url,
-        "verificacion_code": verif_code,
-        # IMPORTANTE: NO pasar "pdf_sha256" al template para evitar auto-referencia.
+        "verificacion_code": f"{numero[:4]}-{numero[-4:]}",
         "qr_base64": _qr_b64(ver_url),
+        "pdf_sha256": "",  # lo seteo luego
     }
-    html = render_to_string("boletos/boleto_base.html", ctx)
-    HTML = _get_weasyprint_HTML()
-    pdf_bytes = HTML(string=html, base_url=settings.SITE_URL).write_pdf()
 
-    # 2) Hash de los bytes FINALES
+    # 2) HTML → PDF (pre) para hash
+    html_pre = render_to_string("boletos/boleto_base.html", ctx)
+    HTML = _get_weasyprint_HTML()
+    pdf_bytes = HTML(string=html_pre, base_url=base_url).write_pdf()
     sha_hex = hashlib.sha256(pdf_bytes).hexdigest().upper()
 
-    # 3) Persistimos en los CAMPOS CORRECTOS DEL MODELO
+    # 3) (opcional) re-render con hash visible en el PDF
+    ctx["pdf_sha256"] = sha_hex
+    html_final = render_to_string("boletos/boleto_base.html", ctx)
+    pdf_bytes = HTML(string=html_final, base_url=base_url).write_pdf()
+
+    # 4) Persistencia acorde a tu modelo
     boleto = BoletoOperacion.objects.create(
         usuario=usuario,
+        movimiento=movimiento,
         tipo=tipo,
         numero=numero,
-        snapshot=snapshot,         # JSON con lo que imprimiste
-        pdf_sha256=sha_hex,        # hash real del archivo final
-        verificacion_code=verif_code,
-        movimiento=movimiento,
+        snapshot=snapshot,             # guardás el snapshot “de negocio”
+        pdf_sha256=sha_hex,
+        verificacion_code=uuid.uuid4().hex[:12].upper(),
         red=onchain_ctx["red"],
         wallet_origen=onchain_ctx["origen"],
         wallet_destino=onchain_ctx["destino"],
@@ -85,6 +88,7 @@ def emitir_boleto(usuario, tipo: str, numero: str, snapshot: dict,
     )
     boleto.pdf.save(f"{numero}.pdf", ContentFile(pdf_bytes), save=True)
     return boleto
+
 
 
 
