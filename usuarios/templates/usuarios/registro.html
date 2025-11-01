@@ -1,150 +1,237 @@
 {% extends "base.html" %}
-{% block title %}Crear cuenta — Registro{% endblock %}
-{% block meta_description %}Abrí tu cuenta para operar en el exchange.{% endblock %}
+{% block title %}Crear cuenta — Finanxis{% endblock %}
+{% block meta_description %}Registrate para operar USD / USDT cumpliendo requisitos PSAV.{% endblock %}
 
 {% block content %}
-<section class="mx-auto max-w-4xl space-y-6">
-  <h1 class="text-2xl font-semibold">Crear cuenta</h1>
+<style>
+  /* Forzamos campos en modo claro dentro del form */
+  #formRegistro input[type="text"],
+  #formRegistro input[type="email"],
+  #formRegistro input[type="password"],
+  #formRegistro input[type="tel"],
+  #formRegistro input[type="date"],
+  #formRegistro input[type="number"],
+  #formRegistro input[type="file"],
+  #formRegistro select,
+  #formRegistro textarea {
+    color:#0a0a0a!important; background:#fff!important; caret-color:#000;
+  }
+  #formRegistro input::placeholder, #formRegistro textarea::placeholder { color:#6b7280; opacity:.95; }
+  #formRegistro input[readonly], #formRegistro select:disabled, #formRegistro input:disabled, #formRegistro textarea:disabled {
+    background:#f3f4f6!important; color:#111827!important;
+  }
+  .help { font-size:12px; color:#6b7280 }
+  .err { font-size:12px; color:#b91c1c }
+</style>
 
-  <!-- Errores generales -->
-  {% if form.non_field_errors %}
-    <div class="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-      {{ form.non_field_errors }}
-    </div>
+<section class="max-w-5xl mx-auto px-4">
+  <header class="rounded-2xl border border-gray-200 bg-white p-5 mb-6">
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Crear cuenta</h1>
+    <p class="text-gray-600">Completá tus datos para validar tu identidad y operar en Finanxis.</p>
+  </header>
+
+  {% if form.errors or form.non_field_errors %}
+  <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 mb-6">
+    <h4 class="font-semibold text-rose-800 mb-1">Revisá estos campos</h4>
+    <ul class="list-disc ml-5 text-sm text-rose-800">
+      {% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}
+      {% for field in form %}
+        {% if field.errors %}<li><b>{{ field.label }}:</b> {{ field.errors.0 }}</li>{% endif %}
+      {% endfor %}
+    </ul>
+  </div>
   {% endif %}
 
-  <form method="post" enctype="multipart/form-data" class="space-y-6" onsubmit="this.querySelector('button[type=submit]').disabled = true;">
+  <form id="formRegistro" method="post" enctype="multipart/form-data" class="space-y-6">
     {% csrf_token %}
 
-    <!-- Datos de cuenta -->
-    <div class="rounded-xl border border-ink-200 bg-white p-5 shadow-sm">
-      <h2 class="mb-4 text-lg font-semibold">Datos de cuenta</h2>
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Usuario *</label>
+    <!-- Credenciales -->
+    <section class="rounded-2xl border border-gray-200 bg-white p-5">
+      <h2 class="text-lg font-semibold text-gray-900">Credenciales</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="block text-xs text-gray-500 mb-1">Usuario</span>
           {{ form.username }}
-          <p class="mt-1 text-xs text-red-600">{{ form.username.errors }}</p>
-        </div>
+          <p class="help mt-1">Solo letras, números y guión bajo (4–20).</p>
+          {% if form.username.errors %}<p class="err mt-1">{{ form.username.errors.0 }}</p>{% endif %}
+        </label>
 
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Email *</label>
+        <label class="block">
+          <span class="block text-xs text-gray-500 mb-1">Email</span>
           {{ form.email }}
-          <p class="mt-1 text-xs text-red-600">{{ form.email.errors }}</p>
-        </div>
+          <p class="help mt-1">Te enviaremos verificaciones a este correo.</p>
+          {% if form.email.errors %}<p class="err mt-1">{{ form.email.errors.0 }}</p>{% endif %}
+        </label>
 
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Contraseña *</label>
+        <label class="block">
+          <span class="block text-xs text-gray-500 mb-1">Contraseña</span>
           {{ form.password1 }}
-          {% if form.password1.help_text %}
-            <p class="mt-1 text-xs text-ink-500">{{ form.password1.help_text|safe }}</p>
-          {% endif %}
-          <p class="mt-1 text-xs text-red-600">{{ form.password1.errors }}</p>
-        </div>
+          <p class="help mt-1">Mínimo 8, combinar letras y números.</p>
+          {% if form.password1.errors %}<p class="err mt-1">{{ form.password1.errors.0 }}</p>{% endif %}
+        </label>
 
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Repetir contraseña *</label>
+        <label class="block">
+          <span class="block text-xs text-gray-500 mb-1">Confirmar contraseña</span>
           {{ form.password2 }}
-          <p class="mt-1 text-xs text-red-600">{{ form.password2.errors }}</p>
-        </div>
+          {% if form.password2.errors %}<p class="err mt-1">{{ form.password2.errors.0 }}</p>{% endif %}
+        </label>
       </div>
-    </div>
+    </section>
 
-    <!-- Identidad -->
-    <div class="rounded-xl border border-ink-200 bg-white p-5 shadow-sm">
-      <h2 class="mb-4 text-lg font-semibold">Identidad</h2>
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Nombre *</label>
-          {{ form.first_name }}
-          <p class="mt-1 text-xs text-red-600">{{ form.first_name.errors }}</p>
-        </div>
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Apellido *</label>
-          {{ form.last_name }}
-          <p class="mt-1 text-xs text-red-600">{{ form.last_name.errors }}</p>
-        </div>
-      </div>
+    <!-- Datos personales -->
+    <section class="rounded-2xl border border-gray-200 bg-white p-5">
+      <h2 class="text-lg font-semibold text-gray-900">Datos personales</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Nombre</span>{{ form.first_name }}{% if form.first_name.errors %}<p class="err mt-1">{{ form.first_name.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Apellido</span>{{ form.last_name }}{% if form.last_name.errors %}<p class="err mt-1">{{ form.last_name.errors.0 }}</p>{% endif %}</label>
 
-      <div class="mt-4 grid gap-4 sm:grid-cols-3">
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Tipo de documento *</label>
-          {{ form.doc_tipo }}
-          <p class="mt-1 text-xs text-red-600">{{ form.doc_tipo.errors }}</p>
-        </div>
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">N° de documento *</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Tipo de persona</span>{{ form.persona_tipo }}{% if form.persona_tipo.errors %}<p class="err mt-1">{{ form.persona_tipo.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Estado civil</span>{{ form.estado_civil }}{% if form.estado_civil.errors %}<p class="err mt-1">{{ form.estado_civil.errors.0 }}</p>{% endif %}</label>
+
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Sexo</span>{{ form.sexo }}{% if form.sexo.errors %}<p class="err mt-1">{{ form.sexo.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Nacionalidad</span>{{ form.nacionalidad }}{% if form.nacionalidad.errors %}<p class="err mt-1">{{ form.nacionalidad.errors.0 }}</p>{% endif %}</label>
+
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Fecha de nacimiento</span>{{ form.fecha_nacimiento }}{% if form.fecha_nacimiento.errors %}<p class="err mt-1">{{ form.fecha_nacimiento.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Lugar de nacimiento</span>{{ form.lugar_nacimiento }}{% if form.lugar_nacimiento.errors %}<p class="err mt-1">{{ form.lugar_nacimiento.errors.0 }}</p>{% endif %}</label>
+
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Tipo de documento</span>{{ form.doc_tipo }}{% if form.doc_tipo.errors %}<p class="err mt-1">{{ form.doc_tipo.errors.0 }}</p>{% endif %}</label>
+        <label class="block">
+          <span class="block text-xs text-gray-500 mb-1">N° de documento</span>
           {{ form.doc_nro }}
-          <p class="mt-1 text-xs text-red-600">{{ form.doc_nro.errors }}</p>
-        </div>
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Nacionalidad</label>
-          {{ form.nacionalidad }}
-          <p class="mt-1 text-xs text-red-600">{{ form.nacionalidad.errors }}</p>
-        </div>
-      </div>
-    </div>
+          <p class="help mt-1">Solo números (7–9 dígitos típico DNI arg.).</p>
+          {% if form.doc_nro.errors %}<p class="err mt-1">{{ form.doc_nro.errors.0 }}</p>{% endif %}
+        </label>
 
-    <!-- Contacto y domicilio -->
-    <div class="rounded-xl border border-ink-200 bg-white p-5 shadow-sm">
-      <h2 class="mb-4 text-lg font-semibold">Contacto y domicilio</h2>
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Teléfono *</label>
+        <label class="block sm:col-span-2">
+          <span class="block text-xs text-gray-500 mb-1">Teléfono</span>
           {{ form.telefono }}
-          <p class="mt-1 text-xs text-red-600">{{ form.telefono.errors }}</p>
-        </div>
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">Domicilio *</label>
-          {{ form.domicilio }}
-          <p class="mt-1 text-xs text-red-600">{{ form.domicilio.errors }}</p>
-        </div>
+          <p class="help mt-1">Formato: 10–11 dígitos (ej: 1122334455).</p>
+          {% if form.telefono.errors %}<p class="err mt-1">{{ form.telefono.errors.0 }}</p>{% endif %}
+        </label>
       </div>
-    </div>
+    </section>
 
-    <!-- KYC: Fotos del DNI -->
-    <div class="rounded-xl border border-ink-200 bg-white p-5 shadow-sm">
-      <h2 class="mb-1 text-lg font-semibold">Verificación de identidad (KYC)</h2>
-      <p class="mb-4 text-sm text-ink-600">Subí fotos claras y legibles de tu DNI. Formatos permitidos: JPG/PNG/WebP. Máx. 5MB por archivo.</p>
+    <!-- Domicilio -->
+    <section class="rounded-2xl border border-gray-200 bg-white p-5">
+      <h2 class="text-lg font-semibold text-gray-900">Domicilio</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">País</span>{{ form.pais }}{% if form.pais.errors %}<p class="err mt-1">{{ form.pais.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Provincia</span>{{ form.provincia }}{% if form.provincia.errors %}<p class="err mt-1">{{ form.provincia.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Localidad</span>{{ form.localidad }}{% if form.localidad.errors %}<p class="err mt-1">{{ form.localidad.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Código postal</span>{{ form.codigo_postal }}{% if form.codigo_postal.errors %}<p class="err mt-1">{{ form.codigo_postal.errors.0 }}</p>{% endif %}</label>
 
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">DNI (frente) *</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Calle</span>{{ form.calle }}{% if form.calle.errors %}<p class="err mt-1">{{ form.calle.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Número</span>{{ form.numero_calle }}{% if form.numero_calle.errors %}<p class="err mt-1">{{ form.numero_calle.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Piso (opcional)</span>{{ form.piso }}{% if form.piso.errors %}<p class="err mt-1">{{ form.piso.errors.0 }}</p>{% endif %}</label>
+        <label class="block"><span class="block text-xs text-gray-500 mb-1">Depto (opcional)</span>{{ form.depto }}{% if form.depto.errors %}<p class="err mt-1">{{ form.depto.errors.0 }}</p>{% endif %}</label>
+      </div>
+
+      <div class="mt-4">
+        <label class="inline-flex items-center gap-2">
+          {{ form.acepta_tyc }}
+          <span class="text-sm text-gray-700">Acepto los <a href="{% url 'tyc' %}" target="_blank" class="text-primary underline">Términos y Condiciones</a>.</span>
+        </label>
+        {% if form.acepta_tyc.errors %}<p class="err mt-1">{{ form.acepta_tyc.errors.0 }}</p>{% endif %}
+      </div>
+    </section>
+
+    <!-- Verificación (KYC) -->
+    <section class="rounded-2xl border border-gray-200 bg-white p-5">
+      <h2 class="text-lg font-semibold text-gray-900">Verificación de identidad</h2>
+      <p class="help mt-1">Subí fotos nítidas del documento (JPG/PNG/WebP; máx 5MB).</p>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="block text-xs text-gray-500 mb-1">DNI (frente)</span>
           {{ form.dni_frente }}
-          <p class="mt-1 text-xs text-red-600">{{ form.dni_frente.errors }}</p>
-        </div>
-        <div>
-          <label class="mb-1 block text-sm text-ink-600">DNI (dorso) *</label>
+          {% if form.dni_frente.errors %}<p class="err mt-1">{{ form.dni_frente.errors.0 }}</p>{% endif %}
+        </label>
+        <label class="block">
+          <span class="block text-xs text-gray-500 mb-1">DNI (dorso)</span>
           {{ form.dni_dorso }}
-          <p class="mt-1 text-xs text-red-600">{{ form.dni_dorso.errors }}</p>
-        </div>
+          {% if form.dni_dorso.errors %}<p class="err mt-1">{{ form.dni_dorso.errors.0 }}</p>{% endif %}
+        </label>
       </div>
-    </div>
+    </section>
 
-    <!-- Submit -->
-    <div class="flex items-center justify-end gap-3">
-      <a href="{% url 'login' %}" class="rounded-md border border-ink-200 px-4 py-2 text-sm">Ya tengo cuenta</a>
-      <button type="submit" class="rounded-md bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-700">
+    <div class="flex items-center justify-between">
+      <a href="{% url 'login' %}" class="text-sm text-gray-600 hover:text-gray-900">¿Ya tenés cuenta? Iniciar sesión</a>
+      <button type="submit" class="rounded-xl bg-primary text-dark font-semibold px-5 py-3 text-sm shadow-soft hover:opacity-90">
         Crear cuenta
       </button>
     </div>
   </form>
 </section>
+{% endblock %}
 
-<!-- (Opcional) Preview básico de imágenes -->
+{% block scripts %}
+{{ block.super }}
 <script>
-  document.querySelectorAll('input[type=file]').forEach(inp => {
-    inp.addEventListener('change', e => {
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-      if (!['image/jpeg','image/png','image/webp'].includes(file.type)) {
-        alert('Formato inválido. Usá JPG/PNG/WebP.');
-        e.target.value = '';
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Archivo mayor a 5MB.');
-        e.target.value = '';
-      }
-    }, false);
-  });
+(function(){
+  // Patrones de ayuda (no obligatorios si ya validás en el form de Django)
+  const u = document.getElementById('id_username');
+  if(u){ u.setAttribute('pattern','^[A-Za-z0-9_]{4,20}$'); u.setAttribute('title','Solo letras, números y _ (4–20)'); u.maxLength = 20; }
+  const p1 = document.getElementById('id_password1');
+  if(p1){ p1.setAttribute('pattern','(?=.*[A-Za-z])(?=.*\\d).{8,}'); p1.setAttribute('title','Mínimo 8, combinar letras y números'); }
+  const tel = document.getElementById('id_telefono');
+  if(tel){ tel.setAttribute('pattern','^\\d{10,11}$'); tel.setAttribute('inputmode','numeric'); tel.setAttribute('title','10 u 11 dígitos (ej: 1122334455)'); }
+  const dni = document.getElementById('id_doc_nro');
+  if(dni){ dni.setAttribute('pattern','^\\d{7,9}$'); dni.setAttribute('inputmode','numeric'); dni.setAttribute('title','Solo números (7–9)'); }
+  const fr = document.getElementById('id_dni_frente'), dr = document.getElementById('id_dni_dorso');
+  [fr,dr].forEach(f => f && f.setAttribute('accept','image/jpeg,image/png,image/webp'));
+
+  // Selects dependientes País → Provincia → Localidad (usa tus endpoints)
+  async function fetchJson(url){
+    const r = await fetch(url, {headers:{'X-Requested-With':'XMLHttpRequest'}});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  }
+  function fillSelect(selectEl, items, getVal='id', getText='nombre', placeholder){
+    if (!selectEl) return;
+    const current = selectEl.value || '';
+    selectEl.innerHTML = '';
+    if (placeholder){
+      const ph = document.createElement('option');
+      ph.value=''; ph.textContent=placeholder; ph.disabled=true; ph.selected=!current;
+      selectEl.appendChild(ph);
+    }
+    (items||[]).forEach(it=>{
+      const opt=document.createElement('option');
+      opt.value=it[getVal]; opt.textContent=it[getText];
+      selectEl.appendChild(opt);
+    });
+    const exists = Array.from(selectEl.options).some(o=>o.value===current);
+    if (exists) selectEl.value = current;
+    selectEl.disabled = false;
+  }
+
+  const selPais = document.getElementById('id_pais');
+  const selProv = document.getElementById('id_provincia');
+  const selLoc  = document.getElementById('id_localidad');
+
+  async function loadProvincias(paisId){
+    if (!selProv) return;
+    selProv.disabled = true; if (selLoc){ selLoc.disabled = true; selLoc.innerHTML = ''; }
+    if (!paisId){ selProv.innerHTML=''; return; }
+    try{
+      const data = await fetchJson("{% url 'geo_provincias' %}?pais_id="+encodeURIComponent(paisId));
+      fillSelect(selProv, data.provincias, 'id','nombre', 'Seleccioná provincia');
+      selProv.dispatchEvent(new Event('change'));
+    }catch(e){ console.error('geo_provincias:', e); }
+  }
+  async function loadLocalidades(provId){
+    if (!selLoc) return;
+    selLoc.disabled = true; if (!provId){ selLoc.innerHTML=''; return; }
+    try{
+      const data = await fetchJson("{% url 'geo_localidades' %}?provincia_id="+encodeURIComponent(provId));
+      fillSelect(selLoc, data.localidades, 'id','nombre', 'Seleccioná localidad');
+    }catch(e){ console.error('geo_localidades:', e); }
+  }
+
+  selPais && selPais.addEventListener('change', ()=> loadProvincias(selPais.value));
+  selProv && selProv.addEventListener('change', ()=> loadLocalidades(selProv.value));
+
+  // Si ya hay país precargado, traer provincias
+  if (selPais && selPais.value) loadProvincias(selPais.value);
+})();
 </script>
 {% endblock %}

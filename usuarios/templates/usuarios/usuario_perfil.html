@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Perfil admin — {{ usuario.username }}{% endblock %}
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 py-8">
+  <header class="mb-6">
+    <h1 class="text-2xl sm:text-3xl font-extrabold">Perfil: <span class="text-neon">{{ usuario.username }}</span></h1>
+    <p class="text-black/70">Estado KYC: <b class="capitalize">{{ usuario.estado_verificacion }}</b> • Email: {{ usuario.email }}</p>
+  </header>
+
+  <div class="grid gap-6 lg:grid-cols-12">
+    <aside class="lg:col-span-4 space-y-4">
+      <div class="card p-4">
+        <h3 class="font-semibold mb-2">Identidad</h3>
+        <p class="text-sm text-black/70">Doc: {{ usuario.doc_tipo }} {{ usuario.doc_nro }}</p>
+        <p class="text-sm text-black/70">Nombre: {{ usuario.first_name }} {{ usuario.last_name }}</p>
+        <p class="text-sm text-black/70">Tel: {{ usuario.telefono }}</p>
+      </div>
+      <div class="card p-4">
+        <h3 class="font-semibold mb-2">Domicilio</h3>
+        <p class="text-sm text-black/70">{{ usuario.calle }} {{ usuario.numero_calle }}, {{ usuario.localidad }}, {{ usuario.provincia }}, {{ usuario.pais }}</p>
+      </div>
+    </aside>
+
+    <div class="lg:col-span-8 space-y-6">
+      <div class="card p-4">
+        <h3 class="font-semibold mb-3">Últimos movimientos</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="bg-white/5 text-black/80">
+              <tr><th class="px-3 py-2 text-left">Fecha</th><th class="px-3 py-2 text-left">Tipo</th><th class="px-3 py-2 text-left">Moneda</th><th class="px-3 py-2 text-left">Monto</th><th class="px-3 py-2 text-left">Código</th></tr>
+            </thead>
+            <tbody>
+              {% for m in movimientos %}
+              <tr class="hover:bg-white/5"><td class="px-3 py-2">{{ m.fecha }}</td><td class="px-3 py-2">{{ m.tipo }}</td><td class="px-3 py-2">{{ m.moneda }}</td><td class="px-3 py-2">{{ m.monto }}</td><td class="px-3 py-2">{{ m.codigo }}</td></tr>
+              {% empty %}<tr><td colspan="5" class="px-3 py-4 text-center text-black/60">Sin movimientos.</td></tr>{% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="card p-4">
+          <h3 class="font-semibold mb-2">Depósitos</h3>
+          <ul class="text-sm divide-y divide-white/10">
+            {% for d in depositos %}
+            <li class="py-2 flex justify-between"><span>${{ d.monto }} — {{ d.estado }}</span><span class="text-black/60">{{ d.fecha_subida }}</span></li>
+            {% empty %}<li class="py-2 text-black/60">Sin depósitos.</li>{% endfor %}
+          </ul>
+        </div>
+        <div class="card p-4">
+          <h3 class="font-semibold mb-2">Retiros (ARS)</h3>
+          <ul class="text-sm divide-y divide-white/10">
+            {% for r in retiros %}
+            <li class="py-2 flex justify-between"><span>${{ r.monto }} — {{ r.estado }}</span><span class="text-black/60">{{ r.fecha_creacion }}</span></li>
+            {% empty %}<li class="py-2 text-black/60">Sin retiros.</li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <h3 class="font-semibold mb-2">Retiros CRYPTO</h3>
+        <ul class="text-sm divide-y divide-white/10">
+          {% for rc in retiros_crypto %}
+          <li class="py-2 flex justify-between"><span>{{ rc.moneda }} {{ rc.monto }} — {{ rc.estado }}</span><span class="text-black/60">{{ rc.fecha_creacion }}</span></li>
+          {% empty %}<li class="py-2 text-black/60">Sin retiros crypto.</li>{% endfor %}
+        </ul>
+      </div>
+      {# --- Boletos / Comprobantes --- #}
+<section id="boletos" class="card p-5 mt-8">
+  <div class="flex items-center justify-between flex-wrap gap-3">
+    <h3 class="text-lg font-semibold">Boletos / Comprobantes</h3>
+    {% if boletos %}
+      <span class="text-sm text-black/60">{{ boletos|length }} emitidos</span>
+    {% endif %}
+  </div>
+
+  {% if boletos %}
+    <div class="overflow-x-auto mt-4">
+      <table class="w-full text-sm">
+        <thead class="bg-white/5 text-black/70">
+          <tr>
+            <th class="px-3 py-2 text-left">Número</th>
+            <th class="px-3 py-2 text-left">Tipo</th>
+            <th class="px-3 py-2 text-left">Moneda</th>
+            <th class="px-3 py-2 text-left">Monto</th>
+            <th class="px-3 py-2 text-left">Estado</th>
+            <th class="px-3 py-2 text-left">Emitido</th>
+            <th class="px-3 py-2 text-left">Vence</th>
+            <th class="px-3 py-2 text-left">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in boletos %}
+            <tr class="hover:bg-white/5">
+              <td class="px-3 py-2 font-mono">
+                <a href="{% url 'verificar_boleto' b.numero %}" class="text-neon hover:opacity-80">
+                  {{ b.numero }}
+                </a>
+              </td>
+              <td class="px-3 py-2">{{ b.tipo|default:"—" }}</td>
+              <td class="px-3 py-2">{{ b.moneda|default:"—" }}</td>
+              <td class="px-3 py-2">
+                {% if b.moneda == "USDT" or b.moneda == "USD" %}
+                  {{ b.monto }}
+                {% else %}
+                  ${{ b.monto }}
+                {% endif %}
+              </td>
+              <td class="px-3 py-2">
+                <span class="px-2 py-0.5 rounded border text-xs
+                  {% if b.estado == 'pagado' or b.estado == 'aprobado' %} border-emerald-400 text-emerald-300
+                  {% elif b.estado == 'pendiente' %} border-amber-400 text-amber-300
+                  {% elif b.estado == 'vencido' or b.estado == 'rechazado' %} border-red-400 text-red-300
+                  {% else %} border-white/20 text-black/80
+                  {% endif %}">
+                  {{ b.estado|capfirst }}
+                </span>
+              </td>
+              <td class="px-3 py-2">{{ b.fecha_emision|date:"d/m/Y H:i" }}</td>
+              <td class="px-3 py-2">{{ b.vence|date:"d/m/Y H:i"|default:"—" }}</td>
+              <td class="px-3 py-2">
+                <div class="flex flex-wrap gap-2">
+                  <a href="{% url 'verificar_boleto' b.numero %}"
+                     class="rounded-lg border border-white/15 px-3 py-1 hover:bg-white/5">Ver</a>
+                  <a href="{% url 'descargar_boleto' b.numero %}"
+                     class="rounded-lg bg-neon text-black px-3 py-1 font-semibold hover:opacity-90">Descargar</a>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-black/60 mt-2">Este usuario no tiene boletos/comprobantes emitidos.</p>
+  {% endif %}
+</section>
+
+    </div>
+  </div>
+</section>
+{% endblock %}

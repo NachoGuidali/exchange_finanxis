@@ -1,0 +1,7 @@
+Hola {{ user.username }},
+
+Para confirmar tu email en Finanxis, hacé clic en el siguiente enlace:
+
+{{ link }}
+
+Si no fuiste vos, ignorá este mensaje.

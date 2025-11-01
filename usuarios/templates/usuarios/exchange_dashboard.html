@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}Cuenta Exchange — Full Finanzas{% endblock %}
+{% block meta_description %}Caja del exchange: rentas (spread/comisiones/ajustes) y flujo global (entradas/salidas).{% endblock %}
+
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 py-8 space-y-8">
+
+  <!-- Header + Filtros -->
+  <header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold">Cuenta del Exchange</h1>
+      <p class="text-gray-600">
+        <b>Caja</b> = rentas (spread/fee/ajustes). El <b>flujo global</b> muestra entradas (depósitos) y salidas (retiros).
+      </p>
+    </div>
+
+    <form method="get" class="bg-white rounded-2xl border border-gray-200 shadow-card p-4 w-full md:w-auto">
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <label class="block">
+          <span class="text-xs text-gray-600">Desde</span>
+          <input type="date" name="desde" value="{{ params.desde|default:'' }}"
+                 class="mt-1 w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+        </label>
+        <label class="block">
+          <span class="text-xs text-gray-600">Hasta</span>
+          <input type="date" name="hasta" value="{{ params.hasta|default:'' }}"
+                 class="mt-1 w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+        </label>
+
+        <label class="block">
+          <span class="text-xs text-gray-600">Categoría</span>
+          <select name="cat" class="mt-1 w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="">Todas</option>
+            <option value="spread_compra" {% if params.cat == 'spread_compra' %}selected{% endif %}>Spread compra</option>
+            <option value="spread_venta"  {% if params.cat == 'spread_venta'  %}selected{% endif %}>Spread venta</option>
+            <option value="fee_swap"      {% if params.cat == 'fee_swap'      %}selected{% endif %}>Comisión swap</option>
+            <option value="ajuste"        {% if params.cat == 'ajuste'        %}selected{% endif %}>Ajuste</option>
+            <option value="entrada"       {% if params.cat == 'entrada'       %}selected{% endif %}>Entrada</option>
+            <option value="salida"        {% if params.cat == 'salida'        %}selected{% endif %}>Salida</option>
+          </select>
+        </label>
+
+        <label class="block">
+          <span class="text-xs text-gray-600">Moneda</span>
+          <select name="mon" class="mt-1 w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
+            <option value="">Todas</option>
+            <option value="ARS"  {% if params.mon == 'ARS'  %}selected{% endif %}>ARS</option>
+            <option value="USDT" {% if params.mon == 'USDT' %}selected{% endif %}>USDT</option>
+            <option value="USD"  {% if params.mon == 'USD'  %}selected{% endif %}>USD</option>
+          </select>
+        </label>
+
+        <div class="flex items-end gap-2">
+          <button class="rounded-lg bg-primary text-white font-semibold px-4 py-2 shadow-soft hover:opacity-90">Aplicar</button>
+          <a href="{% url 'exchange_dashboard' %}" class="rounded-lg border border-gray-300 px-4 py-2 hover:bg-gray-50">Limpiar</a>
+        </div>
+      </div>
+    </form>
+  </header>
+
+  <!-- KPIs -->
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
+      <p class="text-gray-600 text-sm">Saldo caja ARS</p>
+      <p class="text-2xl font-bold">${{ cuenta.saldo_ars|default:"0.00" }}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
+      <p class="text-gray-600 text-sm">Saldo caja USDT</p>
+      <p class="text-2xl font-bold">{{ cuenta.saldo_usdt|default:"0.000000" }}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
+      <p class="text-gray-600 text-sm">Saldo caja USD</p>
+      <p class="text-2xl font-bold">{{ cuenta.saldo_usd|default:"0.00" }}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
+      <p class="text-gray-600 text-sm">Renta (ARS) filtrada</p>
+      <p class="text-2xl font-bold">${{ ingresos_ars|floatformat:2 }}</p>
+      <p class="text-gray-500 text-xs mt-1">Solo spread/fee/ajustes (no incluye depósitos/retiros)</p>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <!-- <div class="grid gap-6 lg:grid-cols-2">
+    
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-semibold">Composición de Caja (ARS)</h2>
+        <span class="text-sm text-gray-600">Equivalentes normalizados</span>
+      </div>
+      <canvas id="chart-cartera" height="120"></canvas>
+    </div> -->
+
+    <!-- Flujo global -->
+    <!-- <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-semibold">Ingreso / Egreso — Totales (ARS)</h2>
+        <span class="text-sm text-gray-600">Entradas (depósitos) vs Salidas (retiros)</span>
+      </div>
+      <canvas id="chart-flujo" height="120"></canvas>
+      <p class="text-xs text-gray-600 mt-2">
+        Entradas: ${{ total_entradas|floatformat:2 }} • Salidas: ${{ total_salidas|floatformat:2 }}
+      </p>
+    </div>
+  </div> -->
+
+  <!-- Totales -->
+  <div class="grid gap-6 lg:grid-cols-2">
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-0 overflow-x-auto">
+      <h3 class="px-4 pt-4 text-lg font-semibold">Totales por categoría</h3>
+      <table class="w-full text-sm mt-2">
+        <thead class="bg-gray-50 text-gray-800 border-b border-gray-200">
+          <tr>
+            <th class="px-3 py-2 text-left">Categoría</th>
+            <th class="px-3 py-2 text-left">Total ARS</th>
+            <th class="px-3 py-2 text-left">#</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in totales_cat %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-3 py-2">{{ t.categoria }}</td>
+            <td class="px-3 py-2">${{ t.total_ars|floatformat:2 }}</td>
+            <td class="px-3 py-2">{{ t.n }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="px-3 py-4 text-center text-gray-600">Sin datos.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-0 overflow-x-auto">
+      <h3 class="px-4 pt-4 text-lg font-semibold">Totales por moneda</h3>
+      <table class="w-full text-sm mt-2">
+        <thead class="bg-gray-50 text-gray-800 border-b border-gray-200">
+          <tr>
+            <th class="px-3 py-2 text-left">Moneda</th>
+            <th class="px-3 py-2 text-left">Total (moneda)</th>
+            <th class="px-3 py-2 text-left">Total ARS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in totales_mon %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-3 py-2">{{ t.moneda }}</td>
+            <td class="px-3 py-2">
+              {% if t.moneda == 'USDT' %}
+                {{ t.total_mon|floatformat:6 }}
+              {% else %}
+                {{ t.total_mon|floatformat:2 }}
+              {% endif %}
+            </td>
+            <td class="px-3 py-2">${{ t.total_ars|floatformat:2 }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="3" class="px-3 py-4 text-center text-gray-600">Sin datos.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Últimos apuntes -->
+  <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-0 overflow-x-auto">
+    <h3 class="px-4 pt-4 text-lg font-semibold">Últimos apuntes</h3>
+    <table class="w-full text-sm mt-2">
+      <thead class="bg-gray-50 text-gray-800 border-b border-gray-200">
+        <tr>
+          <th class="px-3 py-2 text-left">Fecha</th>
+          <th class="px-3 py-2 text-left">Categoría</th>
+          <th class="px-3 py-2 text-left">Moneda</th>
+          <th class="px-3 py-2 text-left">Monto (moneda)</th>
+          <th class="px-3 py-2 text-left">Valuación ARS</th>
+          <th class="px-3 py-2 text-left">Usuario</th>
+          <th class="px-3 py-2 text-left">Detalle</th>
+          <th class="px-3 py-2 text-left">Ref</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for a in apuntes %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-3 py-2 whitespace-nowrap">{{ a.fecha|date:"Y-m-d H:i" }}</td>
+          <td class="px-3 py-2">{{ a.categoria }}</td>
+          <td class="px-3 py-2">{{ a.moneda }}</td>
+          <td class="px-3 py-2">{{ a.monto_moneda }}</td>
+          <td class="px-3 py-2">${{ a.monto_ars }}</td>
+          <td class="px-3 py-2">{% if a.usuario %}{{ a.usuario.username }}{% else %}<span class="text-gray-500">—</span>{% endif %}</td>
+          <td class="px-3 py-2">{{ a.detalle|default:"—" }}</td>
+          <td class="px-3 py-2 text-xs">{{ a.ref_movimiento|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="8" class="px-3 py-6 text-center text-gray-600">Sin registros.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Export -->
+  <form method="GET" action="{% url 'exchange_export_csv' %}" class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
+    <div class="flex flex-wrap items-center gap-3">
+      <input type="hidden" name="desde" value="{{ params.desde|default:'' }}">
+      <input type="hidden" name="hasta" value="{{ params.hasta|default:'' }}">
+      <input type="hidden" name="cat"   value="{{ params.cat|default:'' }}">
+      <input type="hidden" name="mon"   value="{{ params.mon|default:'' }}">
+      <button class="rounded-lg border border-primary/30 text-primary px-4 py-2 hover:bg-primary/5">📥 Exportar CSV</button>
+      <span class="text-xs text-gray-600">Se aplica el filtro actual.</span>
+    </div>
+  </form>
+
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+  // --- Datos de servidor ---
+  const serie = {{ serie_diaria|safe|default:"[]" }};
+  const compL   = {{ comp_labels|safe|default:"[]" }};   // ['ARS','USDT','USD']
+  const compARS = {{ comp_ars|safe|default:"[]" }};      // valores normalizados en ARS
+  const compU   = {{ comp_units|safe|default:"[]" }};    // unidades originales para tooltip
+
+  // --- Composición de caja ---
+  const $cartera = document.getElementById('chart-cartera');
+  if ($cartera && window.Chart){
+    new Chart($cartera, {
+      type: 'doughnut',
+      data: {
+        labels: compL,
+        datasets: [{
+          data: compARS,
+          borderWidth: 1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const i = ctx.dataIndex;
+                const label = compL[i] ?? '';
+                const ars   = Number(compARS[i] ?? 0);
+                const unit  = Number(compU[i] ?? 0);
+                const unitFmt = (label === 'USDT') ? unit.toFixed(6) : unit.toFixed(2);
+                return `${label}: ${unitFmt} • $${ars.toFixed(2)} ARS`;
+              }
+            }
+          }
+        },
+        cutout: '58%'
+      }
+    });
+  }
+
+  // --- Flujo global (entradas vs salidas) ---
+  const entradas = Number("{{ total_entradas|default:'0' }}");
+  const salidas  = Number("{{ total_salidas|default:'0' }}");
+  const $flujo = document.getElementById('chart-flujo');
+  if ($flujo && window.Chart){
+    new Chart($flujo, {
+      type: 'bar',
+      data: {
+        labels: ['Entradas', 'Salidas'],
+        datasets: [{ label: 'ARS', data: [entradas, Math.abs(salidas)], borderWidth: 1 }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false } },
+          y: { grid: { color: 'rgba(0,0,0,.06)' } }
+        }
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

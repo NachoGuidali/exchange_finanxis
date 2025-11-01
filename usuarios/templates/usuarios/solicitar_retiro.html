@@ -1,55 +1,234 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-<h2>Solicitar retiro ARS</h2>
-<form method="POST">
-  {% csrf_token %}
-  <label>Monto a retirar:</label>
-  <input type="number" step="0.01" name="monto" required><br>
+{# templates/usuarios/retiros.html #}
+{% extends "base.html" %}
+{% block title %}Retiros — Finanxis{% endblock %}
+{% block meta_description %}Solicitá retiro en ARS o cripto con validaciones y confirmación.{% endblock %}
 
-  <label>Alias:</label>
-  <input type="text" name="alias"><br>
+{% block content %}
+<section class="mx-auto max-w-5xl">
+  <!-- Encabezado -->
+  <header class="mb-6">
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Retiros</h1>
+    <p class="text-gray-600">Retirá fondos en <b>ARS</b> a tu cuenta bancaria o cripto (<b>USD/USDT</b>) a tu wallet.</p>
+  </header>
 
-  <label>CBU:</label>
-  <input type="text" name="cbu"><br>
+  <!-- Mensajes del backend + (compat) error/success en contexto -->
+  {% if messages %}
+    <div class="mb-4 space-y-2" aria-live="polite">
+      {% for message in messages %}
+        <div class="rounded-xl border px-4 py-3 text-sm
+            {% if 'success' in message.tags %} bg-emerald-50 border-emerald-200 text-emerald-800
+            {% elif 'error' in message.tags %} bg-rose-50 border-rose-200 text-rose-800
+            {% elif 'warning' in message.tags %} bg-amber-50 border-amber-200 text-amber-900
+            {% else %} bg-slate-50 border-slate-200 text-slate-900
+            {% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
 
-  <label>Banco:</label>
-  <input type="text" name="banco"><br>
+  {% if error %}
+    <div class="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ error }}</div>
+  {% endif %}
+  {% if success %}
+    <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ success }}</div>
+  {% endif %}
 
-  <button type="submit">Solicitar retiro</button>
-</form>
+  <!-- Saldo -->
+  <div class="grid sm:grid-cols-3 gap-4 mb-6">
+    <div class="rounded-2xl border border-gray-200 bg-white p-4">
+      <div class="text-xs text-gray-500">Saldo ARS</div>
+      <div class="text-2xl font-extrabold text-gray-900">${{ request.user.saldo_ars|default:"0.00" }}</div>
+    </div>
+    <div class="rounded-2xl border border-gray-200 bg-white p-4">
+      <div class="text-xs text-gray-500">Saldo USDT</div>
+      <div class="text-2xl font-extrabold text-gray-900">{{ request.user.saldo_usdt|default:"0.00" }}</div>
+    </div>
+    <div class="rounded-2xl border border-gray-200 bg-white p-4">
+      <div class="text-xs text-gray-500">Saldo USD</div>
+      <div class="text-2xl font-extrabold text-gray-900">{{ request.user.saldo_usd|default:"0.00" }}</div>
+    </div>
+  </div>
 
-{% if error %}
-  <p style="color:red;">{{ error }}</p>
-{% endif %}
-{% if success %}
-  <p style="color:green;">{{ success }}</p>
-{% endif %}
+  <!-- Tabs -->
+  <div class="rounded-2xl border border-gray-200 bg-white">
+    <div class="flex items-center gap-2 border-b border-gray-200 px-4 pt-3">
+      <button data-tab="ars" class="tab-btn active rounded-t-md px-4 py-2 text-sm font-medium text-gray-900 border-b-2 border-primary">Retiro ARS</button>
+      <button data-tab="crypto" class="tab-btn rounded-t-md px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900">Retiro cripto</button>
+    </div>
 
-<h2>SOLICITAR RETIRO CRYPTO</h2>
-<form method="POST" action="{% url 'solicitar_retiro_cripto' %}">
-  {% csrf_token %}
-  <label>Moneda:
-    <select name="moneda">
-      <option value="USDT">USDT</option>
-      <option value="USD">USD</option>
-    </select>
-  </label><br>
+    <div class="p-5">
+      <!-- ARS -->
+      <section id="panel-ars">
+        <form method="POST" action="{% url 'solicitar_retiro' %}" class="grid gap-4 sm:grid-cols-2" id="form-ars">
+          {% csrf_token %}
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-500 mb-1">Monto a retirar (ARS)</label>
+            <input
+              type="number" step="0.01" min="0"
+              name="monto"
+              required
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0"
+              placeholder="Ej: 150000.00">
+            <p class="mt-1 text-[12px] text-gray-600">Se acreditará en tu cuenta bancaria.</p>
+          </div>
 
-  <label>Monto:
-    <input type="number" name="monto" step="0.01" required>
-  </label><br>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Alias (opcional)</label>
+            <input
+              type="text"
+              name="alias"
+              inputmode="text"
+              pattern="[A-Za-z0-9.-]{6,30}"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0"
+              placeholder="tualias.banco.cuenta">
+            <p class="mt-1 text-[12px] text-gray-500">Solo letras, números, “.” y “-”.</p>
+          </div>
 
-  <label>Dirección de Wallet:
-    <input type="text" name="direccion_wallet" required>
-  </label><br>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">CBU (opcional)</label>
+            <input
+              type="text"
+              name="cbu"
+              inputmode="numeric"
+              pattern="\\d{22}"
+              maxlength="22"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0"
+              placeholder="22 dígitos">
+            <p class="mt-1 text-[12px] text-gray-500">Exactamente 22 dígitos.</p>
+          </div>
 
-  <button type="submit">Solicitar retiro</button>
-</form>
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-500 mb-1">Banco (opcional)</label>
+            <input
+              type="text"
+              name="banco"
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0"
+              placeholder="Ej: Banco Galicia">
+          </div>
 
-</html>
+          <div class="sm:col-span-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900">
+            <span>ⓘ</span>
+            <p>Ingresá <b>alias o CBU</b>. Si completás ambos, se usará el <b>CBU</b>. Los retiros pueden tener verificación adicional.</p>
+          </div>
+
+          <div class="sm:col-span-2">
+            <button
+              type="submit"
+              class="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-dark shadow-soft hover:opacity-90">
+              Solicitar retiro ARS
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- CRYPTO -->
+      <section id="panel-crypto" class="hidden">
+        <form method="POST" action="{% url 'solicitar_retiro_cripto' %}" class="grid gap-4 sm:grid-cols-2" id="form-crypto">
+          {% csrf_token %}
+
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Moneda</label>
+            <select
+              name="moneda" required
+              class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 focus:border-primary focus:ring-0">
+              <option value="USDT">USDT</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Monto</label>
+            <input
+              type="number" step="0.01" min="0"
+              name="monto"
+              required
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0"
+              placeholder="Ej: 250.00">
+          </div>
+
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-500 mb-1">Dirección de wallet</label>
+            <input
+              type="text"
+              name="direccion_wallet"
+              required
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0"
+              placeholder="Pega tu dirección cuidadosamente">
+            <p class="mt-1 text-[12px] text-gray-600">Verificá red y dirección antes de confirmar.</p>
+          </div>
+
+          <div class="sm:col-span-2">
+            <button
+              type="submit"
+              class="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-dark shadow-soft hover:opacity-90">
+              Solicitar retiro cripto
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </div>
+
+  <!-- Ayuda -->
+  <div class="mt-6 rounded-2xl border border-gray-200 bg-white p-4">
+    <h3 class="font-semibold text-gray-900">Ayuda</h3>
+    <p class="text-sm text-gray-600 mt-1">Ante dudas o rechazo de retiro, escribinos desde <a href="{% url 'soporte' %}" class="text-primary underline">Soporte</a>.</p>
+  </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+  (function(){
+    // Tabs
+    const btns = document.querySelectorAll('.tab-btn');
+    const panels = { ars: document.getElementById('panel-ars'), crypto: document.getElementById('panel-crypto') };
+    function activate(tab){
+      btns.forEach(b=>{
+        const on = b.dataset.tab === tab;
+        b.classList.toggle('active', on);
+        b.classList.toggle('text-gray-900', on);
+        b.classList.toggle('text-gray-600', !on);
+        b.classList.toggle('border-b-2', on);
+        b.style.borderColor = on ? '#FF1129' : 'transparent';
+      });
+      Object.entries(panels).forEach(([k, el])=>el.classList.toggle('hidden', k!==tab));
+      history.replaceState(null,'',`?tab=${tab}`);
+    }
+    btns.forEach(b=>b.addEventListener('click', ()=>activate(b.dataset.tab)));
+    const initial = (new URLSearchParams(location.search).get('tab')) || 'ars';
+    activate(initial);
+
+    // ARS: alias/cbu mutuamente "dominantes" y confirmación
+    const fa = document.getElementById('form-ars');
+    if(fa){
+      const alias = fa.querySelector('input[name="alias"]');
+      const cbu = fa.querySelector('input[name="cbu"]');
+      alias?.addEventListener('input', ()=>{ if(alias.value.trim().length>0){ cbu.removeAttribute('required'); }});
+      cbu?.addEventListener('input', ()=>{ if(cbu.value.trim().length>0){ alias.removeAttribute('required'); }});
+      fa.addEventListener('submit', (e)=>{
+        const monto = Number(fa.querySelector('input[name="monto"]').value || 0);
+        if(monto<=0){ e.preventDefault(); alert('Indicá un monto válido.'); return; }
+        const ok = confirm(`Confirmar retiro ARS\nMonto: $${monto.toLocaleString('es-AR',{minimumFractionDigits:2})}\n¿Deseás continuar?`);
+        if(!ok) e.preventDefault();
+      });
+    }
+
+    // CRYPTO: confirmación
+    const fc = document.getElementById('form-crypto');
+    if(fc){
+      fc.addEventListener('submit', (e)=>{
+        const m = fc.querySelector('[name="moneda"]').value;
+        const monto = Number(fc.querySelector('[name="monto"]').value || 0);
+        const addr = fc.querySelector('[name="direccion_wallet"]').value.trim();
+        if(monto<=0 || !addr){ e.preventDefault(); alert('Completá monto y dirección válidos.'); return; }
+        const ok = confirm(`Confirmar retiro ${m}\nMonto: ${monto}\nDestino: ${addr}\nIMPORTANTE: Verificá red y dirección. Los envíos son irreversibles.`);
+        if(!ok) e.preventDefault();
+      });
+    }
+  })();
+</script>
+{% endblock %}

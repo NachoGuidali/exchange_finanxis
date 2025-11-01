@@ -31,3 +31,5 @@ def cliente_ctx(u):
         "telefono": getattr(u, "telefono", "—"),
         "estado_verificacion": getattr(u, "estado_verificacion", "pendiente"),
     }    
+
+

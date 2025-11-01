@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.contrib.auth.admin import UserAdmin
-from .models import Usuario, Cotizacion, RetiroARS
+from .models import Usuario, Cotizacion, RetiroARS, Pais, Provincia, Localidad
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 
@@ -39,18 +39,12 @@ class CustomUserAdmin(UserAdmin):
     # FORM DE EDICIÓN
     # -------------------------
     fieldsets = UserAdmin.fieldsets + (
-        (_('KYC / Identidad'), {
-            'fields': ('doc_tipo', 'doc_nro', 'nacionalidad', 'domicilio', 'telefono')
-        }),
-        (_('Documentos'), {
-            'fields': ('dni_frente_preview', 'dni_frente', 'dni_dorso_preview', 'dni_dorso')
-        }),
-        (_('Verificación'), {
-            'fields': ('estado_verificacion',)
-        }),
-        (_('Saldos'), {
-            'fields': ('saldo_ars', 'saldo_usdt', 'saldo_usd')
-        }),
+        ("KYC", {"fields": (
+            "doc_tipo","doc_nro","nacionalidad","telefono",
+            "dni_frente","dni_dorso","estado_verificacion"
+        )}),
+        ("Domicilio", {"fields": ("pais","provincia","localidad","cp","direccion","domicilio")}),
+        ("Saldos", {"fields": ("saldo_ars","saldo_usdt","saldo_usd")}),
     )
 
     # (Opcional) si creás usuarios desde admin y querés capturar KYC en el alta:
@@ -138,3 +132,10 @@ class RetiroARSAdmin(admin.ModelAdmin):
             retiro.estado = 'enviado'
             retiro.save()
     marcar_como_enviado.short_description = "Marcar como enviados"
+
+
+ 
+admin.site.register(Pais)
+admin.site.register(Provincia)
+admin.site.register(Localidad)
+ 

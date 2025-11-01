@@ -1,23 +1,186 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    <h2>Agregar saldo en ARS</h2>
+{% extends "base.html" %}
+{% block title %}Agregar saldo — Finanxis{% endblock %}
+{% block meta_description %}Cargá saldo en ARS subiendo tu comprobante y los datos de la transferencia.{% endblock %}
 
-<p>Alias: {{ datos_bancarios.alias }}</p>
-<p>CVU: {{ datos_bancarios.cvu }}</p>
-<p>Banco: {{ datos_bancarios.banco }}</p>
+{% block content %}
+<section class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-<form method="post" enctype="multipart/form-data">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit">Enviar comprobante</button>
-</form>
+  <!-- Header -->
+  <header class="rounded-2xl border border-gray-200 bg-white p-5 lg:p-6 shadow-soft">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Agregar saldo en ARS</h1>
+        <p class="text-gray-600 mt-1">Transferí a la cuenta de Finanxis y subí el comprobante para acreditar.</p>
+      </div>
+      <a href="{% url 'operar' %}" class="inline-flex items-center justify-center rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90">
+        ← Volver a Operar
+      </a>
+    </div>
+  </header>
 
-    
-</body>
-</html>
+  <!-- Grid principal -->
+  <div class="grid gap-6 lg:grid-cols-12">
+
+    <!-- Columna izquierda: Instrucciones + Form -->
+    <div class="lg:col-span-7 space-y-6">
+      <!-- Pasos rápidos -->
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+        <h2 class="text-lg font-semibold text-gray-900">Cómo acreditar tu depósito</h2>
+        <ol class="mt-3 grid sm:grid-cols-2 gap-3 text-sm">
+          <li class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">1) Hacé una transferencia a la cuenta indicada.</li>
+          <li class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">2) Adjuntá el comprobante y enviá el formulario.</li>
+          <li class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">3) Acreditamos dentro del horario bancario.</li>
+          <li class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">4) Te avisamos por notificación y email.</li>
+        </ol>
+      </section>
+
+      <!-- Formulario -->
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+        <h2 class="text-lg font-semibold text-gray-900 mb-2">Subí tu comprobante</h2>
+        <p class="text-sm text-gray-600 mb-4">Asegurate de que se lea el **monto**, **fecha** y **origen** de la transferencia.</p>
+
+        <form method="post" enctype="multipart/form-data" class="space-y-4">
+          {% csrf_token %}
+
+          <!-- Render nativo del form (con estilo de contenedor para que no rompa) -->
+          <div class="prose max-w-none">
+            {{ form.as_p }}
+          </div>
+
+          <!-- Zona de arrastre opcional (no cambia el input original) -->
+          <div class="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-600"
+               ondragover="this.classList.add('ring-2','ring-primary')" ondragleave="this.classList.remove('ring-2','ring-primary')">
+            <div class="flex items-center gap-3">
+              <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">📎</div>
+              <div>
+                <div class="font-medium text-gray-900">Arrastrá tu comprobante acá</div>
+                <div class="text-xs text-gray-500">O usá el campo de archivo del formulario de arriba</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preview del archivo si el form tiene un input[type=file] -->
+          <div id="filePreview" class="hidden rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div class="text-sm text-gray-700 mb-2 font-medium">Vista previa</div>
+            <img id="filePreviewImg" class="max-h-72 rounded-lg border border-gray-200" alt="Comprobante">
+            <p id="filePreviewName" class="mt-2 text-xs text-gray-600"></p>
+          </div>
+
+          <div class="flex items-center gap-3 pt-2">
+            <button type="submit"
+                    class="rounded-xl bg-primary text-dark font-semibold px-5 py-2.5 text-sm shadow-soft hover:opacity-90">
+              Enviar comprobante
+            </button>
+            <span class="text-xs text-gray-500">Formatos soportados: JPG, PNG, PDF</span>
+          </div>
+        </form>
+      </section>
+
+      <!-- FAQs cortas -->
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+        <h3 class="text-sm font-semibold text-gray-900">Preguntas frecuentes</h3>
+        <div class="mt-3 divide-y divide-gray-100 text-sm">
+          <details class="py-3">
+            <summary class="cursor-pointer font-medium text-gray-800">¿Cuánto tarda en acreditarse?</summary>
+            <p class="mt-2 text-gray-600">Dentro del horario bancario suele acreditarse en 30–90 minutos. Fuera de horario, al siguiente día hábil.</p>
+          </details>
+          <details class="py-3">
+            <summary class="cursor-pointer font-medium text-gray-800">¿Puedo transferir desde un tercero?</summary>
+            <p class="mt-2 text-gray-600">Sí, pero el comprobante debe coincidir con los datos que declares en el formulario. Podemos solicitar verificación adicional.</p>
+          </details>
+          <details class="py-3">
+            <summary class="cursor-pointer font-medium text-gray-800">¿Qué pasa si subí mal el comprobante?</summary>
+            <p class="mt-2 text-gray-600">Podés volver a enviarlo desde esta misma página o escribir a soporte con el ID del depósito.</p>
+          </details>
+        </div>
+      </section>
+    </div>
+
+    <!-- Columna derecha: Datos bancarios + Tips -->
+    <aside class="lg:col-span-5 space-y-6">
+      <!-- Datos bancarios -->
+      <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+        <h2 class="text-lg font-semibold text-gray-900">Datos de transferencia</h2>
+        <div class="mt-4 grid gap-3 text-sm">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div class="text-xs text-gray-600">Alias</div>
+            <div class="flex items-center justify-between gap-3">
+              <code class="text-gray-900 font-semibold break-all">{{ datos_bancarios.alias }}</code>
+              <button class="copy-btn rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50"
+                      data-copy="{{ datos_bancarios.alias }}">Copiar</button>
+            </div>
+          </div>
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div class="text-xs text-gray-600">CVU</div>
+            <div class="flex items-center justify-between gap-3">
+              <code class="text-gray-900 font-semibold break-all">{{ datos_bancarios.cvu }}</code>
+              <button class="copy-btn rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs hover:bg-gray-50"
+                      data-copy="{{ datos_bancarios.cvu }}">Copiar</button>
+            </div>
+          </div>
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div class="text-xs text-gray-600">Banco</div>
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-gray-900 font-medium">{{ datos_bancarios.banco }}</span>
+              <span class="text-[11px] text-gray-500">Cuenta receptora</span>
+            </div>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-gray-500">Recordá enviar el comprobante para acelerar la acreditación.</p>
+      </section>
+
+      <!-- Tips -->
+      <section class="rounded-2xl border border-gray-200 bg-primary/5 p-5">
+        <h3 class="font-semibold text-gray-900">💡 Tips</h3>
+        <ul class="mt-2 space-y-2 text-sm text-gray-700">
+          <li>Usá el **mismo titular** que tu cuenta Finanxis para evitar demoras.</li>
+          <li>Si transferís en USD, convertimos según tu instrucción en Operar.</li>
+          <li>Los depósitos desde billeteras virtuales pueden demorar más.</li>
+        </ul>
+      </section>
+    </aside>
+  </div>
+</section>
+
+<!-- Scripts: copiar al portapapeles + preview archivo -->
+<script>
+  // Copiar alias / CVU
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest('.copy-btn');
+    if (!btn) return;
+    const val = btn.getAttribute('data-copy') || '';
+    try {
+      await navigator.clipboard.writeText(val);
+      const old = btn.textContent;
+      btn.textContent = 'Copiado ✓';
+      setTimeout(() => btn.textContent = old, 1200);
+    } catch (err) {
+      console.warn('Clipboard no disponible', err);
+    }
+  });
+
+  // Preview genérico para el primer input[type=file] del form
+  (function(){
+    const fileInput = document.querySelector('form input[type="file"]');
+    if (!fileInput) return;
+    const wrap = document.getElementById('filePreview');
+    const img  = document.getElementById('filePreviewImg');
+    const name = document.getElementById('filePreviewName');
+
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files?.[0];
+      if (!f) { wrap.classList.add('hidden'); return; }
+      name.textContent = f.name + ' — ' + Math.round(f.size/1024) + ' KB';
+      wrap.classList.remove('hidden');
+      if (f.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => { img.src = e.target.result; };
+        reader.readAsDataURL(f);
+        img.classList.remove('hidden');
+      } else {
+        img.classList.add('hidden');
+      }
+    });
+  })();
+</script>
+{% endblock %}

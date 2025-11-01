@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Configuración — Finanxis{% endblock %}
+{% block meta_description %}Editá tu perfil, seguridad, apariencia y ayuda.{% endblock %}
+
+{% block content %}
+<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+  <header class="rounded-2xl border border-gray-200 bg-white p-5 mb-6">
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Configuración</h1>
+    <p class="text-gray-600">Personalizá tu experiencia y mantené tu cuenta segura.</p>
+  </header>
+
+  <div class="grid lg:grid-cols-12 gap-6">
+    <!-- Sidebar -->
+    <aside class="lg:col-span-3">
+      <nav class="rounded-2xl border border-gray-200 bg-white p-3 sticky top-24">
+        <ul class="space-y-1 text-sm">
+          <li><a href="#perfil"     data-tab-link="perfil"     class="tab-link block rounded-lg px-3 py-2 hover:bg-gray-50">Perfil</a></li>
+          <li><a href="#seguridad"  data-tab-link="seguridad"  class="tab-link block rounded-lg px-3 py-2 hover:bg-gray-50">Seguridad</a></li>
+          <li><a href="#apariencia" data-tab-link="apariencia" class="tab-link block rounded-lg px-3 py-2 hover:bg-gray-50">Apariencia</a></li>
+          <li><a href="#ayuda"      data-tab-link="ayuda"      class="tab-link block rounded-lg px-3 py-2 hover:bg-gray-50">¿Necesitás ayuda?</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Panels -->
+    <div class="lg:col-span-9 space-y-6">
+
+      <!-- PERFIL -->
+      <section id="panel-perfil" data-tab-panel="perfil" class="rounded-2xl border border-gray-200 bg-white p-5">
+        <h2 class="text-lg font-semibold text-gray-900">Perfil</h2>
+        <form method="post" action="{% url 'actualizar_perfil' %}" class="mt-4 grid gap-4 sm:grid-cols-2">
+          {% csrf_token %}
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Nombre</label>
+            <input name="first_name"
+       value="{% firstof request.user.first_name request.user.username %}"
+       class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" readonly/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Apellido</label>
+            <input name="last_name" value="{{ request.user.last_name }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" readonly/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Documento</label>
+            <input name="doc" value="{{ request.user.doc_tipo }} {{ request.user.doc_nro }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" readonly/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Teléfono</label>
+            <input name="telefono" value="{{ request.user.telefono }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" />
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-500 mb-1">Domicilio</label>
+            <input name="domicilio" value="{{ request.user.domicilio }}" class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" />
+          </div>
+          <div class="sm:col-span-2 flex items-center justify-between pt-2">
+            <p class="text-xs text-gray-500">El email se gestiona desde seguridad.</p>
+            <button class="rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90">Guardar cambios</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- SEGURIDAD -->
+      <section id="panel-seguridad" data-tab-panel="seguridad" class="rounded-2xl border border-gray-200 bg-white p-5 hidden">
+        <h2 class="text-lg font-semibold text-gray-900">Seguridad</h2>
+
+        <div class="mt-4 grid gap-6">
+          <!-- Password -->
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <h3 class="font-medium text-gray-900">Cambiar contraseña</h3>
+            <form method="post" action="{% url 'cambiar_password' %}" class="mt-3 grid sm:grid-cols-3 gap-3">
+              {% csrf_token %}
+              <input name="actual" type="password" placeholder="Actual" class="rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" required>
+              <input name="nueva" type="password" placeholder="Nueva" class="rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" required>
+              <input name="confirmar" type="password" placeholder="Confirmar" class="rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" required>
+              <div class="sm:col-span-3 flex justify-end">
+                <button class="rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90">Actualizar</button>
+              </div>
+            </form>
+          </div>
+
+          
+          <!-- <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h3 class="font-medium text-gray-900">Autenticación en 2 pasos (2FA)</h3>
+                <p class="text-sm text-gray-600">Protegé tu cuenta con un segundo factor (app autenticador).</p>
+                <p class="mt-1 text-sm">
+                  Estado:
+                  {% if request.user.has_2fa %}
+                    <span class="font-semibold text-emerald-600">Activo</span>
+                  {% else %}
+                    <span class="font-semibold text-rose-600">Desactivado</span>
+                  {% endif %}
+                </p>
+              </div>
+              <div class="shrink-0">
+                {% if request.user.has_2fa %}
+                  <a href="{% url 'desactivar_2fa' %}" class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100">Desactivar</a>
+                {% else %}
+                  <a href="{% url 'activar_2fa' %}" class="rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90">Activar 2FA</a>
+                {% endif %}
+              </div>
+            </div>
+          </div> -->
+
+          <!-- Email -->
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <h3 class="font-medium text-gray-900">Correo electrónico</h3>
+            <form method="post" action="{% url 'cambiar_email' %}" class="mt-3 grid sm:grid-cols-3 gap-3">
+              {% csrf_token %}
+              <input name="email" type="email" value="{{ request.user.email }}" class="rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" required>
+              <input name="password" type="password" placeholder="Contraseña actual" class="rounded-lg border border-gray-300 px-3 py-2 focus:border-primary focus:ring-0" required>
+              <div class="sm:col-span-3 flex justify-end">
+                <button class="rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90">Actualizar email</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- APARIENCIA -->
+      <section id="panel-apariencia" data-tab-panel="apariencia" class="rounded-2xl border border-gray-200 bg-white p-5 hidden">
+        <h2 class="text-lg font-semibold text-gray-900">Apariencia</h2>
+        <p class="text-sm text-gray-600">Elegí cómo se ve Finanxis. Se guarda en el navegador.</p>
+
+        <div class="mt-4 grid gap-4 sm:grid-cols-3">
+          <label class="rounded-xl border border-gray-200 bg-gray-50 p-4 flex items-center justify-between">
+            <span>Claro</span>
+            <input type="radio" name="theme" value="light" class="theme-radio h-4 w-4">
+          </label>
+          <label class="rounded-xl border border-gray-200 bg-gray-50 p-4 flex items-center justify-between">
+            <span>Oscuro</span>
+            <input type="radio" name="theme" value="dark" class="theme-radio h-4 w-4">
+          </label>
+          <!-- <label class="rounded-xl border border-gray-200 bg-gray-50 p-4 flex items-center justify-between">
+            <span>Automático</span>
+            <input type="radio" name="theme" value="auto" class="theme-radio h-4 w-4">
+          </label> -->
+        </div>
+
+        <div class="mt-4 flex justify-end">
+          <button id="save-theme" class="rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90">Guardar preferencia</button>
+        </div>
+      </section>
+
+      <!-- AYUDA -->
+      <section id="panel-ayuda" data-tab-panel="ayuda" class="rounded-2xl border border-gray-200 bg-white p-5 hidden">
+        <h2 class="text-lg font-semibold text-gray-900">¿Necesitás ayuda?</h2>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <h3 class="font-medium text-gray-900">Soporte</h3>
+            <p class="text-sm text-gray-600">Escribinos y respondemos a la brevedad.</p>
+            <div class="mt-3 flex gap-2">
+              <a href="{% url 'soporte' %}" class="rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90">Abrir ticket</a>
+              <a href="mailto:soporte@finanxis.com" class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100">Email</a>
+            </div>
+          </div>
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+            <h3 class="font-medium text-gray-900">Preguntas frecuentes</h3>
+            <p class="text-sm text-gray-600">Guías rápidas y soluciones comunes.</p>
+            <div class="mt-3">
+              <a href="{% url 'faq' %}" class="text-primary text-sm underline">Ir a FAQs</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</section>
+
+<!-- Tabs + Apariencia -->
+<script>
+(function(){
+  // --- Tabs (hash o ?tab=) ---
+  const getTab = () => (new URLSearchParams(location.search).get('tab')) || (location.hash||'#perfil').replace('#','') || 'perfil';
+  const links  = document.querySelectorAll('[data-tab-link]');
+  const panels = document.querySelectorAll('[data-tab-panel]');
+  function activate(tab){
+    links.forEach(a=>{
+      const on = a.dataset.tabLink===tab;
+      a.classList.toggle('bg-gray-100', on);
+      a.classList.toggle('text-gray-900', on);
+      a.classList.toggle('text-gray-600', !on);
+    });
+    panels.forEach(p=>p.classList.toggle('hidden', p.dataset.tabPanel!==tab));
+    history.replaceState(null,'',`?tab=${tab}`);
+  }
+  links.forEach(a=>a.addEventListener('click', (e)=>{ e.preventDefault(); activate(a.dataset.tabLink); }));
+  activate(getTab());
+
+  // --- Apariencia ---
+  const radios = document.querySelectorAll('.theme-radio');
+  const current = localStorage.getItem('finanxis-theme') || 'auto';
+  radios.forEach(r => r.checked = (r.value===current));
+
+  function applyTheme(val){
+    const root = document.documentElement;
+    if(val==='dark'){ root.setAttribute('data-theme','dark'); }
+    else { root.removeAttribute('data-theme'); } // claro/auto por defecto
+    localStorage.setItem('finanxis-theme', val);
+  }
+
+  document.getElementById('save-theme')?.addEventListener('click', ()=>{
+    const picked = Array.from(radios).find(r=>r.checked)?.value || 'auto';
+    applyTheme(picked);
+  });
+})();
+</script>
+{% endblock %}

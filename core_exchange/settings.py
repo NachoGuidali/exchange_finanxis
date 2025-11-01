@@ -70,6 +70,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core_exchange.wsgi.application'
 
+AUTHENTICATION_BACKENDS = [
+    'usuarios.auth_backends.EmailOrUsernameBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -104,9 +109,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'es-ar'       # Español - Argentina
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'America/Argentina/Buenos_Aires'  # Zona horaria de Buenos Aires
 
 USE_I18N = True
 
@@ -141,13 +146,69 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
 
-SWAP_FEE_BPS = 100
+# COMISION
+
+SWAP_FEE_BPS = 100  
+SPREAD_BPS_USDT = 200  
+SPREAD_BPS_USD  = 200  
+
+#EMAIL SOPORTE
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"  # dev
+DEFAULT_FROM_EMAIL = "soporte@finanxis.com"
+SOPORTE_TO = ["soporte@finanxis.com"]  # destinatarios del equipo
+DEFAULT_FROM_EMAIL = "Finanxis <no-reply@finanxis.com>"
 
 SITE_URL = "http://localhost:8000"       
 EMPRESA_NOMBRE = "Finanxis"
 EMPRESA_CUIT = "30-00000000-0"
 EMPRESA_DOMICILIO = "Av. Siempre Viva 123, CABA"
 SUPPORT_CONTACTO = "soporte@midominio.com / +54 11 5555-0000"
-PSAV_LEYENDA = ""  # dejar vacío si NO estás inscripto; poner leyenda exacta si sí lo estás
+PSAV_LEYENDA = "“Ariel Jesús Vandoni - Proveedor de Servicios de Activos Virtuales (PSAV) inscripto bajo el N°13 de la fecha 25 de marzo de 2025 del Registro PSAV – Personas Humanas, en el Registro de Proveedores de Servicios de Activos Virtuales de CNV. Este registro es a los fines del control como Sujeto Obligado ante la Unidad de Información Financiera (UIF) y de todo otro ente regulador facultado a tal efecto, en el marco de sus competencias, y no implica licencia ni supervisión por parte de la COMISIÓN NACIONAL DE VALORES sobre la actividad realizada por el PSAV”."  # dejar vacío si NO estás inscripto; poner leyenda exacta si sí lo estás
+#produccion
+# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+# EMAIL_HOST = "smtp.sendgrid.net"   # o tu proveedor
+# EMAIL_PORT = 587
+# EMAIL_HOST_USER = "apikey"         # SendGrid example
+# EMAIL_HOST_PASSWORD = "SG.xxxxxx"  # tu API key
+# EMAIL_USE_TLS = True
+# DEFAULT_FROM_EMAIL = "finanxis <no-reply@finanxis.com>"
 
-SWAP_FEE_BPS = 100  # si usás el swap que integramos
+
+
+
+#tiempo restablecimiento contraseña
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hs 
+
+
+
+TYC_VERSION = "2025-09"
+
+# --------------- seguridad--------------
+
+
+# SECURE_SSL_REDIRECT = True
+# SESSION_COOKIE_SECURE = True
+# CSRF_COOKIE_SECURE = True
+# SECURE_HSTS_SECONDS = 31536000
+# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# SECURE_HSTS_PRELOAD = True
+# CSRF_TRUSTED_ORIGINS = ["https://tu-dominio.com", "https://www.tu-dominio.com"]
+# SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin" #usar este si necesitas que integradores vean el origen
+# SECURE_REFERRER_POLICY = "same-origin" #mas estricto
+# SECURE_CONTENT_TYPE_NOSNIFF = True
+# X_FRAME_OPTIONS = "DENY"
+
+
+# CSP (django-csp)
+#INSTALLED_APPS += ["csp"]
+#CSP_DEFAULT_SRC = ("'self'",)
+#CSP_SCRIPT_SRC  = ("'self'", "cdn.jsdelivr.net")  # Chart.js
+#CSP_STYLE_SRC   = ("'self'", "'unsafe-inline'")
+#CSP_IMG_SRC     = ("'self'", "data:")
+#CSP_CONNECT_SRC = ("'self'",)
+
+# INSTALLED_APPS += ["whitenoise.runserver_nostatic"]
+# MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+
+DEMO_SAVE_VERIFICATION_LINK = True
+VERIFICATION_LINK_LOG_FILE = BASE_DIR / "verification_links.log"

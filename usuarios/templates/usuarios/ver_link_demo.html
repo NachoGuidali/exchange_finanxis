@@ -1,0 +1,35 @@
+{# templates/account/ver_link_demo.html #}
+{% extends "base.html" %}
+{% block title %}Verificación — Demo{% endblock %}
+{% block content %}
+<section class="mx-auto max-w-xl px-4 py-8">
+  <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-card">
+    <h1 class="text-xl font-bold text-gray-900">Verificación de email (demo)</h1>
+    <p class="text-gray-700 text-sm mt-1">
+      Copiá este enlace y abrilo en una pestaña para confirmar tu email.
+    </p>
+
+    {% if confirm_url %}
+      <div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm break-all">{{ confirm_url }}</div>
+      <a href="{{ confirm_url }}"
+         class="mt-4 inline-flex rounded-lg bg-primary text-dark font-semibold px-4 py-2 shadow-soft hover:opacity-90">
+        Confirmar ahora
+      </a>
+    {% else %}
+      <p class="mt-3 text-gray-600">No pude generar el enlace. Probá reenviar la verificación.</p>
+    {% endif %}
+
+    <div class="mt-4 flex gap-2">
+      <form method="post" action="{% url 'resend_verification' %}">
+        {% csrf_token %}
+        <button class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm hover:bg-gray-50">
+          Reenviar verificación
+        </button>
+      </form>
+      <a href="{% url 'verify_email_notice' %}" class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm hover:bg-gray-50">
+        Volver
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

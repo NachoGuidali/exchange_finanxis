@@ -1,76 +1,143 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    <h2>Retiros ARS</h2>
-<table>
-  <tr>
-    <th>Usuario</th>
-    <th>Monto</th>
-    <th>Alias</th>
-    <th>CBU</th>
-    <th>Banco</th>
-    <th>Estado</th>
-    <th>Acciones</th>
-  </tr>
-  {% for retiro in retiros_ars %}
-  <tr>
-    <td>{{ retiro.usuario.username }}</td>
-    <td>${{ retiro.monto }}</td>
-    <td>{{ retiro.alias }}</td>
-    <td>{{ retiro.cbu }}</td>
-    <td>{{ retiro.banco }}</td>
-    <td>{{ retiro.estado }}</td>
-    <td>
-      {% if retiro.estado == 'pendiente' %}
-        <form method="post" action="{% url 'aprobar_retiro' retiro.id %}" style="display:inline;">
-        {% csrf_token %}
-        <button type="submit">✅ Aprobar</button>
-      </form>
-      {% endif %}
-    </td>
-  </tr>
-  {% empty %}
-  <tr><td colspan="8">No hay retiros ARS pendientes.</td></tr>
-  {% endfor %}
-</table>
+{% extends "base.html" %}
+{% block title %}Retiros — Admin{% endblock %}
+{% block meta_description %}Aprobación y gestión de retiros ARS y CRYPTO.{% endblock %}
 
-<hr>
+{% block content %}
+<section class="max-w-7xl mx-auto px-4 py-8">
 
-<h2>Retiros CRYPTO</h2>
-<table>
-  <tr>
-    <th>Usuario</th>
-    <th>Moneda</th>
-    <th>Monto</th>
-    <th>Wallet</th>
-    <th>Estado</th>
-    <th>Acciones</th>
-  </tr>
-  {% for retiro in retiros_crypto %}
-  <tr>
-    <td>{{ retiro.usuario.username }}</td>
-    <td>{{ retiro.moneda }}</td>
-    <td>{{ retiro.monto }}</td>
-    <td>{{ retiro.direccion_wallet }}</td>
-    <td>{{ retiro.estado }}</td>
-    <td>
-      {% if retiro.estado == 'pendiente' %}
-        <form method="post" action="{% url 'aprobar_retiro_cripto' retiro.id %}" style="display:inline;">
-        {% csrf_token %}
-        <button type="submit">✅ Aprobar</button>
-      </form>
-      {% endif %}
-    </td>
-  </tr>
-  {% empty %}
-  <tr><td colspan="7">No hay retiros CRYPTO pendientes.</td></tr>
-  {% endfor %}
-</table>
+  <header class="mb-6 flex items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Retiros</h1>
+      <p class="text-gray-600">Aprobá o marcá como enviados los retiros de los usuarios.</p>
+    </div>
+    <a href="{% url 'panel_admin' %}"
+       class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm hover:bg-gray-50">← Volver al panel</a>
+  </header>
 
-</body>
-</html>
+  <!-- ===== Retiros ARS ===== -->
+  <section class="space-y-3 mb-10">
+    <h2 class="text-lg font-semibold text-gray-900">Retiros ARS</h2>
+
+    <div class="rounded-2xl border border-gray-200 bg-white shadow-card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-gray-800">
+          <thead class="bg-gray-50 text-gray-700">
+            <tr>
+              <th class="px-3 py-2 text-left">Usuario</th>
+              <th class="px-3 py-2 text-left">Monto</th>
+              <th class="px-3 py-2 text-left">Alias</th>
+              <th class="px-3 py-2 text-left">CBU</th>
+              <th class="px-3 py-2 text-left">Banco</th>
+              <th class="px-3 py-2 text-left">Estado</th>
+              <th class="px-3 py-2 text-left">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for retiro in retiros_ars %}
+            <tr class="border-t border-gray-100 hover:bg-gray-50/60">
+              <td class="px-3 py-2">
+                <a href="{% url 'admin_usuario_perfil' retiro.usuario.id %}" class="text-primary hover:underline font-medium">
+                  {{ retiro.usuario.username }}
+                </a>
+              </td>
+              <td class="px-3 py-2">${{ retiro.monto }}</td>
+              <td class="px-3 py-2">{{ retiro.alias|default:"—" }}</td>
+              <td class="px-3 py-2 break-all font-mono text-xs">{{ retiro.cbu|default:"—" }}</td>
+              <td class="px-3 py-2">{{ retiro.banco|default:"—" }}</td>
+              <td class="px-3 py-2">
+                <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium
+                  {% if retiro.estado == 'pendiente' %} border-amber-300 text-amber-700 bg-amber-50
+                  {% elif retiro.estado == 'aprobado' %} border-emerald-300 text-emerald-700 bg-emerald-50
+                  {% elif retiro.estado == 'enviado' %} border-sky-300 text-sky-700 bg-sky-50
+                  {% else %} border-rose-300 text-rose-700 bg-rose-50 {% endif %}">
+                  {{ retiro.estado|capfirst }}
+                </span>
+              </td>
+              <td class="px-3 py-2">
+                <div class="flex flex-wrap gap-2">
+                  {% if retiro.estado == 'pendiente' %}
+                  <form method="post" action="{% url 'aprobar_retiro' retiro.id %}">{% csrf_token %}
+                    <button class="rounded-lg bg-primary text-dark px-3 py-1 text-sm font-semibold hover:opacity-90">Aprobar</button>
+                  </form>
+                  <form method="post" action="{% url 'rechazar_retiro_ars' retiro.id %}">{% csrf_token %}
+                    <button class="rounded-lg border border-gray-200 bg-white px-3 py-1 text-sm hover:bg-gray-50">Rechazar</button>
+                  </form>
+                  {% endif %}
+                  {% if retiro.estado == 'aprobado' %}
+                  <form method="post" action="{% url 'enviar_retiro' retiro.id %}">{% csrf_token %}
+                    <button class="rounded-lg border border-gray-200 bg-white px-3 py-1 text-sm hover:bg-gray-50">Marcar enviado</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="7" class="px-3 py-6 text-center text-gray-500">No hay retiros ARS pendientes.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Retiros CRYPTO ===== -->
+  <section class="space-y-3">
+    <h2 class="text-lg font-semibold text-gray-900">Retiros CRYPTO</h2>
+
+    <div class="rounded-2xl border border-gray-200 bg-white shadow-card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm text-gray-800">
+          <thead class="bg-gray-50 text-gray-700">
+            <tr>
+              <th class="px-3 py-2 text-left">Usuario</th>
+              <th class="px-3 py-2 text-left">Moneda</th>
+              <th class="px-3 py-2 text-left">Monto</th>
+              <th class="px-3 py-2 text-left">Wallet</th>
+              <th class="px-3 py-2 text-left">Estado</th>
+              <th class="px-3 py-2 text-left">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for retiro in retiros_crypto %}
+            <tr class="border-t border-gray-100 hover:bg-gray-50/60">
+              <td class="px-3 py-2">
+                <a href="{% url 'admin_usuario_perfil' retiro.usuario.id %}" class="text-primary hover:underline font-medium">
+                  {{ retiro.usuario.username }}
+                </a>
+              </td>
+              <td class="px-3 py-2">{{ retiro.moneda }}</td>
+              <td class="px-3 py-2">{{ retiro.monto }}</td>
+              <td class="px-3 py-2 break-all font-mono text-xs">{{ retiro.direccion_wallet }}</td>
+              <td class="px-3 py-2">
+                <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium
+                  {% if retiro.estado == 'pendiente' %} border-amber-300 text-amber-700 bg-amber-50
+                  {% elif retiro.estado == 'aprobado' %} border-emerald-300 text-emerald-700 bg-emerald-50
+                  {% else %} border-rose-300 text-rose-700 bg-rose-50 {% endif %}">
+                  {{ retiro.estado|capfirst }}
+                </span>
+              </td>
+              <td class="px-3 py-2">
+                {% if retiro.estado == 'pendiente' %}
+                <form method="post" action="{% url 'aprobar_retiro_cripto' retiro.id %}">{% csrf_token %}
+                  <button class="rounded-lg bg-primary text-dark px-3 py-1 text-sm font-semibold hover:opacity-90">Aprobar</button>
+                </form>
+                {% else %}
+                <span class="text-gray-500">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="6" class="px-3 py-6 text-center text-gray-500">No hay retiros CRYPTO pendientes.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</section>
+{% endblock %}

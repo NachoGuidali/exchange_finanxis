@@ -1,432 +1,457 @@
 {% extends "base.html" %}
-{% block title %}Admin — Finanxis{% endblock %}
-{% block meta_description %}Panel de administración: verificación, depósitos, retiros y movimientos.{% endblock %}
+{% block title %}Panel de Administración — Full Finanzas{% endblock %}
+{% block meta_description %}Control de KYC, depósitos, retiros y movimientos del exchange.{% endblock %}
 
 {% block content %}
+<section class="max-w-7xl mx-auto px-4 py-8">
 
-<style>
-  :root{ --reveal-distance:24px; --reveal-duration:.65s; --reveal-ease:cubic-bezier(.21,.67,.15,.99); --reveal-stagger:.08s; }
-  .reveal{ opacity:0; transform:translateY(var(--reveal-distance));
-    transition:opacity var(--reveal-duration) var(--reveal-ease),
-               transform var(--reveal-duration) var(--reveal-ease); }
-  .reveal.show{ opacity:1; transform:none; }
-  .table-wrap{ overflow:auto; border-radius:1rem; }
-  .th-sticky{ position:sticky; top:0; background-color:rgba(255,255,255,.04); backdrop-filter:saturate(120%) blur(6px); }
-</style>
-
-<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-
-  <div class="flex flex-wrap items-center justify-between gap-4 reveal">
+  <!-- Header + búsqueda global -->
+  <header class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
     <div>
-      <h1 class="text-2xl sm:text-3xl font-extrabold">📋 Panel de Administración</h1>
-      <p class="text-white/60 mt-1">Gestioná verificaciones, retiros, depósitos y revisá los últimos movimientos.</p>
+      <h1 class="text-2xl sm:text-3xl font-extrabold">Panel de Administración</h1>
+      <p class="text-black/70">Gestioná verificación, depósitos, retiros y movimientos.</p>
     </div>
-    <nav class="flex flex-wrap gap-2 text-sm">
-      <a href="#verificacion" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10">Verificación</a>
-      <a href="#retiros" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10">Retiros ARS</a>
-      <a href="#retiros-crypto" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10">Retiros CRYPTO</a>
-      <a href="#depositos" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10">Depósitos</a>
-      <a href="#exportar" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10">Exportar</a>
-      <a href="#movimientos" class="rounded-xl border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10">Movimientos</a>
-    </nav>
+    <form method="get" action="" class="w-full md:w-auto" role="search" aria-label="Búsqueda global">
+      <div class="flex gap-2">
+        <input
+          name="q"
+          value="{{ request.GET.q }}"
+          placeholder="Buscar usuario, email, DNI, código…"
+          class="w-full md:w-80 rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon"
+          aria-label="Buscar"
+        />
+        <button class="rounded-lg bg-neon text-black font-semibold px-4 py-2">Buscar</button>
+      </div>
+    </form>
+  </header>
+  <section class="max-w-7xl mx-auto px-4 py-6 space-y-6">
+  <header class="flex flex-col gap-2">
+    <h1 class="text-2xl sm:text-3xl font-extrabold">Administración</h1>
+    <p class="text-white/70 text-sm">Atajos rápidos a módulos operativos.</p>
+  </header>
+
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <a href="{% url 'panel_depositos' %}" class="card p-5 hover:bg-white/5 transition">
+      <div class="flex items-center justify-between">
+        <div class="font-semibold">Depósitos ARS</div>
+        {% if kpi_depositos_pend %}
+          <span class="rounded-full bg-neon/20 text-neon px-2 py-[2px] text-[11px]">
+            {{ kpi_depositos_pend }}
+          </span>
+        {% endif %}
+      </div>
+      <p class="text-white/60 text-sm mt-1">Ingresos por transferencia/local.</p>
+    </a>
+
+    <a href="{% url 'panel_depositos_usdt' %}" class="card p-5 hover:bg-white/5 transition">
+      <div class="font-semibold">Depósitos USDT</div>
+      <p class="text-white/60 text-sm mt-1">On-chain / CEX.</p>
+    </a>
+
+    <a href="{% url 'panel_retiros' %}" class="card p-5 hover:bg-white/5 transition">
+      <div class="flex items-center justify-between">
+        <div class="font-semibold">Retiros</div>
+        {% with a=kpi_retiros_ars_pend|default:0 c=kpi_retiros_crypto_pend|default:0 %}
+          {% if a or c %}
+            <span class="rounded-full bg-neon/20 text-neon px-2 py-[2px] text-[11px]">
+              {{ a|add:c }}
+            </span>
+          {% endif %}
+        {% endwith %}
+      </div>
+      <p class="text-white/60 text-sm mt-1">ARS & cripto.</p>
+    </a>
+
+    <a href="{% url 'exchange_dashboard' %}" class="card p-5 hover:bg-white/5 transition">
+      <div class="font-semibold">Contabilidad</div>
+      <p class="text-white/60 text-sm mt-1">Caja, rentas y flujo global.</p>
+    </a>
+
+    <a href="{% url 'panel_admin' %}#movs" class="card p-5 hover:bg-white/5 transition">
+      <div class="font-semibold">Movimientos</div>
+      <p class="text-white/60 text-sm mt-1">Listado y auditoría.</p>
+    </a>
+
+    <a href="{% url 'admin_usuarios_list' %}" class="card p-5 hover:bg-white/5 transition">
+      <div class="font-semibold">Usuarios</div>
+      <p class="text-white/60 text-sm mt-1">KYC, límites y estado.</p>
+    </a>
+  </div>
+</section>
+
+  <!-- KPIs -->
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+    <div class="card p-4 shadow-soft">
+      <p class="text-black/60 text-sm">Usuarios pendientes KYC</p>
+      <p class="text-2xl font-bold">{{ kpi_pendientes_kyc|default:"0" }}</p>
+    </div>
+    <div class="card p-4 shadow-soft">
+      <p class="text-black/60 text-sm">Depósitos pendientes</p>
+      <p class="text-2xl font-bold">{{ kpi_depositos_pend|default:"0" }}</p>
+    </div>
+    <div class="card p-4 shadow-soft">
+      <p class="text-black/60 text-sm">Retiros ARS pendientes</p>
+      <p class="text-2xl font-bold">{{ kpi_retiros_ars_pend|default:"0" }}</p>
+    </div>
+    <div class="card p-4 shadow-soft">
+      <p class="text-black/60 text-sm">Retiros CRYPTO pendientes</p>
+      <p class="text-2xl font-bold">{{ kpi_retiros_crypto_pend|default:"0" }}</p>
+    </div>
   </div>
 
-  <!-- ==================== VERIFICACIÓN ==================== -->
-  <section id="verificacion" class="reveal">
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
-      <div class="flex items-center justify-between gap-4">
-        <h2 class="text-xl font-bold">🧍 Usuarios con verificación pendiente</h2>
-        <!-- Filtros -->
-        <form method="get" class="grid grid-cols-2 md:flex md:items-end gap-2 text-sm">
-          <input type="text" name="q"
-                 value="{{ request.GET.q }}"
-                 placeholder="Buscar usuario o email"
-                 class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-          <select name="estado"
-                  class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-            <option value="">Todos</option>
-            <option value="pendiente" {% if request.GET.estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
-            <option value="aprobado" {% if request.GET.estado == 'aprobado' %}selected{% endif %}>Aprobado</option>
-            <option value="rechazado" {% if request.GET.estado == 'rechazado' %}selected{% endif %}>Rechazado</option>
-          </select>
-          <button class="rounded-lg bg-primary text-dark font-semibold px-3 py-2 shadow-soft hover:opacity-90">Filtrar</button>
-          <a href="{% url request.resolver_match.url_name %}" class="rounded-lg border border-white/10 px-3 py-2 hover:bg-white/10">Limpiar</a>
-        </form>
-      </div>
+  <!-- Tabs -->
+  <div class="mb-6 flex flex-wrap gap-2">
+    <a href="#kyc"            class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="kyc">KYC</a>
+    <a href="#retiros"        class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="retiros">Retiros ARS</a>
+    <a href="#retiros-crypto" class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="retiros-crypto">Retiros CRYPTO</a>
+    <a href="#depositos"      class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="depositos">Depósitos</a>
+    <a href="#movs"           class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="movs">Movimientos</a>
+    <a href="#export"         class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="export">Exportar</a>
+  </div>
 
-      <div class="mt-4 table-wrap border border-white/10">
-        <table class="w-full text-sm">
-          <thead class="text-white/70">
-            <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold th-sticky">
-              <th>Usuario</th><th>Email</th><th>DNI frente</th><th>DNI dorso</th><th>Estado</th><th>Acciones</th><th>Historial</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/10">
-            {% for u in usuarios %}
-              {% if u.estado_verificacion != 'aprobado' %}
-              <tr class="hover:bg-white/[.06]">
-                <td class="px-3 py-2 whitespace-nowrap">{{ u.username }}</td>
-                <td class="px-3 py-2">{{ u.email }}</td>
-                <td class="px-3 py-2">
-                  {% if u.dni_frente %}<a href="{{ u.dni_frente.url }}" target="_blank"><img src="{{ u.dni_frente.url }}" class="h-16 w-auto rounded-lg border border-white/10"></a>{% else %}<span class="text-white/50 text-xs">Sin archivo</span>{% endif %}
-                </td>
-                <td class="px-3 py-2">
-                  {% if u.dni_dorso %}<a href="{{ u.dni_dorso.url }}" target="_blank"><img src="{{ u.dni_dorso.url }}" class="h-16 w-auto rounded-lg border border-white/10"></a>{% else %}<span class="text-white/50 text-xs">Sin archivo</span>{% endif %}
-                </td>
-                <td class="px-3 py-2">
-                  {% if u.estado_verificacion == 'pendiente' %}
-                    <span class="inline-flex items-center rounded-lg bg-amber-400/10 text-amber-300 px-2 py-1 text-xs">Pendiente</span>
-                  {% elif u.estado_verificacion == 'rechazado' %}
-                    <span class="inline-flex items-center rounded-lg bg-rose-400/10 text-rose-300 px-2 py-1 text-xs">Rechazado</span>
-                  {% else %}
-                    <span class="inline-flex items-center rounded-lg bg-emerald-400/10 text-emerald-300 px-2 py-1 text-xs">Aprobado</span>
-                  {% endif %}
-                </td>
-                <td class="px-3 py-2">
-                  <form method="post" action="{% url 'cambiar_estado_verificacion' u.id %}" class="flex items-center gap-2">
-                    {% csrf_token %}
-                    <select name="estado" class="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-sm outline-none focus:border-primary/70">
-                      <option value="pendiente" {% if u.estado_verificacion == 'pendiente' %}selected{% endif %}>Pendiente</option>
-                      <option value="aprobado" {% if u.estado_verificacion == 'aprobado' %}selected{% endif %}>Aprobado</option>
-                      <option value="rechazado" {% if u.estado_verificacion == 'rechazado' %}selected{% endif %}>Rechazado</option>
-                    </select>
-                    <button type="submit" class="rounded-lg bg-primary text-dark font-semibold px-3 py-1.5 text-xs shadow-soft hover:opacity-90">Actualizar</button>
-                  </form>
-                </td>
-                <td class="px-3 py-2">
-                  <a href="{% url 'historial_usuario' u.id %}" class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10">Ver historial</a>
-                </td>
-              </tr>
-              {% endif %}
-            {% empty %}
-              <tr><td colspan="7" class="px-3 py-6 text-center text-white/60">Sin usuarios para revisar.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+  <!-- KYC -->
+  <section id="panel-kyc" data-panel="kyc" class="space-y-4">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-semibold">Usuarios con verificación pendiente</h2>
+      <p class="text-sm text-black/60">Hacé click en el usuario para abrir su perfil.</p>
     </div>
-  </section>
 
-  <!-- ==================== RETIROS ARS/USD ==================== -->
-  <section id="retiros" class="reveal">
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
-      <div class="flex items-center justify-between gap-4">
-        <h2 class="text-xl font-bold">💸 Retiros pendientes</h2>
-        <form method="get" class="grid grid-cols-2 md:flex md:items-end gap-2 text-sm">
-          <input type="text" name="q_retiro" value="{{ request.GET.q_retiro }}" placeholder="Usuario/Alias/Banco"
-                 class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-          <select name="estado_retiro" class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-            <option value="">Todos</option>
-            <option value="pendiente" {% if request.GET.estado_retiro == 'pendiente' %}selected{% endif %}>Pendiente</option>
-            <option value="aprobado" {% if request.GET.estado_retiro == 'aprobado' %}selected{% endif %}>Aprobado</option>
-          </select>
-          <button class="rounded-lg bg-primary text-dark font-semibold px-3 py-2 shadow-soft hover:opacity-90">Filtrar</button>
-          <a href="{% url request.resolver_match.url_name %}" class="rounded-lg border border-white/10 px-3 py-2 hover:bg-white/10">Limpiar</a>
-        </form>
-      </div>
-
-      <div class="mt-4 table-wrap border border-white/10">
-        <table class="w-full text-sm">
-          <thead class="text-white/70">
-            <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold th-sticky">
-              <th>Usuario</th><th>Monto</th><th>Alias</th><th>CBU</th><th>Banco</th><th>Estado</th><th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/10">
-            {% for r in retiros %}
-              {% if r.estado != 'enviado' %}
-              <tr class="hover:bg-white/[.06]">
-                <td class="px-3 py-2 whitespace-nowrap">{{ r.usuario.username }}</td>
-                <td class="px-3 py-2">${{ r.monto }}</td>
-                <td class="px-3 py-2">{{ r.alias }}</td>
-                <td class="px-3 py-2">{{ r.cbu }}</td>
-                <td class="px-3 py-2">{{ r.banco }}</td>
-                <td class="px-3 py-2">
-                  {% if r.estado == 'pendiente' %}
-                    <span class="inline-flex items-center rounded-lg bg-amber-400/10 text-amber-300 px-2 py-1 text-xs">Pendiente</span>
-                  {% elif r.estado == 'aprobado' %}
-                    <span class="inline-flex items-center rounded-lg bg-emerald-400/10 text-emerald-300 px-2 py-1 text-xs">Aprobado</span>
-                  {% else %}
-                    <span class="inline-flex items-center rounded-lg bg-rose-400/10 text-rose-300 px-2 py-1 text-xs">{{ r.estado|title }}</span>
-                  {% endif %}
-                </td>
-                <td class="px-3 py-2">
-                  <div class="flex flex-wrap gap-2">
-                    {% if r.estado == 'pendiente' %}
-                    <form method="post" action="{% url 'aprobar_retiro' r.id %}" onsubmit="return confirm('¿Aprobar retiro?');">
-                      {% csrf_token %}
-                      <button type="submit" class="rounded-lg bg-primary text-dark font-semibold px-3 py-1.5 text-xs shadow-soft hover:opacity-90">Aprobar</button>
-                    </form>
-                    {% endif %}
-                    {% if r.estado == 'aprobado' %}
-                    <form method="post" action="{% url 'enviar_retiro' r.id %}" onsubmit="return confirm('¿Marcar como enviado?');">
-                      {% csrf_token %}
-                      <button type="submit" class="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs hover:bg-white/10">Marcar como enviado</button>
-                    </form>
-                    {% endif %}
-                  </div>
-                </td>
-              </tr>
-              {% endif %}
-            {% empty %}
-              <tr><td colspan="7" class="px-3 py-6 text-center text-white/60">No hay retiros pendientes.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ==================== RETIROS CRYPTO ==================== -->
-  <section id="retiros-crypto" class="reveal">
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
-      <div class="flex items-center justify-between gap-4">
-        <h2 class="text-xl font-bold">🪙 Retiros CRYPTO</h2>
-        <form method="get" class="grid grid-cols-2 md:flex md:items-end gap-2 text-sm">
-          <input type="text" name="q_crypto" value="{{ request.GET.q_crypto }}" placeholder="Usuario/Wallet"
-                 class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-          <select name="estado_crypto" class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-            <option value="">Todos</option>
-            <option value="pendiente" {% if request.GET.estado_crypto == 'pendiente' %}selected{% endif %}>Pendiente</option>
-            <option value="aprobado" {% if request.GET.estado_crypto == 'aprobado' %}selected{% endif %}>Aprobado</option>
-          </select>
-          <button class="rounded-lg bg-primary text-dark font-semibold px-3 py-2 shadow-soft hover:opacity-90">Filtrar</button>
-          <a href="{% url request.resolver_match.url_name %}" class="rounded-lg border border-white/10 px-3 py-2 hover:bg-white/10">Limpiar</a>
-        </form>
-      </div>
-
-      <div class="mt-4 table-wrap border border-white/10">
-        <table class="w-full text-sm">
-          <thead class="text-white/70">
-            <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold th-sticky">
-              <th>Usuario</th><th>Moneda</th><th>Monto</th><th>Wallet</th><th>Estado</th><th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/10">
-            {% for retiro in retiros_crypto %}
-            <tr class="hover:bg-white/[.06]">
-              <td class="px-3 py-2 whitespace-nowrap">{{ retiro.usuario.username }}</td>
-              <td class="px-3 py-2">{{ retiro.moneda }}</td>
-              <td class="px-3 py-2">{{ retiro.monto }}</td>
-              <td class="px-3 py-2 font-mono text-xs break-all">{{ retiro.direccion_wallet }}</td>
+    <div class="overflow-x-auto card p-0">
+      <table class="w-full text-sm">
+        <thead class="bg-white/5 text-accent">
+          <tr>
+            <th class="px-3 py-2 text-left">Usuario</th>
+            <th class="px-3 py-2 text-left">Email</th>
+            <th class="px-3 py-2 text-left">DNI frente</th>
+            <th class="px-3 py-2 text-left">DNI dorso</th>
+            <th class="px-3 py-2 text-left">Estado</th>
+            <th class="px-3 py-2 text-left">Acciones</th>
+            <th class="px-3 py-2 text-left">Historial</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for u in usuarios %}
+            {% if u.estado_verificacion != 'aprobado' %}
+            <tr class="hover:bg-white/5">
               <td class="px-3 py-2">
-                {% if retiro.estado == 'pendiente' %}
-                  <span class="inline-flex items-center rounded-lg bg-amber-400/10 text-amber-300 px-2 py-1 text-xs">Pendiente</span>
-                {% elif retiro.estado == 'aprobado' %}
-                  <span class="inline-flex items-center rounded-lg bg-emerald-400/10 text-emerald-300 px-2 py-1 text-xs">Aprobado</span>
-                {% else %}
-                  <span class="inline-flex items-center rounded-lg bg-rose-400/10 text-rose-300 px-2 py-1 text-xs">{{ retiro.estado|title }}</span>
-                {% endif %}
+                <a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' u.id %}">{{ u.username }}</a>
+              </td>
+              <td class="px-3 py-2">{{ u.email }}</td>
+              <td class="px-3 py-2">
+                {% if u.dni_frente %}
+                  <button type="button" class="thumb-btn underline text-white/80 hover:text-neon" data-img="{{ u.dni_frente.url }}">Ver</button>
+                {% else %}<span class="text-black/40">—</span>{% endif %}
               </td>
               <td class="px-3 py-2">
-                {% if retiro.estado == 'pendiente' %}
-                <form method="post" action="{% url 'aprobar_retiro_cripto' retiro.id %}" onsubmit="return confirm('¿Aprobar retiro CRYPTO?');" class="inline">
+                {% if u.dni_dorso %}
+                  <button type="button" class="thumb-btn underline text-white/80 hover:text-neon" data-img="{{ u.dni_dorso.url }}">Ver</button>
+                {% else %}<span class="text-black/40">—</span>{% endif %}
+              </td>
+              <td class="px-3 py-2 capitalize">
+                <span class="px-2 py-0.5 rounded border text-xs
+                  {% if u.estado_verificacion == 'aprobado' %} border-emerald-400 text-emerald-300
+                  {% elif u.estado_verificacion == 'pendiente' %} border-amber-400 text-amber-300
+                  {% elif u.estado_verificacion == 'rechazado' %} border-red-400 text-red-300
+                  {% else %} border-white/20 text-white/80 {% endif %}">
+                  {{ u.estado_verificacion }}
+                </span>
+              </td>
+              <td class="px-3 py-2">
+                <form method="post" action="{% url 'cambiar_estado_verificacion' u.id %}" class="flex items-center gap-2">
                   {% csrf_token %}
-                  <button type="submit" class="rounded-lg bg-primary text-dark font-semibold px-3 py-1.5 text-xs shadow-soft hover:opacity-90">✅ Aprobar</button>
+                  <label class="sr-only" for="estado-{{ u.id }}">Estado</label>
+                  <select id="estado-{{ u.id }}" name="estado"
+                          class="rounded-md border border-white/10 bg-white text-black px-2 py-1 focus:outline-none focus:ring-2 focus:ring-neon">
+                    <option value="pendiente" {% if u.estado_verificacion == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                    <option value="aprobado" {% if u.estado_verificacion == 'aprobado' %}selected{% endif %}>Aprobado</option>
+                    <option value="rechazado" {% if u.estado_verificacion == 'rechazado' %}selected{% endif %}>Rechazado</option>
+                  </select>
+                  <button class="rounded-md bg-neon text-black px-3 py-1 font-semibold">Actualizar</button>
                 </form>
-                {% endif %}
+              </td>
+              <td class="px-3 py-2">
+                <a class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5" href="{% url 'historial_usuario' u.id %}">Ver historial</a>
               </td>
             </tr>
-            {% empty %}
-              <tr><td colspan="6" class="px-3 py-6 text-center text-white/60">No hay retiros CRYPTO pendientes.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+            {% endif %}
+          {% empty %}
+            <tr><td colspan="7" class="px-3 py-4 text-black/60 text-center">Sin pendientes.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
 
-  <!-- ==================== DEPÓSITOS ==================== -->
-  <section id="depositos" class="reveal">
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
-      <div class="flex items-center justify-between gap-4">
-        <h2 class="text-xl font-bold">🧾 Depósitos pendientes</h2>
-        <form method="get" class="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
-          <input type="text" name="q_dep" value="{{ request.GET.q_dep }}" placeholder="Usuario"
-                 class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-          <input type="date" name="desde_dep" value="{{ request.GET.desde_dep }}"
-                 class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-          <input type="date" name="hasta_dep" value="{{ request.GET.hasta_dep }}"
-                 class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-          <select name="estado_dep" class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-            <option value="pendiente" {% if request.GET.estado_dep == 'pendiente' %}selected{% endif %}>Pendiente</option>
-            <option value="">Todos</option>
-          </select>
-          <div class="flex gap-2">
-            <button class="rounded-lg bg-primary text-dark font-semibold px-3 py-2 shadow-soft hover:opacity-90">Filtrar</button>
-            <a href="{% url request.resolver_match.url_name %}" class="rounded-lg border border-white/10 px-3 py-2 hover:bg-white/10">Limpiar</a>
-          </div>
-        </form>
-      </div>
-
-      <div class="mt-4 table-wrap border border-white/10">
-        <table class="w-full text-sm">
-          <thead class="text-white/70">
-            <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold th-sticky">
-              <th>Usuario</th><th>Monto</th><th>Comprobante</th><th>Fecha</th><th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/10">
-            {% for d in depositos %}
-              {% if d.estado == 'pendiente' %}
-              <tr class="hover:bg-white/[.06]">
-                <td class="px-3 py-2 whitespace-nowrap">{{ d.usuario.username }}</td>
-                <td class="px-3 py-2">${{ d.monto }}</td>
-                <td class="px-3 py-2"><a href="{{ d.comprobante.url }}" target="_blank" class="underline hover:no-underline">Ver</a></td>
-                <td class="px-3 py-2">{{ d.fecha_subida }}</td>
-                <td class="px-3 py-2">
-                  <form method="post" action="{% url 'aprobar_deposito' d.id %}" onsubmit="return confirm('¿Aprobar depósito?');">
-                    {% csrf_token %}
-                    <button type="submit" class="rounded-lg bg-primary text-dark font-semibold px-3 py-1.5 text-xs shadow-soft hover:opacity-90">Aprobar</button>
+  <!-- Retiros ARS -->
+  <section id="panel-retiros" data-panel="retiros" class="space-y-4 hidden">
+    <h2 class="text-lg font-semibold">Retiros pendientes (ARS)</h2>
+    <div class="overflow-x-auto card p-0">
+      <table class="w-full text-sm">
+        <thead class="bg-white/5 text-accent">
+          <tr>
+            <th class="px-3 py-2 text-left">Usuario</th>
+            <th class="px-3 py-2 text-left">Monto</th>
+            <th class="px-3 py-2 text-left">Alias</th>
+            <th class="px-3 py-2 text-left">CBU</th>
+            <th class="px-3 py-2 text-left">Banco</th>
+            <th class="px-3 py-2 text-left">Estado</th>
+            <th class="px-3 py-2 text-left">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in retiros %}
+            {% if r.estado != 'enviado' %}
+            <tr class="hover:bg-white/5">
+              <td class="px-3 py-2"><a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' r.usuario.id %}">{{ r.usuario.username }}</a></td>
+              <td class="px-3 py-2">${{ r.monto }}</td>
+              <td class="px-3 py-2">{{ r.alias|default:"—" }}</td>
+              <td class="px-3 py-2 break-all">{{ r.cbu|default:"—" }}</td>
+              <td class="px-3 py-2">{{ r.banco|default:"—" }}</td>
+              <td class="px-3 py-2 capitalize">
+                <span class="px-2 py-0.5 rounded border text-xs
+                  {% if r.estado == 'aprobado' %} border-emerald-400 text-emerald-300
+                  {% elif r.estado == 'pendiente' %} border-amber-400 text-amber-300
+                  {% elif r.estado == 'enviado' %} border-sky-400 text-sky-300
+                  {% else %} border-red-400 text-red-300 {% endif %}">
+                  {{ r.estado }}
+                </span>
+              </td>
+              <td class="px-3 py-2">
+                <div class="flex flex-wrap gap-2">
+                  {% if r.estado == 'pendiente' %}
+                  <form method="post" action="{% url 'aprobar_retiro' r.id %}">{% csrf_token %}
+                    <button class="rounded-md bg-neon text-black px-3 py-1 font-semibold">Aprobar</button>
                   </form>
-                </td>
-              </tr>
+                  <form method="post" action="{% url 'rechazar_retiro_ars' r.id %}">{% csrf_token %}
+                    <button class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5">Rechazar</button>
+                  </form>
+                  {% endif %}
+                  {% if r.estado == 'aprobado' %}
+                  <form method="post" action="{% url 'enviar_retiro' r.id %}">{% csrf_token %}
+                    <button class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5">Marcar enviado</button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endif %}
+          {% empty %}
+            <tr><td colspan="7" class="px-3 py-4 text-black/60 text-center">Sin retiros pendientes.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Retiros CRYPTO -->
+  <section id="panel-retiros-crypto" data-panel="retiros-crypto" class="space-y-4 hidden">
+    <h2 class="text-lg font-semibold">Retiros CRYPTO</h2>
+    <div class="overflow-x-auto card p-0">
+      <table class="w-full text-sm">
+        <thead class="bg-white/5 text-accent">
+          <tr>
+            <th class="px-3 py-2 text-left">Usuario</th>
+            <th class="px-3 py-2 text-left">Moneda</th>
+            <th class="px-3 py-2 text-left">Monto</th>
+            <th class="px-3 py-2 text-left">Wallet</th>
+            <th class="px-3 py-2 text-left">Estado</th>
+            <th class="px-3 py-2 text-left">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for retiro in retiros_crypto %}
+          <tr class="hover:bg-white/5">
+            <td class="px-3 py-2"><a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' retiro.usuario.id %}">{{ retiro.usuario.username }}</a></td>
+            <td class="px-3 py-2">{{ retiro.moneda }}</td>
+            <td class="px-3 py-2">{{ retiro.monto }}</td>
+            <td class="px-3 py-2 break-all">{{ retiro.direccion_wallet }}</td>
+            <td class="px-3 py-2 capitalize">
+              <span class="px-2 py-0.5 rounded border text-xs
+                {% if retiro.estado == 'aprobado' %} border-emerald-400 text-emerald-300
+                {% elif retiro.estado == 'pendiente' %} border-amber-400 text-amber-300
+                {% else %} border-red-400 text-red-300 {% endif %}">
+                {{ retiro.estado }}
+              </span>
+            </td>
+            <td class="px-3 py-2">
+              {% if retiro.estado == 'pendiente' %}
+              <form method="post" action="{% url 'aprobar_retiro_cripto' retiro.id %}">{% csrf_token %}
+                <button class="rounded-md bg-neon text-black px-3 py-1 font-semibold">Aprobar</button>
+              </form>
+              <form method="post" action="{% url 'rechazar_retiro_cripto' retiro.id %}">{% csrf_token %}
+                <button class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5">Rechazar</button>
+              </form>
+              {% else %}
+              <span class="text-black/60">—</span>
               {% endif %}
-            {% empty %}
-              <tr><td colspan="5" class="px-3 py-6 text-center text-white/60">No hay depósitos pendientes.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="px-3 py-4 text-black/60 text-center">No hay retiros CRYPTO pendientes.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
 
-  <!-- ==================== EXPORTAR ==================== -->
-  <section id="exportar" class="reveal">
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
-      <h2 class="text-xl font-bold mb-4">📥 Exportar movimientos</h2>
-      <form method="GET" action="{% url 'exportar_movimientos_admin' %}" class="grid md:grid-cols-5 gap-3 items-end">
-        <div>
-          <label class="block text-xs text-white/60 mb-1">Desde</label>
-          <input type="date" name="desde" value="{{ request.GET.desde }}" class="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-        </div>
-        <div>
-          <label class="block text-xs text-white/60 mb-1">Hasta</label>
-          <input type="date" name="hasta" value="{{ request.GET.hasta }}" class="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-        </div>
-        <div>
-          <label class="block text-xs text-white/60 mb-1">Moneda</label>
-          <select name="moneda" class="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-            <option value="">Todas</option><option value="ARS" {% if request.GET.moneda == 'ARS' %}selected{% endif %}>ARS</option>
-            <option value="USDT" {% if request.GET.moneda == 'USDT' %}selected{% endif %}>USDT</option>
-            <option value="USD" {% if request.GET.moneda == 'USD' %}selected{% endif %}>USD</option>
-          </select>
-        </div>
-        <div>
-          <label class="block text-xs text-white/60 mb-1">Tipo</label>
-          <select name="tipo" class="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-            <option value="">Todos</option>
-            <option value="deposito" {% if request.GET.tipo == 'deposito' %}selected{% endif %}>Depósito</option>
-            <option value="retiro" {% if request.GET.tipo == 'retiro' %}selected{% endif %}>Retiro</option>
-            <option value="compra" {% if request.GET.tipo == 'compra' %}selected{% endif %}>Compra</option>
-            <option value="venta" {% if request.GET.tipo == 'venta' %}selected{% endif %}>Venta</option>
-            <option value="ajuste" {% if request.GET.tipo == 'ajuste' %}selected{% endif %}>Ajuste</option>
-          </select>
-        </div>
-        <div>
-          <button type="submit" class="w-full rounded-xl bg-primary text-dark font-semibold px-4 py-2.5 text-sm shadow-soft hover:opacity-90">Exportar</button>
-        </div>
-      </form>
+  <!-- Depósitos -->
+  <section id="panel-depositos" data-panel="depositos" class="space-y-4 hidden">
+    <h2 class="text-lg font-semibold">Depósitos pendientes</h2>
+    <div class="overflow-x-auto card p-0">
+      <table class="w-full text-sm">
+        <thead class="bg-white/5 text-accent">
+          <tr>
+            <th class="px-3 py-2 text-left">Usuario</th>
+            <th class="px-3 py-2 text-left">Monto</th>
+            <th class="px-3 py-2 text-left">Comprobante</th>
+            <th class="px-3 py-2 text-left">Fecha</th>
+            <th class="px-3 py-2 text-left">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in depositos %}
+            {% if d.estado == 'pendiente' %}
+            <tr class="hover:bg-white/5">
+              <td class="px-3 py-2"><a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' d.usuario.id %}">{{ d.usuario.username }}</a></td>
+              <td class="px-3 py-2">${{ d.monto }}</td>
+              <td class="px-3 py-2">
+                {% if d.comprobante %}
+                  <button type="button" class="thumb-btn underline text-black/80 hover:text-neon" data-img="{{ d.comprobante.url }}">Ver</button>
+                {% else %}<span class="text-black/40">—</span>{% endif %}
+              </td>
+              <td class="px-3 py-2">{{ d.fecha_subida|date:"d/m/Y H:i" }}</td>
+              <td class="px-3 py-2">
+                <form method="post" action="{% url 'aprobar_deposito' d.id %}">
+                  {% csrf_token %}
+                  <button class="rounded-md bg-neon text-black px-3 py-1 font-semibold">Aprobar</button>
+                </form>
+              </td>
+            </tr>
+            {% endif %}
+          {% empty %}
+            <tr><td colspan="5" class="px-3 py-4 text-black/60 text-center">Sin depósitos pendientes.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
 
-  <!-- ==================== ÚLTIMOS MOVIMIENTOS (con paginado) ==================== -->
-  <section id="movimientos" class="reveal">
-    <div class="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
-      <div class="flex items-center justify-between gap-4 mb-4">
-        <h2 class="text-xl font-bold">📊 Últimos movimientos</h2>
-        <form method="get" class="grid grid-cols-2 md:grid-cols-6 gap-2 text-sm">
-          <input type="text" name="q_mov" value="{{ request.GET.q_mov }}" placeholder="Usuario/ID/descr."
-                 class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-          <select name="moneda_mov" class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-            <option value="">Moneda</option>
-            <option value="ARS" {% if request.GET.moneda_mov == 'ARS' %}selected{% endif %}>ARS</option>
-            <option value="USDT" {% if request.GET.moneda_mov == 'USDT' %}selected{% endif %}>USDT</option>
-            <option value="USD" {% if request.GET.moneda_mov == 'USD' %}selected{% endif %}>USD</option>
-          </select>
-          <select name="tipo_mov" class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-            <option value="">Tipo</option>
-            <option value="deposito" {% if request.GET.tipo_mov == 'deposito' %}selected{% endif %}>Depósito</option>
-            <option value="retiro" {% if request.GET.tipo_mov == 'retiro' %}selected{% endif %}>Retiro</option>
-            <option value="compra" {% if request.GET.tipo_mov == 'compra' %}selected{% endif %}>Compra</option>
-            <option value="venta" {% if request.GET.tipo_mov == 'venta' %}selected{% endif %}>Venta</option>
-            <option value="ajuste" {% if request.GET.tipo_mov == 'ajuste' %}selected{% endif %}>Ajuste</option>
-          </select>
-          <input type="date" name="desde_mov" value="{{ request.GET.desde_mov }}"
-                 class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-          <input type="date" name="hasta_mov" value="{{ request.GET.hasta_mov }}"
-                 class="rounded-lg bg-white/5 border border-white/10 px-3 py-2 outline-none focus:border-primary/70">
-          <div class="flex gap-2">
-            <button class="rounded-lg bg-primary text-dark font-semibold px-3 py-2 shadow-soft hover:opacity-90">Filtrar</button>
-            <a href="{% url request.resolver_match.url_name %}" class="rounded-lg border border-white/10 px-3 py-2 hover:bg-white/10">Limpiar</a>
-          </div>
-        </form>
+  <!-- Exportar -->
+  <section id="panel-export" data-panel="export" class="space-y-4 hidden">
+    <h2 class="text-lg font-semibold">Exportar movimientos</h2>
+    <form method="GET" action="{% url 'exportar_movimientos_admin' %}" class="card p-4 grid sm:grid-cols-5 gap-3">
+      <label class="block">
+        <span class="text-xs text-black/60">Desde</span>
+        <input type="date" name="desde" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
+      </label>
+      <label class="block">
+        <span class="text-xs text-black/60">Hasta</span>
+        <input type="date" name="hasta" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
+      </label>
+      <label class="block">
+        <span class="text-xs text-black/60">Moneda</span>
+        <select name="moneda" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
+          <option value="">Todas</option><option>ARS</option><option>USDT</option><option>USD</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="text-xs text-black/60">Tipo</span>
+        <select name="tipo" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
+          <option value="">Todos</option>
+          <option value="deposito">Depósito</option>
+          <option value="retiro">Retiro</option>
+          <option value="compra">Compra</option>
+          <option value="venta">Venta</option>
+          <option value="ajuste">Ajuste</option>
+        </select>
+      </label>
+      <div class="flex items-end">
+        <button class="w-full rounded-lg bg-neon text-black font-semibold px-4 py-2">📥 Exportar</button>
       </div>
+    </form>
+  </section>
 
-      <div class="table-wrap border border-white/10">
-        <table class="w-full text-sm">
-          <thead class="text-white/70">
-            <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold th-sticky">
-              <th>Usuario</th><th>Tipo</th><th>Moneda</th><th class="text-right">Monto</th><th>Descripción</th><th>Fecha</th><th>ID</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/10">
-            {% for m in movimientos %}
-            <tr class="hover:bg-white/[.06]">
-              <td class="px-3 py-2 whitespace-nowrap">{{ m.usuario.username }}</td>
-              <td class="px-3 py-2">{{ m.tipo }}</td>
-              <td class="px-3 py-2">{{ m.moneda }}</td>
-              <td class="px-3 py-2 text-right">{{ m.monto }}</td>
-              <td class="px-3 py-2">{{ m.descripcion }}</td>
-              <td class="px-3 py-2 whitespace-nowrap">{{ m.fecha }}</td>
-              <td class="px-3 py-2 font-mono text-xs">{{ m.codigo }}</td>
-            </tr>
-            {% empty %}
-              <tr><td colspan="7" class="px-3 py-6 text-center text-white/60">Sin movimientos registrados.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Paginación (asumiendo movimientos es un Page) -->
-      {% if movimientos.has_other_pages %}
-      <div class="mt-4 flex items-center justify-between text-sm">
-        <div class="text-white/60">
-          Página {{ movimientos.number }} de {{ movimientos.paginator.num_pages }}
-        </div>
-        <div class="inline-flex gap-1">
-          {% with qs=request.GET.urlencode %}
-            {% if movimientos.has_previous %}
-              <a href="?page={{ movimientos.previous_page_number }}{% if qs %}&{{ qs }}{% endif %}"
-                 class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10">« Anterior</a>
-            {% else %}
-              <span class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 opacity-50">« Anterior</span>
-            {% endif %}
-            {% if movimientos.has_next %}
-              <a href="?page={{ movimientos.next_page_number }}{% if qs %}&{{ qs }}{% endif %}"
-                 class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10">Siguiente »</a>
-            {% else %}
-              <span class="rounded-lg border border-white/10 bg-white/5 px-3 py-2 opacity-50">Siguiente »</span>
-            {% endif %}
-          {% endwith %}
-        </div>
-      </div>
-      {% endif %}
+  <!-- Últimos movimientos -->
+  <section id="panel-movs" data-panel="movs" class="space-y-4 hidden">
+    <h2 class="text-lg font-semibold">Últimos movimientos</h2>
+    <div class="overflow-x-auto card p-0">
+      <table class="w-full text-sm">
+        <thead class="bg-white/5 text-accent">
+          <tr>
+            <th class="px-3 py-2 text-left">Usuario</th>
+            <th class="px-3 py-2 text-left">Tipo</th>
+            <th class="px-3 py-2 text-left">Moneda</th>
+            <th class="px-3 py-2 text-left">Monto</th>
+            <th class="px-3 py-2 text-left">Descripción</th>
+            <th class="px-3 py-2 text-left">Fecha</th>
+            <th class="px-3 py-2 text-left">ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in movimientos %}
+          <tr class="hover:bg-white/5">
+            <td class="px-3 py-2"><a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' m.usuario.id %}">{{ m.usuario.username }}</a></td>
+            <td class="px-3 py-2">{{ m.tipo }}</td>
+            <td class="px-3 py-2">{{ m.moneda }}</td>
+            <td class="px-3 py-2">{{ m.monto }}</td>
+            <td class="px-3 py-2">{{ m.descripcion }}</td>
+            <td class="px-3 py-2">{{ m.fecha|date:"d/m/Y H:i" }}</td>
+            <td class="px-3 py-2 font-mono">{{ m.codigo }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="px-3 py-4 text-black/60 text-center">Sin registros recientes.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
 
 </section>
 
+<!-- Lightbox simple para imágenes + tabs -->
 <script>
 (function(){
-  const els = document.querySelectorAll('.reveal');
-  const io = new IntersectionObserver((entries)=>{
-    entries.forEach(({isIntersecting,target})=>{
-      if(isIntersecting){ target.classList.add('show'); io.unobserve(target); }
+  // Tabs
+  const panels = document.querySelectorAll('[data-panel]');
+  const btns = document.querySelectorAll('.tab-btn');
+
+  function show(tab){
+    panels.forEach(p=>p.classList.toggle('hidden', p.dataset.panel!==tab));
+    btns.forEach(b=>{
+      const on = b.dataset.tab===tab;
+      b.classList.toggle('bg-white/10', on);
+      b.classList.toggle('text-black', on);
+      b.setAttribute('aria-current', on ? 'page' : 'false');
     });
-  }, {rootMargin:'0px 0px -12% 0px', threshold:0.08});
-  els.forEach(el=>io.observe(el));
+    history.replaceState(null,'', '#'+tab);
+  }
+
+  const initial = (location.hash||'#kyc').replace('#','');
+  show(initial);
+  btns.forEach(b=>b.addEventListener('click', (e)=>{ e.preventDefault(); show(b.dataset.tab); }));
+
+  // Lightbox básico
+  const overlay = document.createElement('div');
+  overlay.className = 'fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4';
+  overlay.innerHTML = `
+    <div class="max-w-3xl w-full">
+      <div class="relative card p-2">
+        <button class="absolute -top-3 -right-3 rounded-full bg-neon text-black font-bold h-8 w-8" aria-label="Cerrar">×</button>
+        <img id="lb-img" src="" class="w-full rounded-lg" alt="Comprobante/DNI">
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const lbImg = overlay.querySelector('#lb-img');
+  const closeBtn = overlay.querySelector('button');
+  closeBtn.addEventListener('click', ()=> overlay.classList.add('hidden'));
+  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) overlay.classList.add('hidden'); });
+
+  document.querySelectorAll('.thumb-btn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      lbImg.src = b.getAttribute('data-img');
+      overlay.classList.remove('hidden');
+    });
+  });
 })();
 </script>
-
 {% endblock %}
