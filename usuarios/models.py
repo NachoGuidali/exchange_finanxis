@@ -7,6 +7,76 @@ from django.utils.text import slugify
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
+from django.core.cache import cache
+from django.core.validators import MinValueValidator, MaxValueValidator
+
+
+BPS_MIN, BPS_MAX = 0, 5000  # 0% a 50%
+
+class ExchangeConfig(models.Model):
+    # guardo siempre una sola fila (singleton)
+    singleton = models.BooleanField(default=True, editable=False, unique=True)
+
+    # valores en basis points (bps)
+    swap_fee_bps      = models.PositiveIntegerField(
+        default=getattr(settings, "SWAP_FEE_BPS", 100),
+        validators=[MinValueValidator(BPS_MIN), MaxValueValidator(BPS_MAX)],
+        help_text="Comisión del swap en basis points (100 bps = 1%)."
+    )
+    spread_bps_usdt   = models.PositiveIntegerField(
+        default=getattr(settings, "SPREAD_BPS_USDT", 200),
+        validators=[MinValueValidator(BPS_MIN), MaxValueValidator(BPS_MAX)],
+        help_text="Spread aplicado a USDT en bps."
+    )
+    spread_bps_usd    = models.PositiveIntegerField(
+        default=getattr(settings, "SPREAD_BPS_USD", 200),
+        validators=[MinValueValidator(BPS_MIN), MaxValueValidator(BPS_MAX)],
+        help_text="Spread aplicado a USD en bps."
+    )
+
+    updated_at = models.DateTimeField(default=timezone.now)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        verbose_name = "Configuración de Exchange"
+        verbose_name_plural = "Configuración de Exchange"
+
+    def save(self, *args, **kwargs):
+        self.updated_at = timezone.now()
+        super().save(*args, **kwargs)
+        cache.delete("exchange_config_current")
+
+    @classmethod
+    def current(cls):
+        """Obtiene (o crea) la única fila y la cachea."""
+        obj = cache.get("exchange_config_current")
+        if obj is None:
+            obj, _ = cls.objects.get_or_create(singleton=True, defaults={})
+            cache.set("exchange_config_current", obj, 60)  # 1 min (ajustable)
+        return obj
+
+    # helpers convenientes (devuelven decimales)
+    @property
+    def swap_fee_pct(self):
+        # 100 bps = 0.01
+        from decimal import Decimal
+        return Decimal(self.swap_fee_bps) / Decimal("10000")
+
+    @property
+    def spread_usdt_pct(self):
+        from decimal import Decimal
+        return Decimal(self.spread_bps_usdt) / Decimal("10000")
+
+    @property
+    def spread_usd_pct(self):
+        from decimal import Decimal
+        return Decimal(self.spread_bps_usd) / Decimal("10000")
+
+    def __str__(self):
+        return "Configuración de Exchange"
 
 # Create your models here.
 class Pais(models.Model):

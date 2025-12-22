@@ -1,9 +1,22 @@
 from decimal import Decimal, ROUND_HALF_UP
 from django.utils.timezone import now
 from usuarios.models import ApunteExchange, Cotizacion
+from usuarios.models import ExchangeConfig
 
 Q2 = lambda x: Decimal(x).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 Q6 = lambda x: Decimal(x).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+
+def _cfg():
+    return ExchangeConfig.current()
+
+def calcular_fee_swap(monto_ccy):
+    fee_pct = _cfg().swap_fee_pct          # Decimal, ej. 0.01
+    return (Decimal(monto_ccy) * fee_pct)
+
+def spread_percent_for(moneda):
+    cfg = _cfg()
+    return cfg.spread_usdt_pct if moneda == "USDT" else (
+           cfg.spread_usd_pct  if moneda == "USD"  else Decimal("0"))
 
 def _ref_precio(moneda: str) -> Decimal:
     """

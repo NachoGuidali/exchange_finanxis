@@ -4,6 +4,26 @@
 
 {% block content %}
 <section class="max-w-7xl mx-auto px-4 py-8">
+<form action="{% url 'guardar_config_exchange' %}" method="post" class="rounded-xl border p-4 bg-white/5">
+  {% csrf_token %}
+  <h3 class="font-semibold mb-3">Parámetros del Exchange</h3>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <label class=" border rounded py-1 px-1 text-sm">
+      <span>Spread USDT (bps)</span>
+      {{ cfg_form.spread_bps_usdt }}
+    </label>
+    <label class="border rounded py-1 px-1 text-sm">
+      <span>Spread USD (bps)</span>
+      {{ cfg_form.spread_bps_usd }}
+    </label>
+    <label class="border rounded py-1 px-1 text-sm">
+      <span>Fee Swap (bps)</span>
+      {{ cfg_form.swap_fee_bps }}
+    </label>
+  </div>
+  <button class="mt-4 rounded-lg bg-primary text-dark font-semibold px-4 py-2">Guardar</button>
+  <p class="text-xs mt-2 opacity-70">Última actualización: {{ cfg.updated_at|date:"d/m/Y H:i" }}</p>
+</form>
 
   <!-- Header + búsqueda global -->
   <header class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -25,13 +45,10 @@
     </form>
   </header>
   <section class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-  <header class="flex flex-col gap-2">
-    <h1 class="text-2xl sm:text-3xl font-extrabold">Administración</h1>
-    <p class="text-white/70 text-sm">Atajos rápidos a módulos operativos.</p>
-  </header>
+  
 
   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    <a href="{% url 'panel_depositos' %}" class="card p-5 hover:bg-white/5 transition">
+    <a href="{% url 'panel_depositos' %}" class="card border rounded p-5 hover:bg-white/5 transition">
       <div class="flex items-center justify-between">
         <div class="font-semibold">Depósitos ARS</div>
         {% if kpi_depositos_pend %}
@@ -40,15 +57,15 @@
           </span>
         {% endif %}
       </div>
-      <p class="text-white/60 text-sm mt-1">Ingresos por transferencia/local.</p>
+      <p class="text-black/60 text-sm mt-1">Ingresos por transferencia/local.</p>
     </a>
 
-    <a href="{% url 'panel_depositos_usdt' %}" class="card p-5 hover:bg-white/5 transition">
+    <!-- <a href="{% url 'panel_depositos_usdt' %}" class="card p-5 hover:bg-white/5 transition">
       <div class="font-semibold">Depósitos USDT</div>
-      <p class="text-white/60 text-sm mt-1">On-chain / CEX.</p>
-    </a>
+      <p class="text-black/60 text-sm mt-1">On-chain / CEX.</p>
+    </a> -->
 
-    <a href="{% url 'panel_retiros' %}" class="card p-5 hover:bg-white/5 transition">
+    <a href="{% url 'panel_retiros' %}" class="card border rounded p-5 hover:bg-white/5 transition">
       <div class="flex items-center justify-between">
         <div class="font-semibold">Retiros</div>
         {% with a=kpi_retiros_ars_pend|default:0 c=kpi_retiros_crypto_pend|default:0 %}
@@ -59,22 +76,22 @@
           {% endif %}
         {% endwith %}
       </div>
-      <p class="text-white/60 text-sm mt-1">ARS & cripto.</p>
+      <p class="text-black/60 text-sm mt-1">ARS & cripto.</p>
     </a>
 
-    <a href="{% url 'exchange_dashboard' %}" class="card p-5 hover:bg-white/5 transition">
+    <a href="{% url 'exchange_dashboard' %}" class="card border rounded p-5 hover:bg-white/5 transition">
       <div class="font-semibold">Contabilidad</div>
-      <p class="text-white/60 text-sm mt-1">Caja, rentas y flujo global.</p>
+      <p class="text-black/60 text-sm mt-1">Caja, rentas y flujo global.</p>
     </a>
 
-    <a href="{% url 'panel_admin' %}#movs" class="card p-5 hover:bg-white/5 transition">
+    <a href="{% url 'panel_admin' %}#movs" class="card border rounded p-5 hover:bg-white/5 transition">
       <div class="font-semibold">Movimientos</div>
-      <p class="text-white/60 text-sm mt-1">Listado y auditoría.</p>
+      <p class="text-black/60 text-sm mt-1">Listado y auditoría.</p>
     </a>
 
-    <a href="{% url 'admin_usuarios_list' %}" class="card p-5 hover:bg-white/5 transition">
+    <a href="{% url 'admin_usuarios_list' %}" class="card border rounded p-5 hover:bg-white/5 transition">
       <div class="font-semibold">Usuarios</div>
-      <p class="text-white/60 text-sm mt-1">KYC, límites y estado.</p>
+      <p class="text-black/60 text-sm mt-1">KYC, límites y estado.</p>
     </a>
   </div>
 </section>
@@ -139,12 +156,12 @@
               <td class="px-3 py-2">{{ u.email }}</td>
               <td class="px-3 py-2">
                 {% if u.dni_frente %}
-                  <button type="button" class="thumb-btn underline text-white/80 hover:text-neon" data-img="{{ u.dni_frente.url }}">Ver</button>
+                  <button type="button" class="thumb-btn underline text-black/80 hover:text-neon" data-img="{{ u.dni_frente.url }}">Ver</button>
                 {% else %}<span class="text-black/40">—</span>{% endif %}
               </td>
               <td class="px-3 py-2">
                 {% if u.dni_dorso %}
-                  <button type="button" class="thumb-btn underline text-white/80 hover:text-neon" data-img="{{ u.dni_dorso.url }}">Ver</button>
+                  <button type="button" class="thumb-btn underline text-black/80 hover:text-neon" data-img="{{ u.dni_dorso.url }}">Ver</button>
                 {% else %}<span class="text-black/40">—</span>{% endif %}
               </td>
               <td class="px-3 py-2 capitalize">
@@ -152,7 +169,7 @@
                   {% if u.estado_verificacion == 'aprobado' %} border-emerald-400 text-emerald-300
                   {% elif u.estado_verificacion == 'pendiente' %} border-amber-400 text-amber-300
                   {% elif u.estado_verificacion == 'rechazado' %} border-red-400 text-red-300
-                  {% else %} border-white/20 text-white/80 {% endif %}">
+                  {% else %} border-white/20 text-black/80 {% endif %}">
                   {{ u.estado_verificacion }}
                 </span>
               </td>
@@ -323,8 +340,9 @@
               <td class="px-3 py-2">
                 <form method="post" action="{% url 'aprobar_deposito' d.id %}">
                   {% csrf_token %}
-                  <button class="rounded-md bg-neon text-black px-3 py-1 font-semibold">Aprobar</button>
+                  <button class="rounded-md bg-neon text-black py-1 font-semibold">Aprobar</button>
                 </form>
+                <form method="post" action="{% url 'rechazar_deposito_usdt' d.id %}" style="display:inline">{% csrf_token %}<button>Rechazar</button></form>
               </td>
             </tr>
             {% endif %}

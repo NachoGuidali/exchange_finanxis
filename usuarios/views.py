@@ -1,10 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404, HttpResponse
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.http import HttpResponseRedirect, FileResponse, HttpResponse
-from .forms import RegistroUsuarioForm, DepositoARSForm, DepositoUSDTForm, SupportTicketForm
+from .forms import RegistroUsuarioForm, DepositoARSForm, DepositoUSDTForm, SupportTicketForm, ExchangeConfigForm
 from django.contrib import messages
 from django.urls import reverse
-from .models import Usuario, DepositoARS, Movimiento, Cotizacion, RetiroARS, Notificacion, RetiroCrypto, DepositoUSDT, BoletoOperacion, Provincia, Localidad, Pais, SupportTicket, ApunteExchange, CuentaExchange
+from .models import Usuario, DepositoARS, Movimiento, Cotizacion, RetiroARS, Notificacion, RetiroCrypto, DepositoUSDT, BoletoOperacion, Provincia, Localidad, Pais, SupportTicket, ApunteExchange, CuentaExchange, ExchangeConfig
 from decimal import Decimal, ROUND_DOWN
 from django.views.decorators.http import require_GET, require_POST
 from django.http import JsonResponse
@@ -38,10 +38,15 @@ from .utils_email_verify import send_verification_email, build_verification_link
 from django.contrib.auth.views import LoginView
 from django.contrib import messages
 from .forms import EmailOrUsernameAuthenticationForm
-
+from django import forms
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
+
+def _cfg():
+    return ExchangeConfig.current()
+
+
 
 # helpers de formato / numeración
 def q2(x): return Decimal(x).quantize(Decimal('0.01'), rounding=ROUND_DOWN)
@@ -342,6 +347,9 @@ def panel_admin(request):
         'kpi_retiros_ars_pend': kpi_retiros_ars_pend,
         'kpi_retiros_crypto_pend': kpi_retiros_crypto_pend,
     }
+    cfg = ExchangeConfig.current()
+    cfg_form = ExchangeConfigForm(instance=cfg)
+    context.update({"cfg_form": cfg_form, "cfg": cfg})
     return render(request, 'usuarios/panel_admin.html', context)
 
 @login_required
@@ -650,7 +658,7 @@ def operar(request):
             registrar_comision_swap(
                 usuario=request.user, direccion=direction,
                 fee_amount=fee_amount, fee_currency=fee_currency,
-                movimiento=mov_dest, detalle_extra={"swap_fee_bps": getattr(settings,'SWAP_FEE_BPS',100)}
+                movimiento=mov_dest, detalle_extra={"swap_fee_bps": _cfg().swap_fee_bps}
             )
 
             messages.success(request, "Swap realizado con éxito.")
@@ -663,7 +671,8 @@ def operar(request):
     return render(request, 'usuarios/operar.html', {
         'cot_usdt': {'compra': cot_usdt_compra, 'venta': cot_usdt_venta},
         'cot_usd':  {'compra': cot_usd_compra,  'venta': cot_usd_venta},
-        'swap_fee_bps': getattr(settings, 'SWAP_FEE_BPS', 100),
+        'swap_fee_bps': _cfg().swap_fee_bps,
+
         'swap_rate': Decimal('1.00'),
     })
 
@@ -797,7 +806,7 @@ def procesar_venta(usuario, moneda, monto_moneda, cotizacion_compra, *, return_m
 
 def procesar_swap(usuario, direccion: str, amount: Decimal, *, rate=Decimal('1.00'), fee_bps=None, return_fee=False):
     from usuarios.services.boletos import emitir_boleto
-    fee_bps = Decimal(fee_bps if fee_bps is not None else getattr(settings, 'SWAP_FEE_BPS', 100))
+    fee_bps = Decimal(fee_bps if fee_bps is not None else _cfg().swap_fee_bps)
     fee_factor = (Decimal('1') - (fee_bps / Decimal('10000')))
 
     with transaction.atomic():
@@ -2204,5 +2213,75 @@ def verify_email(request, uidb64, token):
     
 
 
+#cambio de spreed manual para admin
+
+# class ExchangeConfigForm(forms.ModelForm):
+#     class Meta:
+#         model = ExchangeConfig
+#         fields = ("swap_fee_bps", "spread_bps_usdt", "spread_bps_usd")
+#         widgets = {f: forms.NumberInput(attrs={"min":0,"max":5000,"class":"input"}) for f in fields}
+
+# @login_required
+# @user_passes_test(es_admin)
+# def exchange_config_view(request):
+#     cfg = ExchangeConfig.current()
+#     if request.method == "POST":
+#         form = ExchangeConfigForm(request.POST, instance=cfg)
+#         if form.is_valid():
+#             form.save()
+#             from django.contrib import messages
+#             messages.success(request, "Parámetros actualizados.")
+#             return redirect("exchange_config")
+#     else:
+#         form = ExchangeConfigForm(instance=cfg)
+#     return render(request, "usuarios/exchange_config.html", {"form": form})
+
+@login_required
+@user_passes_test(es_admin)
+@require_POST
+def guardar_config_exchange(request):
+    cfg = ExchangeConfig.current()
+    form = ExchangeConfigForm(request.POST, instance=cfg)
+    if form.is_valid():
+        form.save()
+        # invalidar caché para que se refleje inmediato
+        from django.core.cache import cache
+        cache.delete("exchange_config_current")
+        messages.success(request, "Configuración actualizada.")
+    else:
+        messages.error(request, "Revisá los valores ingresados.")
+    return redirect('panel_admin')
 
 
+
+@login_required
+@user_passes_test(es_admin)
+def exportar_movimientos_usuario_admin(request, user_id):
+    """
+    Exporta a CSV todos los movimientos de UN usuario específico,
+    pensado para usar desde el panel admin (perfil del usuario).
+    """
+    usuario = get_object_or_404(Usuario, pk=user_id)
+    movimientos = Movimiento.objects.filter(usuario=usuario).order_by('-fecha')
+
+    response = HttpResponse(content_type='text/csv')
+    filename = f"movimientos_{usuario.username}.csv"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Fecha', 'ID', 'Tipo', 'Moneda', 'Monto',
+                     'Saldo antes', 'Saldo después', 'Descripción'])
+
+    for m in movimientos:
+        writer.writerow([
+            localtime(m.fecha).strftime('%Y-%m-%d %H:%M'),
+            m.codigo,
+            m.tipo,
+            m.moneda,
+            m.monto,
+            m.saldo_antes,
+            m.saldo_despues,
+            m.descripcion
+        ])
+
+    return response

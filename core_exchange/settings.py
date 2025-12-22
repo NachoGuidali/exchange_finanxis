@@ -163,7 +163,7 @@ EMPRESA_NOMBRE = "Finanxis"
 EMPRESA_CUIT = "30-00000000-0"
 EMPRESA_DOMICILIO = "Av. Siempre Viva 123, CABA"
 SUPPORT_CONTACTO = "soporte@midominio.com / +54 11 5555-0000"
-PSAV_LEYENDA = "“Ariel Jesús Vandoni - Proveedor de Servicios de Activos Virtuales (PSAV) inscripto bajo el N°13 de la fecha 25 de marzo de 2025 del Registro PSAV – Personas Humanas, en el Registro de Proveedores de Servicios de Activos Virtuales de CNV. Este registro es a los fines del control como Sujeto Obligado ante la Unidad de Información Financiera (UIF) y de todo otro ente regulador facultado a tal efecto, en el marco de sus competencias, y no implica licencia ni supervisión por parte de la COMISIÓN NACIONAL DE VALORES sobre la actividad realizada por el PSAV”."  # dejar vacío si NO estás inscripto; poner leyenda exacta si sí lo estás
+PSAV_LEYENDA = "“Ariel Jesús Vandoni - Proveedor de Servicios de Activos Virtuales (PSAV) inscripto bajo el N°13 de la fecha 25 de marzo de 2025 del Registro PSAV – Personas Humanas, en el Registro de Proveedores de Servicios de Activos Virtuales de CNV. Este registro es a los fines del control como Sujeto Obligado ante la Unidad de Información Financiera (UIF) y de todo otro ente regulador facultado a tal efecto, en el marco de sus competencias, y no implica licencia ni supervisión por parte de la COMISIÓN NACIONAL DE VALORES sobre la actividad realizada por el PSAV”."  
 #produccion
 # EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 # EMAIL_HOST = "smtp.sendgrid.net"   # o tu proveedor

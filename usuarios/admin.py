@@ -1,12 +1,11 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django.contrib.auth.admin import UserAdmin
-from .models import Usuario, Cotizacion, RetiroARS, Pais, Provincia, Localidad
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone  # 👈 NUEVO
+from .models import Usuario, Cotizacion, RetiroARS, Pais, Provincia, Localidad
 
-
-# Register your models here.
 
 @admin.register(Usuario)
 class CustomUserAdmin(UserAdmin):
@@ -16,35 +15,80 @@ class CustomUserAdmin(UserAdmin):
     # LISTA
     # -------------------------
     list_display = (
-        'username', 'email', 'nombre', 'estado_verificacion',
-        'saldo_ars', 'saldo_usdt', 'saldo_usd', 'date_joined', 'ver_historial'
+        'username',
+        'email',
+        'email_confirmed',       # 👈 NUEVO
+        'estado_verificacion',
+        'nombre',
+        'saldo_ars',
+        'saldo_usdt',
+        'saldo_usd',
+        'date_joined',
+        'ver_historial',
     )
     list_display_links = ('username', 'email')
-    list_filter = ('estado_verificacion', 'is_active', 'is_staff', 'is_superuser', 'date_joined')
-    search_fields = ('username', 'email', 'first_name', 'last_name', 'doc_nro', 'telefono')
+    list_filter = (
+        'estado_verificacion',
+        'email_confirmed',       # 👈 NUEVO
+        'is_active',
+        'is_staff',
+        'is_superuser',
+        'date_joined',
+    )
+    search_fields = (
+        'username',
+        'email',
+        'first_name',
+        'last_name',
+        'doc_nro',
+        'telefono',
+    )
     ordering = ('-date_joined',)
     date_hierarchy = 'date_joined'
-    actions = ['aprobar_verificacion', 'rechazar_verificacion']
+    actions = [
+        'aprobar_verificacion',
+        'rechazar_verificacion',
+        'marcar_email_verificado',   # 👈 NUEVA ACCIÓN
+    ]
 
     # -------------------------
-    # CAMPOS SOLO LECTURA (evita tocar saldos a mano)
+    # CAMPOS SOLO LECTURA
     # -------------------------
     readonly_fields = (
-        'dni_frente_preview', 'dni_dorso_preview',
-        'saldo_ars', 'saldo_usdt', 'saldo_usd',
-        'last_login', 'date_joined',
+        'dni_frente_preview',
+        'dni_dorso_preview',
+        'saldo_ars',
+        'saldo_usdt',
+        'saldo_usd',
+        'last_login',
+        'date_joined',
+        'email_confirmed_at',        # 👈 NUEVO
+        'email_confirm_sent_at',     # 👈 NUEVO
     )
 
     # -------------------------
     # FORM DE EDICIÓN
     # -------------------------
     fieldsets = UserAdmin.fieldsets + (
-        ("KYC", {"fields": (
-            "doc_tipo","doc_nro","nacionalidad","telefono",
-            "dni_frente","dni_dorso","estado_verificacion"
-        )}),
-        ("Domicilio", {"fields": ("pais","provincia","localidad","cp","direccion","domicilio")}),
-        ("Saldos", {"fields": ("saldo_ars","saldo_usdt","saldo_usd")}),
+        ("KYC", {
+            "fields": (
+                "doc_tipo", "doc_nro", "nacionalidad", "telefono",
+                "dni_frente", "dni_dorso", "estado_verificacion"
+            )
+        }),
+        ("Domicilio", {
+            "fields": ("pais", "provincia", "localidad", "domicilio")
+        }),
+        ("Email / Verificación", {   # 👈 NUEVO BLOQUE
+            "fields": (
+                "email_confirmed",
+                "email_confirmed_at",
+                "email_confirm_sent_at",
+            )
+        }),
+        ("Saldos", {
+            "fields": ("saldo_ars", "saldo_usdt", "saldo_usd")
+        }),
     )
 
     # (Opcional) si creás usuarios desde admin y querés capturar KYC en el alta:
@@ -67,14 +111,20 @@ class CustomUserAdmin(UserAdmin):
     def dni_frente_preview(self, obj: Usuario):
         if obj.dni_frente:
             url = obj.dni_frente.url
-            return format_html('<a href="{}" target="_blank"><img src="{}" style="height:80px;border:1px solid #ddd;border-radius:6px"/></a>', url, url)
+            return format_html(
+                '<a href="{}" target="_blank"><img src="{}" style="height:80px;border:1px solid #ddd;border-radius:6px"/></a>',
+                url, url
+            )
         return "—"
 
     @admin.display(description='DNI dorso')
     def dni_dorso_preview(self, obj: Usuario):
         if obj.dni_dorso:
             url = obj.dni_dorso.url
-            return format_html('<a href="{}" target="_blank"><img src="{}" style="height:80px;border:1px solid #ddd;border-radius:6px"/></a>', url, url)
+            return format_html(
+                '<a href="{}" target="_blank"><img src="{}" style="height:80px;border:1px solid #ddd;border-radius:6px"/></a>',
+                url, url
+            )
         return "—"
 
     @admin.display(description='Historial')
@@ -108,6 +158,19 @@ class CustomUserAdmin(UserAdmin):
             updated += 1
         self.message_user(request, f"{updated} usuario(s) marcados como rechazados.")
 
+    @admin.action(description="Marcar email como verificado")  # 👈 NUEVA ACCIÓN
+    def marcar_email_verificado(self, request, queryset):
+        ahora = timezone.now()
+        updated = 0
+        for u in queryset:
+            if not u.email_confirmed:
+                u.email_confirmed = True
+                u.email_confirmed_at = ahora
+                u.save(update_fields=['email_confirmed', 'email_confirmed_at'])
+                updated += 1
+        self.message_user(request, f"{updated} usuario(s) marcados con email verificado.")
+
+
 @admin.register(Cotizacion)
 class CotizacionAdmin(admin.ModelAdmin):
     list_display = ('moneda', 'compra', 'venta', 'fecha')
@@ -134,8 +197,6 @@ class RetiroARSAdmin(admin.ModelAdmin):
     marcar_como_enviado.short_description = "Marcar como enviados"
 
 
- 
 admin.site.register(Pais)
 admin.site.register(Provincia)
 admin.site.register(Localidad)
- 

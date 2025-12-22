@@ -101,7 +101,7 @@
 
   <!-- Mobile menu -->
   <div class="container lg:hidden">
-    <ul class="hidden flex-col gap-4 py-4" data-mobile-menu>
+    <ul class="hidden flex-col gap-6 py-4" data-mobile-menu>
       <li><a href="{% url 'dashboard' %}" class="block text-white/90">Dashboard</a></li>
       {% if request.user.is_staff or request.user.is_superuser %}
         <li><a href="{% url 'panel_admin' %}" class="block text-white/90">Admin</a></li>
@@ -109,17 +109,17 @@
 
       {% if request.user.is_authenticated %}
         <li class="mt-2 text-white/60 text-xs uppercase tracking-wide">Perfil</li>
-        <li><a href="{% url 'operar' %}" class="block text-white/90">🔁 Operar</a></li>
-        <li><a href="{% url 'agregar_saldo' %}" class="block text-white/90">💸 Ingresar saldo</a></li>
-        <li><a href="{% url 'solicitar_retiro' %}" class="block text-white/90">🏧 Retirar</a></li>
-        <li><a href="#" class="block text-white/90">👤 Mi perfil</a></li>
-        <li><a href="#" class="block text-white/90">🔒 Seguridad</a></li>
-        <li><a href="#" class="block text-white/90">⚙️ Configuración</a></li>
-        <li><a href="{% url 'comprobantes' %}" class="block text-white/90">🧾 Comprobantes</a></li>
+        <li><a href="{% url 'operar' %}" class="block text-white/90 text-xl">🔁 Operar</a></li>
+        <li><a href="{% url 'agregar_saldo' %}" class="block text-white/90 text-xl">💸 Ingresar saldo</a></li>
+        <li><a href="{% url 'solicitar_retiro' %}" class="block text-white/90 text-xl">🏧 Retirar</a></li>
+        <li><a href="{% url 'configuracion' %}?tab=perfil" class="block text-white/90 text-xl">👤 Mi perfil</a></li>
+        <li><a href="{% url 'configuracion' %}?tab=seguridad" class="block text-white/90 text-xl">🔒 Seguridad</a></li>
+        <li><a href="{% url 'configuracion' %}" class="block text-white/90 text-xl">⚙️ Configuración</a></li>
+        <li><a href="{% url 'comprobantes' %}" class="block text-white/90 text-xl">🧾 Comprobantes</a></li>
         <li>
           <form method="post" action="{% url 'logout' %}" class="inline">
             {% csrf_token %}
-            <button type="submit" class="rounded-md px-3 py-2 text-sm text-white/80 hover:text-white">Cerrar sesión</button>
+            <button type="submit" class="rounded-md px-3 py-2 text-m text-white/80 hover:text-white">Cerrar sesión</button>
           </form>
         </li>
       {% else %}

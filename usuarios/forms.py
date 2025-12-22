@@ -8,6 +8,17 @@ from django.conf import settings
 from django.utils import timezone
 from .models import Usuario, Pais, Provincia, Localidad, PERSONA_TIPO, ESTADO_CIVIL, SEXO_CHOICES, SupportTicket
 from django.contrib.auth.forms import AuthenticationForm
+from .models import ExchangeConfig
+
+class ExchangeConfigForm(forms.ModelForm):
+    class Meta:
+        model = ExchangeConfig
+        fields = ("spread_bps_usdt","spread_bps_usd","swap_fee_bps")
+        widgets = {
+            "spread_bps_usdt": forms.NumberInput(attrs={"min":0, "step":1}),
+            "spread_bps_usd":  forms.NumberInput(attrs={"min":0, "step":1}),
+            "swap_fee_bps":    forms.NumberInput(attrs={"min":0, "step":1}),
+        }
 
 
 DOC_TIPOS = (('DNI','DNI'), ('PAS','Pasaporte'), ('CE','Cédula/CE'))

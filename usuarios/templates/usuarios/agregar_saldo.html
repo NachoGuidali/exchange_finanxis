@@ -3,30 +3,34 @@
 {% block meta_description %}Cargá saldo en ARS subiendo tu comprobante y los datos de la transferencia.{% endblock %}
 
 {% block content %}
-<section class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+<section class="mx-auto max-w-[640px] md:max-w-3xl lg:max-w-5xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
   <!-- Header -->
   <header class="rounded-2xl border border-gray-200 bg-white p-5 lg:p-6 shadow-soft">
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-      <div>
+      <div class="text-center md:text-left">
         <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Agregar saldo en ARS</h1>
         <p class="text-gray-600 mt-1">Transferí a la cuenta de Finanxis y subí el comprobante para acreditar.</p>
       </div>
-      <a href="{% url 'operar' %}" class="inline-flex items-center justify-center rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90">
+      <a href="{% url 'operar' %}"
+         class="inline-flex items-center justify-center rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90
+                md:self-auto self-center md:mt-0 mt-2">
         ← Volver a Operar
       </a>
     </div>
   </header>
 
   <!-- Grid principal -->
-  <div class="grid gap-6 lg:grid-cols-12">
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
     <!-- Columna izquierda: Instrucciones + Form -->
-    <div class="lg:col-span-7 space-y-6">
+    <div class="col-span-1 lg:col-span-7 space-y-6">
+
       <!-- Pasos rápidos -->
       <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
-        <h2 class="text-lg font-semibold text-gray-900">Cómo acreditar tu depósito</h2>
-        <ol class="mt-3 grid sm:grid-cols-2 gap-3 text-sm">
+        <h2 class="text-lg font-semibold text-gray-900 text-center md:text-left">Cómo acreditar tu depósito</h2>
+        <ol class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <li class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">1) Hacé una transferencia a la cuenta indicada.</li>
           <li class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">2) Adjuntá el comprobante y enviá el formulario.</li>
           <li class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">3) Acreditamos dentro del horario bancario.</li>
@@ -36,20 +40,23 @@
 
       <!-- Formulario -->
       <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
-        <h2 class="text-lg font-semibold text-gray-900 mb-2">Subí tu comprobante</h2>
-        <p class="text-sm text-gray-600 mb-4">Asegurate de que se lea el **monto**, **fecha** y **origen** de la transferencia.</p>
+        <h2 class="text-lg font-semibold text-gray-900 mb-2 text-center md:text-left">Subí tu comprobante</h2>
+        <p class="text-sm text-gray-600 mb-4 text-center md:text-left">
+          Asegurate de que se lea el <strong>monto</strong>, <strong>fecha</strong> y <strong>origen</strong> de la transferencia.
+        </p>
 
         <form method="post" enctype="multipart/form-data" class="space-y-4">
           {% csrf_token %}
 
-          <!-- Render nativo del form (con estilo de contenedor para que no rompa) -->
+          <!-- Render nativo del form -->
           <div class="prose max-w-none">
             {{ form.as_p }}
           </div>
 
-          <!-- Zona de arrastre opcional (no cambia el input original) -->
+          <!-- Zona de arrastre -->
           <div class="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 px-4 py-5 text-sm text-gray-600"
-               ondragover="this.classList.add('ring-2','ring-primary')" ondragleave="this.classList.remove('ring-2','ring-primary')">
+               ondragover="this.classList.add('ring-2','ring-primary')"
+               ondragleave="this.classList.remove('ring-2','ring-primary')">
             <div class="flex items-center gap-3">
               <div class="rounded-lg bg-white border border-gray-200 px-3 py-2">📎</div>
               <div>
@@ -59,14 +66,14 @@
             </div>
           </div>
 
-          <!-- Preview del archivo si el form tiene un input[type=file] -->
+          <!-- Preview -->
           <div id="filePreview" class="hidden rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div class="text-sm text-gray-700 mb-2 font-medium">Vista previa</div>
             <img id="filePreviewImg" class="max-h-72 rounded-lg border border-gray-200" alt="Comprobante">
             <p id="filePreviewName" class="mt-2 text-xs text-gray-600"></p>
           </div>
 
-          <div class="flex items-center gap-3 pt-2">
+          <div class="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
             <button type="submit"
                     class="rounded-xl bg-primary text-dark font-semibold px-5 py-2.5 text-sm shadow-soft hover:opacity-90">
               Enviar comprobante
@@ -78,7 +85,7 @@
 
       <!-- FAQs cortas -->
       <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
-        <h3 class="text-sm font-semibold text-gray-900">Preguntas frecuentes</h3>
+        <h3 class="text-sm font-semibold text-gray-900 text-center md:text-left">Preguntas frecuentes</h3>
         <div class="mt-3 divide-y divide-gray-100 text-sm">
           <details class="py-3">
             <summary class="cursor-pointer font-medium text-gray-800">¿Cuánto tarda en acreditarse?</summary>
@@ -97,10 +104,11 @@
     </div>
 
     <!-- Columna derecha: Datos bancarios + Tips -->
-    <aside class="lg:col-span-5 space-y-6">
+    <aside class="col-span-1 lg:col-span-5 space-y-6">
+
       <!-- Datos bancarios -->
       <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
-        <h2 class="text-lg font-semibold text-gray-900">Datos de transferencia</h2>
+        <h2 class="text-lg font-semibold text-gray-900 text-center md:text-left">Datos de transferencia</h2>
         <div class="mt-4 grid gap-3 text-sm">
           <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div class="text-xs text-gray-600">Alias</div>
@@ -126,14 +134,14 @@
             </div>
           </div>
         </div>
-        <p class="mt-3 text-xs text-gray-500">Recordá enviar el comprobante para acelerar la acreditación.</p>
+        <p class="mt-3 text-xs text-gray-500 text-center md:text-left">Recordá enviar el comprobante para acelerar la acreditación.</p>
       </section>
 
       <!-- Tips -->
       <section class="rounded-2xl border border-gray-200 bg-primary/5 p-5">
-        <h3 class="font-semibold text-gray-900">💡 Tips</h3>
+        <h3 class="font-semibold text-gray-900 text-center md:text-left">💡 Tips</h3>
         <ul class="mt-2 space-y-2 text-sm text-gray-700">
-          <li>Usá el **mismo titular** que tu cuenta Finanxis para evitar demoras.</li>
+          <li>Usá el <strong>mismo titular</strong> que tu cuenta Finanxis para evitar demoras.</li>
           <li>Si transferís en USD, convertimos según tu instrucción en Operar.</li>
           <li>Los depósitos desde billeteras virtuales pueden demorar más.</li>
         </ul>
@@ -141,6 +149,7 @@
     </aside>
   </div>
 </section>
+
 
 <!-- Scripts: copiar al portapapeles + preview archivo -->
 <script>

@@ -78,6 +78,25 @@
       --ring: #FF1129;
     }
 
+    /* 👇 Temas: SOLO cambiamos el fondo del body */
+    body.theme-light {
+      background-color: #F9FAFB;   /* fondo claro */
+    }
+
+    body.theme-dark {
+      --bg: #0a0a0a44;        /* fondo sólido oscuro */
+      --card: #111111;
+      --card-2: #1A1A1A;
+      --ring: #FF1129;
+
+      background-color: var(--bg);
+      background-image: radial-gradient(
+          1200px 1400px at 50% 0%,
+          rgba(255, 17, 41, 0.3),
+          transparent
+      );
+    }
+
     ::selection {
       background: rgba(255, 17, 41, .2);
       color: #111;
@@ -146,6 +165,63 @@
     })();
   </script>
 
+  <!-- 👇 Script de tema claro/oscuro: SOLO cambia fondo -->
+  <script>
+    (function () {
+      const STORAGE_KEY = 'finanxis-theme';
+
+      function applyTheme(theme) {
+        const body = document.body;
+        body.classList.remove('theme-light', 'theme-dark');
+        if (theme === 'dark') {
+          body.classList.add('theme-dark');
+        } else {
+          body.classList.add('theme-light');
+        }
+      }
+
+      function getStoredTheme() {
+        try {
+          return localStorage.getItem(STORAGE_KEY);
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function setStoredTheme(theme) {
+        try {
+          localStorage.setItem(STORAGE_KEY, theme);
+        } catch (e) { }
+      }
+
+      // Aplicar tema inicial
+      const stored = getStoredTheme();
+      const initialTheme = (stored === 'dark') ? 'dark' : 'light';
+      applyTheme(initialTheme);
+
+      // Cuando el DOM está listo, sincronizar radios + botón
+      document.addEventListener('DOMContentLoaded', function () {
+        const radios = document.querySelectorAll('.theme-radio');
+        const saveBtn = document.getElementById('save-theme');
+
+        if (radios.length) {
+          // Preseleccionar según lo guardado
+          radios.forEach(r => {
+            r.checked = (r.value === initialTheme);
+          });
+
+          if (saveBtn) {
+            saveBtn.addEventListener('click', function () {
+              const selected = Array.from(radios).find(r => r.checked);
+              const theme = selected ? selected.value : 'light';
+              applyTheme(theme);
+              setStoredTheme(theme);
+            });
+          }
+        }
+      });
+    })();
+  </script>
   {% endblock %}
 </body>
 

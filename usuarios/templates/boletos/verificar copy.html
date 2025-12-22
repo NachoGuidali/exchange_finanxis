@@ -1,18 +1,4 @@
 {% extends "base.html" %}
-{% block content %}
-<h2>Verificación de comprobante</h2>
-<p><b>Número:</b> {{ numero }}</p>
-<p><b>Fecha:</b> {{ fecha|date:"d/m/Y H:i:s" }}</p>
-<p><b>Usuario:</b> {{ usuario }}</p>
-<p><b>Tipo:</b> {{ tipo }}</p>
-<p><b>SHA-256 (PDF):</b> <code>{{ pdf_sha256 }}</code></p>
-{% if anulado %}<p><strong>Estado:</strong> ANULADO</p>{% endif %}
-{% endblock %}
-
-
-
-
-<!-- {% extends "base.html" %}
 {% block title %}Verificación de comprobante{% endblock %}
 
 {% block content %}
@@ -23,7 +9,7 @@
     <p class="text-white/60 mt-1">Detalles de la operación, cliente y validaciones de integridad.</p>
   </header>
 
-  
+  <!-- Resumen -->
   <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
     <div class="grid gap-2 sm:grid-cols-2 text-sm">
       <p><span class="text-white/60">Número:</span> <b>{{ numero }}</b></p>
@@ -33,7 +19,7 @@
     </div>
   </div>
 
-  
+  <!-- Detalles -->
   <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
     <h2 class="mb-2 text-lg font-semibold">Detalles</h2>
     <div class="space-y-1 text-sm">
@@ -45,7 +31,7 @@
     </div>
   </div>
 
-  
+  <!-- Cliente -->
   <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
     <h2 class="mb-2 text-lg font-semibold">Cliente</h2>
     <div class="grid gap-2 sm:grid-cols-2 text-sm">
@@ -66,7 +52,7 @@
   </div>
 
   {% if snapshot.psav %}
-  
+  <!-- Proveedor -->
   <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
     <h2 class="mb-2 text-lg font-semibold">Proveedor</h2>
     <div class="grid gap-2 sm:grid-cols-2 text-sm">
@@ -80,7 +66,7 @@
   {% endif %}
 
   {% if onchain.red or onchain.txid or onchain.destino or onchain.origen %}
-  
+  <!-- Blockchain -->
   <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
     <h2 class="mb-2 text-lg font-semibold">Datos blockchain</h2>
     <div class="grid gap-2 sm:grid-cols-2 text-sm">
@@ -102,7 +88,7 @@
   </div>
   {% endif %}
 
-  
+  <!-- Integridad -->
   <div class="reveal rounded-2xl border border-white/10 bg-white/5 p-5 shadow-card">
     <h2 class="mb-2 text-lg font-semibold">Integridad</h2>
     <div class="text-sm space-y-2">
@@ -126,7 +112,7 @@
     </div>
   </div>
 
-  
+  <!-- Acciones -->
   <div class="reveal flex flex-wrap gap-3">
     <a href="{% url 'descargar_boleto' b.numero %}"
        class="rounded-xl bg-primary text-dark font-semibold px-4 py-2.5 text-sm shadow-soft hover:opacity-90">
@@ -141,7 +127,7 @@
 
 </section>
 
-
+<!-- Animación + copiar al portapapeles -->
 <script>
 (function(){
   // reveal
@@ -165,4 +151,4 @@
   });
 })();
 </script>
-{% endblock %} -->
+{% endblock %}

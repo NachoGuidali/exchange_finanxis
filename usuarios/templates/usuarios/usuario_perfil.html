@@ -2,10 +2,26 @@
 {% block title %}Perfil admin — {{ usuario.username }}{% endblock %}
 {% block content %}
 <section class="max-w-7xl mx-auto px-4 py-8">
-  <header class="mb-6">
-    <h1 class="text-2xl sm:text-3xl font-extrabold">Perfil: <span class="text-neon">{{ usuario.username }}</span></h1>
-    <p class="text-black/70">Estado KYC: <b class="capitalize">{{ usuario.estado_verificacion }}</b> • Email: {{ usuario.email }}</p>
-  </header>
+  <header class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+  <div>
+    <h1 class="text-2xl sm:text-3xl font-extrabold">
+      Perfil: <span class="text-neon">{{ usuario.username }}</span>
+    </h1>
+    <p class="text-black/70">
+      Estado KYC:
+      <b class="capitalize">{{ usuario.estado_verificacion }}</b>
+      • Email: {{ usuario.email }}
+    </p>
+  </div>
+
+  <div class="flex flex-wrap gap-2">
+    <a href="{% url 'exportar_movimientos_usuario_admin' usuario.id %}"
+       class="inline-flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50">
+      Descargar historial CSV
+    </a>
+  </div>
+</header>
+
 
   <div class="grid gap-6 lg:grid-cols-12">
     <aside class="lg:col-span-4 space-y-4">

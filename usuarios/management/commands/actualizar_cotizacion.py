@@ -1,88 +1,123 @@
+import json
 import requests
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
 from django.core.management.base import BaseCommand
 from django.utils.timezone import now
-from usuarios.models import Cotizacion
+from usuarios.models import Cotizacion, ExchangeConfig
+
+Q2 = lambda x: Decimal(x).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+Q6 = lambda x: Decimal(x).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)
+
+def aplicar_spread(precio_ref: Decimal, bps: int, sentido: str) -> Decimal:
+    """
+    sentido:
+      - 'compra' => precio que paga la casa al cliente (menor que ref)
+      - 'venta'  => precio que cobra la casa al cliente (mayor que ref)
+    """
+    precio_ref = Decimal(precio_ref)
+    factor = Decimal(bps) / Decimal(10000)
+    if sentido == 'compra':
+        return Q2(precio_ref * (Decimal('1') - factor))
+    return Q2(precio_ref * (Decimal('1') + factor))
 
 class Command(BaseCommand):
-    help = 'Actualiza la cotización de USDT (Binance) y USD (DolarAPI)'
+    help = 'Actualiza la cotización de USDT (Binance P2P) y USD (DolarAPI) aplicando spreads de ExchangeConfig'
 
     def handle(self, *args, **kwargs):
-        self.actualizar_usdt()
-        self.actualizar_usd()
+        cfg = ExchangeConfig.current()
+        self.actualizar_usdt(cfg.spread_bps_usdt)
+        self.actualizar_usd(cfg.spread_bps_usd)
 
-    def actualizar_usdt(self):
+    # ---------- USDT (Binance P2P) ----------
+    def actualizar_usdt(self, spread_bps: int):
         url = 'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search'
-        data = {
+        payload = {
             "asset": "USDT",
             "fiat": "ARS",
-            "tradeType": "SELL",
-            "payTypes": [],
+            "tradeType": "SELL",   # vendedores de USDT → cliente COMPRA USDT
             "page": 1,
-            "rows": 5
+            "rows": 10,
+            "payTypes": []
         }
-
         headers = {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
         }
 
         try:
-            response = requests.post(url, json=data, headers=headers, timeout=10)
-            response.raise_for_status()
-            results = response.json().get('data', [])
+            r = requests.post(url, data=json.dumps(payload), headers=headers, timeout=12)
+            r.raise_for_status()
+            data = r.json().get('data', []) or []
 
-            precios = [Decimal(ad['adv']['price']) for ad in results if 'adv' in ad and 'price' in ad['adv']]
+            precios = []
+            for item in data:
+                adv = item.get('adv') or {}
+                p = adv.get('price')
+                if p:
+                    precios.append(Decimal(str(p)))
 
             if not precios:
                 self.stdout.write(self.style.WARNING("No se encontraron precios de USDT en Binance."))
                 return
 
-            promedio = sum(precios) / len(precios)
-            comision = Decimal('0.02')
-            compra = round(promedio * (1 - comision), 2)
-            venta = round(promedio * (1 + comision), 2)
+            # referencia: promedio simple de los top N
+            ref = Q6(sum(precios) / len(precios))
+
+            compra = aplicar_spread(ref, spread_bps, 'compra')
+            venta  = aplicar_spread(ref, spread_bps, 'venta')
 
             Cotizacion.objects.create(
                 moneda='USDT',
                 compra=compra,
                 venta=venta,
-                fecha=now()
+                fecha=now(),
+                ref_compra=ref,     # guardamos ref para auditoría/contabilidad
+                ref_venta=ref,
+                margin_bps=spread_bps
             )
 
-            self.stdout.write(self.style.SUCCESS(f"[USDT] Compra: {compra} - Venta: {venta}"))
+            self.stdout.write(self.style.SUCCESS(
+                f"[USDT] ref={ref} • compra={compra} • venta={venta} • bps={spread_bps}"
+            ))
 
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"[ERROR USDT Binance] {e}"))
 
-    def actualizar_usd(self):
+    # ---------- USD (DolarAPI) ----------
+    def actualizar_usd(self, spread_bps: int):
+        url = "https://dolarapi.com/v1/dolares"
         try:
-            url = "https://dolarapi.com/v1/dolares"
-            response = requests.get(url, timeout=10)
-            response.raise_for_status()
-            data = response.json()
+            r = requests.get(url, timeout=10)
+            r.raise_for_status()
+            data = r.json()
 
-            for item in data:
-                if item.get('casa') == 'oficial':
-                    compra_raw = Decimal(item['compra'])
-                    venta_raw = Decimal(item['venta'])
+            oficial = next((d for d in data if d.get('casa') == 'oficial'), None)
+            if not oficial:
+                self.stdout.write(self.style.WARNING("No se encontró la cotización 'oficial' en dolarapi.com"))
+                return
 
-                    comision = Decimal('0.02')
-                    compra = round(compra_raw * (1 - comision), 2)
-                    venta = round(venta_raw * (1 + comision), 2)
+            compra_raw = Decimal(str(oficial['compra']))
+            venta_raw  = Decimal(str(oficial['venta']))
 
-                    Cotizacion.objects.create(
-                        moneda='USD',
-                        compra=compra,
-                        venta=venta,
-                        fecha=now()
-                    )
+            # referencia: mid-price entre compra y venta oficiales
+            ref = Q6((compra_raw + venta_raw) / Decimal('2'))
 
-                    self.stdout.write(self.style.SUCCESS(
-                        f"[USD] Oficial - Compra: {compra} / Venta: {venta}"
-                    ))
-                    return
+            compra = aplicar_spread(ref, spread_bps, 'compra')
+            venta  = aplicar_spread(ref, spread_bps, 'venta')
 
-            self.stdout.write(self.style.WARNING("No se encontró la cotización oficial en dolarapi.com"))
+            Cotizacion.objects.create(
+                moneda='USD',
+                compra=compra,
+                venta=venta,
+                fecha=now(),
+                ref_compra=ref,
+                ref_venta=ref,
+                margin_bps=spread_bps
+            )
+
+            self.stdout.write(self.style.SUCCESS(
+                f"[USD] ref={ref} • compra={compra} • venta={venta} • bps={spread_bps}"
+            ))
 
         except Exception as e:
             self.stderr.write(self.style.ERROR(f"[ERROR USD DolarAPI] {e}"))
