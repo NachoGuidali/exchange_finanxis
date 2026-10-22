@@ -1,0 +1,19 @@
+# Entorno y secretos
+env/
+venv/
+.venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Datos locales (nunca al repo: contienen datos personales)
+db.sqlite3
+db.sqlite3-journal
+media/
+staticfiles/
+*.log
+
+# Basura de Windows
+*:Zone.Identifier

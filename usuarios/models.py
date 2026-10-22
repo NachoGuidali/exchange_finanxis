@@ -286,6 +286,7 @@ class Movimiento(models.Model):
         ('deposito', 'Depósito'),
         ('retiro', 'Retiro'),
         ('compra', 'Compra'),
+        ('venta', 'Venta'),
         ('ajuste', 'Ajuste manual'),
     ]
 

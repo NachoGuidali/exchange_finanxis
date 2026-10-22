@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 
+from decouple import config, Csv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -20,12 +22,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '***SECRET_KEY_ROTADA***'
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['SupReg.pythonanywhere.com', 'www.SupReg.pythonanywhere.com', '127.0.0.1']
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost', cast=Csv())
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv())
 
 
 # Application definition
@@ -122,6 +125,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -140,8 +144,8 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # CELERY
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'
+CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/1')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 
@@ -153,62 +157,45 @@ SPREAD_BPS_USDT = 200
 SPREAD_BPS_USD  = 200  
 
 #EMAIL SOPORTE
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"  # dev
-DEFAULT_FROM_EMAIL = "soporte@finanxis.com"
-SOPORTE_TO = ["soporte@finanxis.com"]  # destinatarios del equipo
-DEFAULT_FROM_EMAIL = "Finanxis <no-reply@finanxis.com>"
+EMAIL_BACKEND = config("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = config("EMAIL_HOST", default="")
+EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
+EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
+EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="Finanxis <no-reply@finanxis.com>")
+SOPORTE_TO = config("SOPORTE_TO", default="soporte@finanxis.com", cast=Csv())
 
-SITE_URL = "http://localhost:8000"       
-EMPRESA_NOMBRE = "Finanxis"
-EMPRESA_CUIT = "30-00000000-0"
-EMPRESA_DOMICILIO = "Av. Siempre Viva 123, CABA"
-SUPPORT_CONTACTO = "soporte@midominio.com / +54 11 5555-0000"
-PSAV_LEYENDA = "“Ariel Jesús Vandoni - Proveedor de Servicios de Activos Virtuales (PSAV) inscripto bajo el N°13 de la fecha 25 de marzo de 2025 del Registro PSAV – Personas Humanas, en el Registro de Proveedores de Servicios de Activos Virtuales de CNV. Este registro es a los fines del control como Sujeto Obligado ante la Unidad de Información Financiera (UIF) y de todo otro ente regulador facultado a tal efecto, en el marco de sus competencias, y no implica licencia ni supervisión por parte de la COMISIÓN NACIONAL DE VALORES sobre la actividad realizada por el PSAV”."  
-#produccion
-# EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
-# EMAIL_HOST = "smtp.sendgrid.net"   # o tu proveedor
-# EMAIL_PORT = 587
-# EMAIL_HOST_USER = "apikey"         # SendGrid example
-# EMAIL_HOST_PASSWORD = "SG.xxxxxx"  # tu API key
-# EMAIL_USE_TLS = True
-# DEFAULT_FROM_EMAIL = "finanxis <no-reply@finanxis.com>"
-
-
-
+SITE_URL = config("SITE_URL", default="http://localhost:8000")
+EMPRESA_NOMBRE = config("EMPRESA_NOMBRE", default="Finanxis")
+EMPRESA_CUIT = config("EMPRESA_CUIT", default="30-00000000-0")
+EMPRESA_DOMICILIO = config("EMPRESA_DOMICILIO", default="Av. Siempre Viva 123, CABA")
+SUPPORT_CONTACTO = config("SUPPORT_CONTACTO", default="soporte@finanxis.com / +54 11 5555-0000")
+PSAV_LEYENDA = "“Ariel Jesús Vandoni - Proveedor de Servicios de Activos Virtuales (PSAV) inscripto bajo el N°13 de la fecha 25 de marzo de 2025 del Registro PSAV – Personas Humanas, en el Registro de Proveedores de Servicios de Activos Virtuales de CNV. Este registro es a los fines del control como Sujeto Obligado ante la Unidad de Información Financiera (UIF) y de todo otro ente regulador facultado a tal efecto, en el marco de sus competencias, y no implica licencia ni supervisión por parte de la COMISIÓN NACIONAL DE VALORES sobre la actividad realizada por el PSAV”."
 
 #tiempo restablecimiento contraseña
-PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hs 
-
-
+PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hs
 
 TYC_VERSION = "2025-09"
 
+# Una cotización más vieja que esto bloquea compra/venta
+COTIZACION_MAX_EDAD_MIN = config("COTIZACION_MAX_EDAD_MIN", default=15, cast=int)
+
 # --------------- seguridad--------------
+# En producción (DEBUG=False) se fuerza HTTPS y cookies seguras.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=True, cast=bool)
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=3600, cast=int)  # subir a 31536000 cuando esté estable
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
+    X_FRAME_OPTIONS = "DENY"
 
+SESSION_COOKIE_HTTPONLY = True
 
-# SECURE_SSL_REDIRECT = True
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
-# SECURE_HSTS_SECONDS = 31536000
-# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-# SECURE_HSTS_PRELOAD = True
-# CSRF_TRUSTED_ORIGINS = ["https://tu-dominio.com", "https://www.tu-dominio.com"]
-# SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin" #usar este si necesitas que integradores vean el origen
-# SECURE_REFERRER_POLICY = "same-origin" #mas estricto
-# SECURE_CONTENT_TYPE_NOSNIFF = True
-# X_FRAME_OPTIONS = "DENY"
-
-
-# CSP (django-csp)
-#INSTALLED_APPS += ["csp"]
-#CSP_DEFAULT_SRC = ("'self'",)
-#CSP_SCRIPT_SRC  = ("'self'", "cdn.jsdelivr.net")  # Chart.js
-#CSP_STYLE_SRC   = ("'self'", "'unsafe-inline'")
-#CSP_IMG_SRC     = ("'self'", "data:")
-#CSP_CONNECT_SRC = ("'self'",)
-
-# INSTALLED_APPS += ["whitenoise.runserver_nostatic"]
-# MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
-
-DEMO_SAVE_VERIFICATION_LINK = True
+# Solo para desarrollo: guarda los links de verificación en un archivo
+DEMO_SAVE_VERIFICATION_LINK = config("DEMO_SAVE_VERIFICATION_LINK", default=False, cast=bool)
 VERIFICATION_LINK_LOG_FILE = BASE_DIR / "verification_links.log"

@@ -33,6 +33,12 @@
     </div>
   </header>
 
+  {% if not cotizaciones_vigentes %}
+    <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      La cotización está desactualizada: compra y venta quedan pausadas hasta que se actualice.
+    </div>
+  {% endif %}
+
   <div class="mt-8 grid lg:grid-cols-12 gap-6">
 
     <!-- Columna principal -->

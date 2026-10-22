@@ -72,8 +72,8 @@ class RegistroUsuarioForm(UserCreationForm):
     depto         = forms.CharField(label="Depto", required=False, max_length=16)
 
     # KYC imágenes
-    dni_frente = forms.ImageField(label="DNI (frente)", required=True)
-    dni_dorso  = forms.ImageField(label="DNI (dorso)",  required=True)
+    dni_frente = forms.ImageField(label="DNI (frente)", required=True, validators=[validar_tamano(5), validar_imagen])
+    dni_dorso  = forms.ImageField(label="DNI (dorso)",  required=True, validators=[validar_tamano(5), validar_imagen])
 
     acepta_tyc = forms.BooleanField(label="Acepto los Términos y Condiciones", required=True)
 
@@ -210,10 +210,24 @@ class RegistroUsuarioForm(UserCreationForm):
         return user
 
 
+def _clean_monto_positivo(form):
+    monto = form.cleaned_data.get('monto')
+    if monto is None or monto <= 0:
+        raise forms.ValidationError("El monto debe ser mayor a 0.")
+    return monto
+
+
 class DepositoARSForm(forms.ModelForm):
     class Meta:
         model = DepositoARS
         fields = ['monto', 'comprobante']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['comprobante'].validators += [validar_tamano(5), validar_imagen]
+
+    def clean_monto(self):
+        return _clean_monto_positivo(self)
 
 class DepositoUSDTForm(forms.ModelForm):
     class Meta:
@@ -223,7 +237,32 @@ class DepositoUSDTForm(forms.ModelForm):
             'monto': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['comprobante'].validators += [validar_tamano(5), validar_imagen]
+
+    def clean_monto(self):
+        return _clean_monto_positivo(self)
+
+    def clean_txid(self):
+        txid = (self.cleaned_data.get('txid') or '').strip()
+        if DepositoUSDT.objects.filter(txid__iexact=txid).exclude(estado='rechazado').exists():
+            raise forms.ValidationError("Ese TXID ya fue informado en otro depósito.")
+        return txid
+
+def validar_adjunto_ticket(file):
+    permitidos = ('image/jpeg', 'image/png', 'image/webp', 'application/pdf')
+    if getattr(file, 'content_type', '') not in permitidos:
+        raise forms.ValidationError("Adjunto inválido (JPG/PNG/WebP/PDF).")
+    if not file.name.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.pdf')):
+        raise forms.ValidationError("Extensión de archivo no permitida.")
+
+
 class SupportTicketForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['adjunto'].validators += [validar_tamano(5), validar_adjunto_ticket]
+
     class Meta:
         model = SupportTicket
         fields = ["email","asunto","categoria","prioridad","mensaje","adjunto"]

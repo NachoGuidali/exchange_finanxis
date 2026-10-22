@@ -14,7 +14,8 @@ from django.db.models.functions import TruncDate, TruncMonth
 from django.db.models import Sum, Case, When, Value, DecimalField, Q, Count, F
 from datetime import datetime, timedelta, date
 from django.utils.timezone import localtime, localdate, now
-from .utils import registrar_movimiento, crear_notificacion, cliente_ctx
+from .utils import registrar_movimiento, crear_notificacion, cliente_ctx, parse_monto, kyc_required, cotizacion_vigente, MONEDAS_CRYPTO
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.db import transaction
 from django.conf import settings
 from django.contrib.auth import logout, update_session_auth_hash, get_user_model, login
@@ -183,11 +184,8 @@ def _to_ars_compra(monto, moneda, cot_usd, cot_usdt):
     return Decimal(monto or 0) * _rate_ars_compra(moneda, cot_usd, cot_usdt)
 
 @login_required
+@kyc_required
 def dashboard(request):
-    if not request.user.email_confirmed:
-        return redirect('verify_email_notice')
-    if request.user.estado_verificacion != 'aprobado':
-        return render(request, 'usuarios/no_verificado.html')
 
     cot_usdt = Cotizacion.objects.filter(moneda='USDT').order_by('-fecha').first()
     cot_usd  = Cotizacion.objects.filter(moneda='USD').order_by('-fecha').first()
@@ -197,54 +195,48 @@ def dashboard(request):
 
     movimientos = Movimiento.objects.filter(usuario=request.user).order_by('-fecha')[:10]
 
-    # KPIs normalizados a ARS con PRECIO COMPRA
-    base_qs = Movimiento.objects.filter(usuario=request.user)
+    # KPIs normalizados a ARS con PRECIO COMPRA.
+    # Salen de depósitos aprobados y retiros enviados (no de Movimiento, que
+    # también tiene asientos informativos de solicitudes pendientes).
+    u = request.user
 
-    total_ingresado_ars = Decimal('0')
-    for mon in ('ARS','USD','USDT'):
-        s = base_qs.filter(tipo='deposito', moneda=mon).aggregate(s=Sum('monto'))['s'] or 0
-        total_ingresado_ars += _to_ars_compra(s, mon, cot_usd, cot_usdt)
+    def _flujos(qs, campo_fecha, moneda=None):
+        valores = ('dia',) if moneda else ('dia', 'moneda')
+        filas = qs.annotate(dia=TruncDate(campo_fecha)).values(*valores).annotate(m=Sum('monto'))
+        return [(f['dia'], moneda or f['moneda'], f['m']) for f in filas]
 
-    total_retirado_ars = Decimal('0')
-    for mon in ('ARS','USD','USDT'):
-        s = base_qs.filter(tipo='retiro', moneda=mon).aggregate(s=Sum('monto'))['s'] or 0
-        total_retirado_ars += _to_ars_compra(s, mon, cot_usd, cot_usdt)
+    flujos_dep = (
+        _flujos(DepositoARS.objects.filter(usuario=u, estado='aprobado'), 'fecha', 'ARS') +
+        _flujos(DepositoUSDT.objects.filter(usuario=u, estado='aprobado'), 'fecha', 'USDT')
+    )
+    flujos_ret = (
+        _flujos(RetiroARS.objects.filter(usuario=u, estado='enviado'), 'fecha_actualizacion', 'ARS') +
+        _flujos(RetiroCrypto.objects.filter(usuario=u, estado='enviado'), 'fecha_actualizacion')
+    )
+
+    total_ingresado_ars = sum((_to_ars_compra(m, mon, cot_usd, cot_usdt) for _, mon, m in flujos_dep), Decimal('0'))
+    total_retirado_ars  = sum((_to_ars_compra(m, mon, cot_usd, cot_usdt) for _, mon, m in flujos_ret), Decimal('0'))
 
     flujo_neto_ars = total_ingresado_ars - total_retirado_ars
 
     # Valor de cartera actual a ARS con COMPRA
     cartera_ars = (
-        _to_ars_compra(request.user.saldo_ars,  'ARS',  cot_usd, cot_usdt) +
-        _to_ars_compra(request.user.saldo_usd,  'USD',  cot_usd, cot_usdt) +
-        _to_ars_compra(request.user.saldo_usdt, 'USDT', cot_usd, cot_usdt)
+        _to_ars_compra(u.saldo_ars,  'ARS',  cot_usd, cot_usdt) +
+        _to_ars_compra(u.saldo_usd,  'USD',  cot_usd, cot_usdt) +
+        _to_ars_compra(u.saldo_usdt, 'USDT', cot_usd, cot_usdt)
     )
 
     # Serie diaria (últimos 30 días) con COMPRA
-    hoy = date.today()
+    hoy = localdate()
     desde = hoy - timedelta(days=29)
 
-    serie_deps = (
-        base_qs.filter(tipo='deposito', fecha__date__gte=desde)
-               .annotate(dia=TruncDate('fecha'))
-               .values('dia','moneda')
-               .annotate(m=Sum('monto'))
-    )
-    serie_rets = (
-        base_qs.filter(tipo='retiro', fecha__date__gte=desde)
-               .annotate(dia=TruncDate('fecha'))
-               .values('dia','moneda')
-               .annotate(m=Sum('monto'))
-    )
-
     mapa_dep, mapa_ret = {}, {}
-    for r in serie_deps:
-        k = r['dia']
-        mapa_dep.setdefault(k, Decimal('0'))
-        mapa_dep[k] += _to_ars_compra(r['m'], r['moneda'], cot_usd, cot_usdt)
-    for r in serie_rets:
-        k = r['dia']
-        mapa_ret.setdefault(k, Decimal('0'))
-        mapa_ret[k] += _to_ars_compra(r['m'], r['moneda'], cot_usd, cot_usdt)
+    for dia, mon, m in flujos_dep:
+        if dia >= desde:
+            mapa_dep[dia] = mapa_dep.get(dia, Decimal('0')) + _to_ars_compra(m, mon, cot_usd, cot_usdt)
+    for dia, mon, m in flujos_ret:
+        if dia >= desde:
+            mapa_ret[dia] = mapa_ret.get(dia, Decimal('0')) + _to_ars_compra(m, mon, cot_usd, cot_usdt)
 
     labels, data_dep, data_ret, data_net = [], [], [], []
     for i in range(30):
@@ -368,6 +360,7 @@ def cambiar_estado_verificacion(request, user_id):
 
 
 @login_required
+@kyc_required
 def agregar_saldo(request):
     if request.method == 'POST':
         form = DepositoARSForm(request.POST, request.FILES)
@@ -377,13 +370,14 @@ def agregar_saldo(request):
             deposito.estado = 'pendiente'
             deposito.save()
 
+            # Movimiento informativo (no cambia saldos): el monto real se registra al aprobar
             saldo_actual = request.user.saldo_ars
             registrar_movimiento(
                 usuario=request.user,
                 tipo='deposito',
                 moneda='ARS',
-                monto=deposito.monto,
-                descripcion='Solicitud de depósito enviada. En revisión.',
+                monto=0,
+                descripcion=f'Solicitud de depósito ARS enviada (monto: ${deposito.monto}). En revisión.',
                 saldo_antes=saldo_actual,
                 saldo_despues=saldo_actual
             )
@@ -405,9 +399,8 @@ def agregar_saldo(request):
 
 
 @login_required
+@kyc_required
 def depositar_usdt(request):
-    if request.user.estado_verificacion != 'aprobado':
-        return render(request, 'usuarios/no_verificado.html')
 
     if request.method == 'POST':
         form = DepositoUSDTForm(request.POST, request.FILES)
@@ -513,6 +506,7 @@ def historial_usuario(request, user_id):
 
 @login_required
 @user_passes_test(es_admin)
+@require_POST
 def rechazar_deposito(request, deposito_id):
     deposito = get_object_or_404(DepositoARS, id=deposito_id)
     if deposito.estado == 'pendiente':
@@ -581,14 +575,13 @@ def rechazar_deposito(request, deposito_id):
 
 
 @login_required
+@kyc_required
 def operar(request):
-    if request.user.estado_verificacion != 'aprobado':
-        return render(request, 'usuarios/no_verificado.html')
-
     cot_usdt = Cotizacion.objects.filter(moneda='USDT').order_by('-fecha').first()
     cot_usd  = Cotizacion.objects.filter(moneda='USD').order_by('-fecha').first()
     if not cot_usdt or not cot_usd:
         return HttpResponse("No hay cotización disponible. Intentá más tarde.", status=503)
+    cotizaciones_vigentes = cotizacion_vigente(cot_usdt) and cotizacion_vigente(cot_usd)
 
     # precios PUBLICADOS (applied)
     cot_usdt_compra = cot_usdt.compra
@@ -600,66 +593,75 @@ def operar(request):
         operacion = request.POST.get('operacion')
 
         if operacion in ('compra', 'venta'):
+            if not cotizaciones_vigentes:
+                messages.error(request, "La cotización está desactualizada. Intentá de nuevo en unos minutos.")
+                return redirect('operar')
             moneda = request.POST.get('moneda')
-            try:
-                monto = Decimal(request.POST.get('monto'))
-            except Exception:
+            if moneda not in MONEDAS_CRYPTO:
+                return HttpResponse("Moneda inválida.", status=400)
+            monto = parse_monto(request.POST.get('monto'))
+            if monto is None:
                 return HttpResponse("Monto inválido.", status=400)
 
             try:
-                if operacion == 'compra':
-                    # cliente paga ARS y recibe CCY al precio de VENTA publicado
-                    if moneda == 'USDT':
-                        cot_applied = Decimal(cot_usdt_venta); ref_price = Decimal(cot_usdt.ref_venta or cot_usdt_venta)
+                # operación + apunte contable en una sola transacción
+                with transaction.atomic():
+                    if operacion == 'compra':
+                        # cliente paga ARS y recibe CCY al precio de VENTA publicado
+                        if moneda == 'USDT':
+                            cot_applied = Decimal(cot_usdt_venta); ref_price = Decimal(cot_usdt.ref_venta or cot_usdt_venta)
+                        else:
+                            cot_applied = Decimal(cot_usd_venta);  ref_price = Decimal(cot_usd.ref_venta  or cot_usd_venta)
+                        ok, err, mov_ccy = procesar_compra(request.user, moneda, monto, cot_applied, return_mov_ccy=True)
+                        if not ok: raise _OperacionRechazada(err)
+                        # ingreso de la casa por spread (en ARS)
+                        registrar_spread_compra(
+                            usuario=request.user, moneda_ccy=moneda, monto_ars=monto,
+                            ref_price=ref_price, applied_price=cot_applied,
+                            movimiento=mov_ccy, detalle_extra={"cot_id": (cot_usdt.id if moneda=='USDT' else cot_usd.id)}
+                        )
                     else:
-                        cot_applied = Decimal(cot_usd_venta);  ref_price = Decimal(cot_usd.ref_venta  or cot_usd_venta)
-                    ok, err, mov_ccy = procesar_compra(request.user, moneda, monto, cot_applied, return_mov_ccy=True)
-                    if not ok: return HttpResponse(err, status=400)
-                    # ingreso de la casa por spread (en ARS)
-                    registrar_spread_compra(
-                        usuario=request.user, moneda_ccy=moneda, monto_ars=monto,
-                        ref_price=ref_price, applied_price=cot_applied,
-                        movimiento=mov_ccy, detalle_extra={"cot_id": (cot_usdt.id if moneda=='USDT' else cot_usd.id)}
-                    )
-                else:
-                    # cliente entrega CCY y recibe ARS al precio de COMPRA publicado
-                    if moneda == 'USDT':
-                        cot_applied = Decimal(cot_usdt_compra); ref_price = Decimal(cot_usdt.ref_compra or cot_usdt_compra)
-                    else:
-                        cot_applied = Decimal(cot_usd_compra);  ref_price = Decimal(cot_usd.ref_compra  or cot_usd_compra)
-                    ok, err, mov_ars, monto_ccy = procesar_venta(request.user, moneda, monto, cot_applied, return_mov_ars=True)
-                    if not ok: return HttpResponse(err, status=400)
-                    registrar_spread_venta(
-                        usuario=request.user, moneda_ccy=moneda, monto_ccy=monto,
-                        ref_price=ref_price, applied_price=cot_applied,
-                        movimiento=mov_ars, detalle_extra={"cot_id": (cot_usdt.id if moneda=='USDT' else cot_usd.id)}
-                    )
+                        # cliente entrega CCY y recibe ARS al precio de COMPRA publicado
+                        if moneda == 'USDT':
+                            cot_applied = Decimal(cot_usdt_compra); ref_price = Decimal(cot_usdt.ref_compra or cot_usdt_compra)
+                        else:
+                            cot_applied = Decimal(cot_usd_compra);  ref_price = Decimal(cot_usd.ref_compra  or cot_usd_compra)
+                        ok, err, mov_ars, monto_ccy = procesar_venta(request.user, moneda, monto, cot_applied, return_mov_ars=True)
+                        if not ok: raise _OperacionRechazada(err)
+                        registrar_spread_venta(
+                            usuario=request.user, moneda_ccy=moneda, monto_ccy=monto,
+                            ref_price=ref_price, applied_price=cot_applied,
+                            movimiento=mov_ars, detalle_extra={"cot_id": (cot_usdt.id if moneda=='USDT' else cot_usd.id)}
+                        )
 
                 messages.success(request, "Operación realizada con éxito.")
                 return redirect('dashboard')
 
+            except _OperacionRechazada as e:
+                return HttpResponse(str(e), status=400)
             except Exception:
+                logger.exception("Error procesando %s de %s (usuario %s)", operacion, moneda, request.user.pk)
                 return HttpResponse("Ocurrió un error al procesar la operación.", status=400)
 
         elif operacion == 'swap':
             direction = request.POST.get('swap_direccion')  # 'USD_to_USDT' | 'USDT_to_USD'
-            try:
-                amount = Decimal(request.POST.get('monto'))
-            except Exception:
+            amount = parse_monto(request.POST.get('monto'))
+            if amount is None:
                 messages.error(request, "Monto inválido.")
                 return redirect('dashboard')
 
-            ok, err, mov_dest, fee_amount, fee_currency = procesar_swap(request.user, direction, amount, return_fee=True)
-            if not ok:
-                messages.error(request, err)
-                return redirect('dashboard')
+            with transaction.atomic():
+                ok, err, mov_dest, fee_amount, fee_currency = procesar_swap(request.user, direction, amount, return_fee=True)
+                if not ok:
+                    messages.error(request, err)
+                    return redirect('dashboard')
 
-            # registrar fee cobrado
-            registrar_comision_swap(
-                usuario=request.user, direccion=direction,
-                fee_amount=fee_amount, fee_currency=fee_currency,
-                movimiento=mov_dest, detalle_extra={"swap_fee_bps": _cfg().swap_fee_bps}
-            )
+                # registrar fee cobrado
+                registrar_comision_swap(
+                    usuario=request.user, direccion=direction,
+                    fee_amount=fee_amount, fee_currency=fee_currency,
+                    movimiento=mov_dest, detalle_extra={"swap_fee_bps": _cfg().swap_fee_bps}
+                )
 
             messages.success(request, "Swap realizado con éxito.")
             return redirect('dashboard')
@@ -674,7 +676,12 @@ def operar(request):
         'swap_fee_bps': _cfg().swap_fee_bps,
 
         'swap_rate': Decimal('1.00'),
+        'cotizaciones_vigentes': cotizaciones_vigentes,
     })
+
+
+class _OperacionRechazada(Exception):
+    """Validación de negocio fallida dentro de la transacción de operar (hace rollback)."""
 
 
 
@@ -832,7 +839,7 @@ def procesar_swap(usuario, direccion: str, amount: Decimal, *, rate=Decimal('1.0
             u.save()
 
             registrar_movimiento(
-                usuario=u, tipo='venta', moneda='USD', monto=amount,
+                usuario=u, tipo='venta', moneda='USD', monto=-amount,
                 descripcion=f'Swap USD→USDT al rate {rate}, fee {fee_bps} bps',
                 saldo_antes=usd_antes, saldo_despues=usd_despues
             )
@@ -883,7 +890,7 @@ def procesar_swap(usuario, direccion: str, amount: Decimal, *, rate=Decimal('1.0
             u.save()
 
             registrar_movimiento(
-                usuario=u, tipo='venta', moneda='USDT', monto=amount,
+                usuario=u, tipo='venta', moneda='USDT', monto=-amount,
                 descripcion=f'Swap USDT→USD al rate {rate}, fee {fee_bps} bps',
                 saldo_antes=usdt_antes, saldo_despues=usdt_despues
             )
@@ -919,49 +926,48 @@ def procesar_swap(usuario, direccion: str, amount: Decimal, *, rate=Decimal('1.0
         return False, "Dirección de swap inválida", None, None, None
 
 @login_required
+@kyc_required
 def solicitar_retiro(request):
     if request.method == 'POST':
-        alias = request.POST.get('alias')
-        cbu = request.POST.get('cbu')
-        banco = request.POST.get('banco')
-        monto = Decimal(request.POST.get('monto'))
+        alias = (request.POST.get('alias') or '').strip()
+        cbu = (request.POST.get('cbu') or '').strip()
+        banco = (request.POST.get('banco') or '').strip()
+        monto = parse_monto(request.POST.get('monto'))
 
-        if monto <= 0 or request.user.saldo_ars < monto:
-            return HttpResponse("Saldo insuficiente o monto inválido", status=400)
+        if monto is None:
+            messages.error(request, "Monto inválido.")
+            return redirect('solicitar_retiro')
+        if not alias:
+            messages.error(request, "Ingresá el alias de destino.")
+            return redirect('solicitar_retiro')
 
-        # Registrar solicitud
-        RetiroARS.objects.create(
-            usuario=request.user,
-            alias=alias,
-            cbu=cbu,
-            banco=banco,
-            monto=monto
-        )
+        with transaction.atomic():
+            u = Usuario.objects.select_for_update().get(pk=request.user.pk)
+            if u.saldo_ars < monto:
+                messages.error(request, "Saldo ARS insuficiente.")
+                return redirect('solicitar_retiro')
 
-        # Registrar movimiento: descontar saldo
-        saldo_antes = request.user.saldo_ars
-        request.user.saldo_ars -= monto
-        request.user.save()
-        saldo_despues = request.user.saldo_ars
+            RetiroARS.objects.create(usuario=u, alias=alias, cbu=cbu, banco=banco, monto=monto)
 
-        registrar_movimiento(
-            usuario=request.user,
-            tipo='retiro',
-            moneda='ARS',
-            monto=-monto,
-            descripcion=f'Solicitud de retiro ARS ({alias})',
-            saldo_antes=saldo_antes,
-            saldo_despues=saldo_despues
-        )
+            # El saldo se descuenta al solicitar; si el admin rechaza, se recredita
+            saldo_antes = u.saldo_ars
+            u.saldo_ars = q2(u.saldo_ars - monto)
+            u.save(update_fields=['saldo_ars'])
 
+            registrar_movimiento(
+                usuario=u,
+                tipo='retiro',
+                moneda='ARS',
+                monto=-monto,
+                descripcion=f'Solicitud de retiro ARS ({alias})',
+                saldo_antes=saldo_antes,
+                saldo_despues=u.saldo_ars
+            )
+
+        messages.success(request, f"Solicitud de retiro enviada: ${monto} ARS")
         return redirect('dashboard')
 
     return render(request, 'usuarios/solicitar_retiro.html')
-
-@login_required
-def historial_retiros(request):
-    retiros = RetiroARS.objects.filter(usuario=request.user).order_by('-fecha_solicitud')
-    return render(request, 'historial_retiros.html', {'retiros': retiros})
 
 @login_required
 @user_passes_test(es_admin)
@@ -987,7 +993,7 @@ def enviar_retiro(request, id):
 
             mov = registrar_movimiento(
                 usuario=u,
-                tipo='retiro', moneda='ARS', monto=retiro.monto,
+                tipo='retiro', moneda='ARS', monto=0,
                 descripcion=f'Retiro de ${retiro.monto} ARS enviado por admin a {retiro.alias} / {retiro.cbu or "s/CBU"} ({retiro.banco or "s/banco"})',
                 saldo_antes=saldo_actual, saldo_despues=saldo_actual
             )
@@ -1138,42 +1144,57 @@ def contar_notificaciones(request):
     return JsonResponse({'no_leidas': cantidad})
 
 @login_required
+@kyc_required
 def solicitar_retiro_cripto(request):
-    if request.method == 'POST':
-        moneda = request.POST.get('moneda')
-        monto = Decimal(request.POST.get('monto', '0'))
-        wallet = request.POST.get('direccion_wallet')
+    if request.method != 'POST':
+        return redirect('solicitar_retiro')
 
-        saldo = getattr(request.user, f'saldo_{moneda.lower()}')
+    moneda = request.POST.get('moneda')
+    monto = parse_monto(request.POST.get('monto'))
+    wallet = (request.POST.get('direccion_wallet') or '').strip()
 
+    if moneda not in MONEDAS_CRYPTO:
+        messages.error(request, "Moneda inválida.")
+        return redirect('solicitar_retiro')
+    if monto is None:
+        messages.error(request, "Monto inválido.")
+        return redirect('solicitar_retiro')
+    if not wallet:
+        messages.error(request, "Ingresá la dirección de destino.")
+        return redirect('solicitar_retiro')
+
+    campo = 'saldo_usdt' if moneda == 'USDT' else 'saldo_usd'
+    with transaction.atomic():
+        u = Usuario.objects.select_for_update().get(pk=request.user.pk)
+        saldo = getattr(u, campo)
         if monto > saldo:
             messages.error(request, "No tenés saldo suficiente.")
-            return redirect('dashboard')
+            return redirect('solicitar_retiro')
 
         RetiroCrypto.objects.create(
-            usuario=request.user,
+            usuario=u,
             moneda=moneda,
             monto=monto,
             direccion_wallet=wallet,
             estado='pendiente'
         )
 
-        setattr(request.user, f'saldo_{moneda.lower()}', saldo - monto)
-        request.user.save()
+        setattr(u, campo, q2(saldo - monto))
+        u.save(update_fields=[campo])
 
         registrar_movimiento(
-            usuario=request.user,
+            usuario=u,
             tipo='retiro',
             moneda=moneda,
-            monto=monto,
+            monto=-monto,
             descripcion=f'Solicitud de retiro {moneda} - pendiente',
             saldo_antes=saldo,
-            saldo_despues=saldo - monto
+            saldo_despues=getattr(u, campo)
         )
 
-        crear_notificacion(request.user, f"Tu retiro de {monto} {moneda} está pendiente de aprobación.")
-        messages.success(request, f"Solicitud de retiro enviada: {monto} {moneda}")
-        return redirect('dashboard')
+    crear_notificacion(request.user, f"Tu retiro de {monto} {moneda} está pendiente de aprobación.")
+    messages.success(request, f"Solicitud de retiro enviada: {monto} {moneda}")
+    return redirect('dashboard')
 
 
 @login_required
@@ -1195,7 +1216,7 @@ def aprobar_retiro_cripto(request, id):
             saldo_actual = getattr(u, f'saldo_{retiro.moneda.lower()}')
 
             mov = registrar_movimiento(
-                usuario=u, tipo='retiro', moneda=retiro.moneda, monto=retiro.monto,
+                usuario=u, tipo='retiro', moneda=retiro.moneda, monto=0,
                 descripcion=f'Retiro {retiro.moneda} aprobado por admin a {retiro.direccion_wallet}',
                 saldo_antes=saldo_actual, saldo_despues=saldo_actual
             )
@@ -1233,6 +1254,7 @@ def aprobar_retiro_cripto(request, id):
     return redirect('panel_admin')
 
 
+@login_required
 @user_passes_test(es_admin)
 def panel_retiros(request):
     retiros_ars = RetiroARS.objects.filter(estado='pendiente').order_by('-fecha_solicitud')
@@ -1307,6 +1329,7 @@ def aprobar_deposito_usdt(request, deposito_id):
 
 @login_required
 @user_passes_test(es_admin)
+@require_POST
 def rechazar_deposito_usdt(request, deposito_id):
     dep = get_object_or_404(DepositoUSDT, id=deposito_id)
     if dep.estado == 'pendiente':
@@ -1781,54 +1804,39 @@ def cambiar_email(request):
         messages.error(request, "Ese email ya está en uso por otro usuario.")
         return redirect(f"{reverse('configuracion')}?tab=seguridad")
 
-    try:
-        u.email = email
-        u.save()
-        messages.success(request, "Email actualizado correctamente.")
-    except Exception as e:
-        messages.error(request, f"No se pudo actualizar el email: {e}")
-
-    return redirect(f"{reverse('configuracion')}?tab=seguridad")
+    u.email = email
+    u.email_confirmed = False
+    u.email_confirmed_at = None
+    u.email_confirm_sent_at = timezone.now()
+    u.save(update_fields=['email', 'email_confirmed', 'email_confirmed_at', 'email_confirm_sent_at'])
+    send_verification_email(request, u)
+    messages.success(request, "Email actualizado. Te enviamos un enlace para verificarlo.")
+    return redirect('verify_email_notice')
 
 
 @login_required
 def activar_2fa(request):
-    """
-    Activa 2FA (placeholder).
-    NOTA: Esto solo marca el flag. Para 2FA real integrá django-otp/pyotp
-    con enrolment (QR) + verificación del código TOTP.
-    """
-    u = request.user
-    if getattr(u, 'has_2fa', False):
-        messages.info(request, "2FA ya estaba activo.")
-    else:
-        try:
-            u.has_2fa = True
-            u.save()
-            messages.success(request, "2FA activado. (Recuerda integrar TOTP para producción).")
-        except Exception as e:
-            messages.error(request, f"No se pudo activar 2FA: {e}")
+    """2FA todavía no está implementado: no mostramos un estado falso de seguridad."""
+    messages.info(request, "La verificación en dos pasos (2FA) estará disponible próximamente.")
     return redirect(f"{reverse('configuracion')}?tab=seguridad")
 
 
 @login_required
 def desactivar_2fa(request):
-    """Desactiva 2FA (placeholder)."""
-    u = request.user
-    try:
-        u.has_2fa = False
-        u.save()
-        messages.success(request, "2FA desactivado.")
-    except Exception as e:
-        messages.error(request, f"No se pudo desactivar 2FA: {e}")
+    messages.info(request, "La verificación en dos pasos (2FA) estará disponible próximamente.")
     return redirect(f"{reverse('configuracion')}?tab=seguridad")
 
 
 def tyc(request):
     if request.method == "POST":
+        if not request.user.is_authenticated:
+            return redirect('login')
         request.user.marcar_tyc_aceptado(getattr(settings,"TYC_VERSION",""))
         messages.success(request, "Términos aceptados.")
-        next_url = request.POST.get("next") or "dashboard"
+        next_url = request.POST.get("next") or ""
+        if not url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()},
+                                               require_https=request.is_secure()):
+            next_url = "dashboard"
         return redirect(next_url)
     return render(request, "usuarios/tyc.html", {"version": getattr(settings,"TYC_VERSION","")})
 
@@ -2170,12 +2178,13 @@ def change_email_submit(request):
         return redirect('dashboard')
 
     new_email = (request.POST.get('email') or '').strip().lower()
-    if not new_email:
+    try:
+        validate_email(new_email)
+    except ValidationError:
         messages.error(request, "Ingresá un email válido.")
         return redirect('change_email_form')
 
-    # podés agregar validaciones extra (unicidad, etc.)
-    if User.objects.filter(email=new_email).exclude(pk=request.user.pk).exists():
+    if User.objects.filter(email__iexact=new_email).exclude(pk=request.user.pk).exists():
         messages.error(request, "Ese email ya está en uso.")
         return redirect('change_email_form')
 

@@ -3,33 +3,9 @@ from django.db.models.signals import post_save
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import F
 from django.dispatch import receiver
 from .models import ApunteExchange, CuentaExchange, DepositoARS, DepositoUSDT, RetiroARS, RetiroCrypto, Cotizacion
-
-@receiver(post_save, sender=ApunteExchange)
-def acumular_en_cuenta(sender, instance, created, **kwargs):
-    if not created:
-        return
-    # Solo categorías que representan INGRESO/EGRESO DEL EXCHANGE:
-    # - spread_compra / spread_venta → ARS
-    # - fee_swap → en la moneda del fee (USD o USDT)
-    # - ajuste → puede ser +/-, respetamos la moneda
-    if instance.categoria not in {'spread_compra', 'spread_venta', 'fee_swap', 'ajuste'}:
-        # entrada/salida (depósitos / retiros) NO tocan la caja del exchange
-        return
-
-    cta, _ = CuentaExchange.objects.get_or_create(nombre="Exchange")
-
-    # sumamos según moneda del apunte (puede ser negativo en ajuste)
-    if instance.moneda == "ARS":
-        cta.saldo_ars = (cta.saldo_ars or 0) + instance.monto_moneda
-    elif instance.moneda == "USDT":
-        cta.saldo_usdt = (cta.saldo_usdt or 0) + instance.monto_moneda
-    else:
-        cta.saldo_usd = (cta.saldo_usd or 0) + instance.monto_moneda
-
-    cta.save()
-
 
 def _ref_ars_ccy(moneda: str) -> Decimal:
     """ARS por 1 unidad de la moneda informada, usando la última cotización disponible."""
@@ -139,9 +115,10 @@ def retiro_crypto_enviado_o_completado(sender, instance: RetiroCrypto, created, 
             detalle=f"Retiro {moneda} {instance.estado} #{instance.id}"
         )
 
-# -------- (opcional) Acumulador de caja exchange --------
-# OJO: Caja Exchange SOLO se alimenta de spread/fee/ajuste (no de entradas/salidas globales).
-# Si tenías un acumulador automático, APLÍCALE FILTRO por categoría.
+# -------- Acumulador de caja exchange --------
+# Caja Exchange SOLO se alimenta de spread/fee/ajuste (no de entradas/salidas globales).
+CAMPO_CAJA = {"ARS": "saldo_ars", "USDT": "saldo_usdt", "USD": "saldo_usd"}
+
 @receiver(post_save, sender=ApunteExchange)
 def acumular_en_cuenta_solo_rentas(sender, instance: ApunteExchange, created, **kwargs):
     if not created:
@@ -149,11 +126,9 @@ def acumular_en_cuenta_solo_rentas(sender, instance: ApunteExchange, created, **
     if instance.categoria not in ('spread_compra', 'spread_venta', 'fee_swap', 'ajuste'):
         return  # ignorar entradas/salidas globales
 
-    cta, _ = CuentaExchange.objects.get_or_create(nombre="Exchange")
-    if instance.moneda == "ARS":
-        cta.saldo_ars = (cta.saldo_ars or Decimal('0')) + instance.monto_moneda
-    elif instance.moneda == "USDT":
-        cta.saldo_usdt = (cta.saldo_usdt or Decimal('0')) + instance.monto_moneda
-    else:
-        cta.saldo_usd = (cta.saldo_usd or Decimal('0')) + instance.monto_moneda
-    cta.save()
+    campo = CAMPO_CAJA.get(instance.moneda)
+    if not campo:
+        return
+    CuentaExchange.objects.get_or_create(nombre="Exchange")
+    # update con F() para que dos operaciones simultáneas no se pisen
+    CuentaExchange.objects.filter(nombre="Exchange").update(**{campo: F(campo) + instance.monto_moneda})
