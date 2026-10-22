@@ -4,7 +4,11 @@ from django.contrib.auth.admin import UserAdmin
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone  # 👈 NUEVO
-from .models import Usuario, Cotizacion, RetiroARS, Pais, Provincia, Localidad
+from django.contrib import messages
+
+from .models import Usuario, Cotizacion, RetiroARS, Pais, Provincia, Localidad, Asiento, LineaAsiento
+from .services import fondos
+from .services.comun import OperacionError
 
 
 @admin.register(Usuario)
@@ -183,18 +187,61 @@ class RetiroARSAdmin(admin.ModelAdmin):
     list_display = ('usuario', 'monto', 'alias', 'cbu', 'estado', 'fecha_solicitud')
     list_filter = ('estado',)
     actions = ['aprobar_retiros', 'marcar_como_enviado']
+    # el estado y el monto solo cambian vía services/fondos (mayor, boleto y notificación)
+    readonly_fields = ('usuario', 'monto', 'estado', 'fecha_solicitud', 'fecha_actualizacion')
 
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def _aplicar(self, request, queryset, accion):
+        ok = 0
+        for retiro in queryset:
+            try:
+                accion(retiro)
+                ok += 1
+            except OperacionError as e:
+                self.message_user(request, f"Retiro #{retiro.pk}: {e}", messages.WARNING)
+        self.message_user(request, f"{ok} retiro(s) procesados.")
+
+    @admin.action(description="Aprobar retiros seleccionados")
     def aprobar_retiros(self, request, queryset):
-        for retiro in queryset.filter(estado='pendiente'):
-            retiro.estado = 'aprobado'
-            retiro.save()
-    aprobar_retiros.short_description = "Aprobar retiros seleccionados"
+        self._aplicar(request, queryset, lambda r: fondos.aprobar_retiro_ars(r.pk))
 
+    @admin.action(description="Marcar como enviados")
     def marcar_como_enviado(self, request, queryset):
-        for retiro in queryset.filter(estado='aprobado'):
-            retiro.estado = 'enviado'
-            retiro.save()
-    marcar_como_enviado.short_description = "Marcar como enviados"
+        self._aplicar(request, queryset, lambda r: fondos.enviar_retiro_ars(r.pk, request.user))
+
+
+class LineaAsientoInline(admin.TabularInline):
+    model = LineaAsiento
+    fields = ('cuenta', 'moneda', 'monto')
+    readonly_fields = fields
+    extra = 0
+    can_delete = False
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(Asiento)
+class AsientoAdmin(admin.ModelAdmin):
+    """Solo lectura: el mayor no se edita, se corrige con un asiento de ajuste."""
+    list_display = ('id', 'fecha', 'tipo', 'descripcion', 'referencia', 'creado_por')
+    list_filter = ('tipo',)
+    search_fields = ('descripcion', 'referencia')
+    inlines = [LineaAsientoInline]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 admin.site.register(Pais)

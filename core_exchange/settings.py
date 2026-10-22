@@ -187,6 +187,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'usuarios.tasks.actualizar_cotizaciones_task',
         'schedule': config('COTIZACION_CADA_SEG', default=300, cast=int),
     },
+    'conciliar-saldos': {
+        'task': 'usuarios.tasks.conciliar_saldos_task',
+        'schedule': 24 * 60 * 60,
+    },
 }
 
 

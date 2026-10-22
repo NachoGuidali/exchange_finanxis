@@ -1,6 +1,6 @@
 import json
 import requests
-from decimal import Decimal, ROUND_HALF_UP, ROUND_DOWN
+from decimal import Decimal, ROUND_HALF_UP
 from django.core.management.base import BaseCommand
 from django.utils.timezone import now
 from usuarios.models import Cotizacion, ExchangeConfig

@@ -31,14 +31,48 @@ python manage.py actualizar_cotizacion
 python manage.py runserver
 ```
 
-Tests: `python manage.py test usuarios`
+Tests: `python manage.py test usuarios` · Lint: `pip install -r requirements-dev.txt && ruff check .`
+
+## Arquitectura
+
+```
+usuarios/
+  views/          vistas por área (auth, cliente, operaciones, fondos, admin_panel, ...)
+  services/
+    trading.py    compra, venta y swap
+    fondos.py     depósitos y retiros (incluye las transiciones del panel admin)
+    ledger.py     libro mayor de doble entrada
+    boletos.py    PDF de comprobantes
+```
+
+Las vistas solo validan la entrada; todo lo que mueve saldo pasa por `services/`, en una
+transacción con bloqueo de fila. Las acciones del admin de Django usan los mismos servicios.
+
+### Libro mayor
+
+Cada movimiento de saldo genera un `Asiento` inmutable cuyas líneas suman 0 por moneda.
+Cuentas: una por usuario, más `tesoreria`, `mesa`, `retiros_pendientes`, `comisiones` y `ajustes`.
+`Usuario.saldo_*` es un caché que se actualiza en la misma transacción.
+
+```bash
+python manage.py ledger_apertura    # una vez, al migrar datos previos al mayor (idempotente)
+python manage.py conciliar_saldos   # compara saldos vs. mayor; sale con código 1 si difieren
+```
+
+Celery beat corre la conciliación a diario y deja un `ERROR` en los logs si encuentra diferencias.
+Un error en el mayor no se edita: se corrige con un asiento de ajuste.
+
+## CI
+
+GitHub Actions (`.github/workflows/ci.yml`) corre en cada push y PR: lint (ruff), migraciones
+al día, `check --deploy` y los tests contra PostgreSQL (incluido un test de concurrencia).
 
 ## Producción: checklist
 
 - `DEBUG=False`, `SECRET_KEY` propia, `ALLOWED_HOSTS` y `CSRF_TRUSTED_ORIGINS` con el dominio real.
 - HTTPS en el proxy (nginx / balanceador) enviando `X-Forwarded-Proto`; `AXES_IPWARE_PROXY_COUNT=1`.
 - **No servir `/media/` desde el proxy**: DNI, comprobantes y boletos los entrega Django
-  solo a su dueño o al staff (`usuarios/views_media.py`).
+  solo a su dueño o al staff (`usuarios/views/media.py`).
 - Datos legales reales en `.env` (`EMPRESA_CUIT`, `EMPRESA_DOMICILIO`, `SUPPORT_CONTACTO`): salen impresos en los boletos.
 - Email real (SMTP) para verificación de cuentas y recuperación de contraseña.
 - Activar 2FA en todas las cuentas staff (Configuración → Seguridad).
@@ -58,6 +92,8 @@ docker cp datos.json $(docker compose ps -q web):/tmp/datos.json
 docker compose exec web sh -c "python manage.py loaddata /tmp/datos.json && rm /tmp/datos.json"
 docker cp media/. $(docker compose ps -q web):/app/media/
 rm datos.json   # contiene datos personales
+docker compose exec web python manage.py ledger_apertura   # si los datos no traían el mayor
+docker compose exec web python manage.py conciliar_saldos
 ```
 
 ## Seguridad implementada

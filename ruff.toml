@@ -1,0 +1,8 @@
+# Lint mínimo: errores reales (imports sin uso, nombres indefinidos, redefiniciones).
+extend-exclude = ["usuarios/migrations", "env"]
+
+[lint]
+select = ["F"]
+
+[lint.per-file-ignores]
+"usuarios/views/__init__.py" = ["F401", "F403"]

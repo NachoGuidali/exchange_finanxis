@@ -1,7 +1,8 @@
-from django.http import JsonResponse, Http404
-
-from .models import Pais, Provincia, Localidad
+from django.http import JsonResponse
 from django.views.decorators.http import require_GET
+
+from ..models import Localidad, Pais, Provincia
+
 
 @require_GET
 def geo_paises(request):

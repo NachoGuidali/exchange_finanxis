@@ -1,7 +1,6 @@
-from decimal import Decimal, ROUND_HALF_UP
-from django.utils.timezone import now
-from usuarios.models import ApunteExchange, Cotizacion
-from usuarios.models import ExchangeConfig
+from decimal import ROUND_HALF_UP, Decimal
+
+from usuarios.models import ApunteExchange, Cotizacion, ExchangeConfig
 
 Q2 = lambda x: Decimal(x).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 Q6 = lambda x: Decimal(x).quantize(Decimal("0.000001"), rounding=ROUND_HALF_UP)

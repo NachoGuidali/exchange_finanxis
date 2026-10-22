@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: finanxis
+          POSTGRES_PASSWORD: finanxis
+          POSTGRES_DB: finanxis
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U finanxis"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      SECRET_KEY: ci-solo-para-tests-no-usar-en-produccion-0123456789abcdefghij
+      DEBUG: "False"
+      ALLOWED_HOSTS: localhost,testserver
+      DB_NAME: finanxis
+      DB_USER: finanxis
+      DB_PASSWORD: finanxis
+      DB_HOST: localhost
+      DB_PORT: "5432"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Dependencias de sistema (WeasyPrint)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0
+
+      - name: Dependencias Python
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Migraciones al día
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Checks de despliegue
+        run: python manage.py check --deploy --fail-level ERROR
+
+      - name: Tests (PostgreSQL)
+        run: python manage.py test usuarios

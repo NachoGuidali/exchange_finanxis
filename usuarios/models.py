@@ -555,3 +555,84 @@ class ApunteExchange(models.Model):
 
     def __str__(self):
         return f"{self.fecha:%Y-%m-%d %H:%M} {self.categoria} {self.monto_moneda} {self.moneda}"
+
+## LIBRO MAYOR (doble entrada)
+#
+# Cada operación que mueve saldo genera un Asiento con líneas cuya suma, por moneda, es 0.
+# Convención de signo: monto > 0 acredita la cuenta, monto < 0 la debita.
+#   - Cuentas de usuario (lo que el exchange le debe al cliente): saldo = suma de sus líneas.
+#   - Tesorería (bancos y wallets del exchange): queda en negativo cuando entra dinero,
+#     su valor absoluto es lo que el exchange tiene custodiado.
+# Los saldos en Usuario.saldo_* son un caché; `manage.py conciliar_saldos` los verifica.
+
+class CuentaContable(models.Model):
+    TESORERIA = 'tesoreria'                    # bancos y wallets del exchange
+    MESA = 'mesa'                              # contraparte de compras, ventas y swaps
+    RETIROS_PENDIENTES = 'retiros_pendientes'  # saldo reservado de retiros no enviados
+    COMISIONES = 'comisiones'                  # fees cobrados
+    AJUSTES = 'ajustes'                        # aperturas y ajustes manuales
+
+    codigo  = models.CharField(max_length=64, unique=True)
+    usuario = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                   on_delete=models.PROTECT, related_name='cuenta_contable')
+
+    def __str__(self):
+        return self.codigo
+
+
+class Asiento(models.Model):
+    TIPOS = [
+        ('apertura', 'Saldo de apertura'),
+        ('deposito', 'Depósito acreditado'),
+        ('compra', 'Compra'),
+        ('venta', 'Venta'),
+        ('swap', 'Swap'),
+        ('retiro_solicitado', 'Retiro solicitado'),
+        ('retiro_enviado', 'Retiro enviado'),
+        ('retiro_rechazado', 'Retiro rechazado'),
+        ('ajuste', 'Ajuste manual'),
+    ]
+
+    fecha       = models.DateTimeField(default=timezone.now, db_index=True)
+    tipo        = models.CharField(max_length=32, choices=TIPOS)
+    descripcion = models.CharField(max_length=255)
+    referencia  = models.CharField(max_length=64, blank=True, db_index=True)  # ej. "RetiroARS:15"
+    creado_por  = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.PROTECT, related_name='+')
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Los asientos son inmutables: registrá un asiento de ajuste.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Los asientos son inmutables: registrá un asiento de ajuste.")
+
+    def __str__(self):
+        return f"#{self.pk} {self.tipo} {self.descripcion}"
+
+
+class LineaAsiento(models.Model):
+    MONEDAS = (("ARS", "ARS"), ("USDT", "USDT"), ("USD", "USD"))
+
+    asiento = models.ForeignKey(Asiento, on_delete=models.PROTECT, related_name='lineas')
+    cuenta  = models.ForeignKey(CuentaContable, on_delete=models.PROTECT, related_name='lineas')
+    moneda  = models.CharField(max_length=10, choices=MONEDAS)
+    monto   = models.DecimalField(max_digits=20, decimal_places=6)
+
+    class Meta:
+        indexes = [models.Index(fields=['cuenta', 'moneda'])]
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("Las líneas de asiento son inmutables.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Las líneas de asiento son inmutables.")
+
+    def __str__(self):
+        return f"{self.cuenta} {self.moneda} {self.monto}"

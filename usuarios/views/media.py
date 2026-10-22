@@ -5,7 +5,7 @@ from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import default_storage
 from django.http import FileResponse, Http404
 
-from .models import BoletoOperacion, DepositoARS, DepositoUSDT, SupportTicket, Usuario
+from ..models import BoletoOperacion, DepositoARS, DepositoUSDT, SupportTicket, Usuario
 
 # (modelo, campo de archivo, cómo obtener el id del dueño)
 ARCHIVOS_PRIVADOS = (

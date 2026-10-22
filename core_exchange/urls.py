@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic import RedirectView
-from usuarios.views_media import media_protegida
+from usuarios.views.media import media_protegida
 
 urlpatterns = [
     # El admin de Django usa nuestro login (con bloqueo por intentos y 2FA)

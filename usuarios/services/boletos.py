@@ -1,11 +1,17 @@
-import io, qrcode, base64, hashlib, uuid
-from django.template.loader import render_to_string
+import base64
+import hashlib
+import io
+import uuid
+
+import qrcode
 from django.conf import settings
-from django.utils.timezone import localtime
-from django.urls import reverse
 from django.core.files.base import ContentFile
+from django.template.loader import render_to_string
+from django.urls import reverse
+from django.utils.timezone import localtime
 
 from usuarios.models import BoletoOperacion
+
 
 def _get_weasyprint_HTML():
     from weasyprint import HTML

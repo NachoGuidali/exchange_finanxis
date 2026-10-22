@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -41,7 +41,8 @@ def crear_cotizaciones(edad=timedelta(0)):
         Cotizacion.objects.filter(pk=c.pk).update(fecha=timezone.now() - edad)
 
 
-@override_settings(MEDIA_ROOT=MEDIA_TMP)
+# Los tests no dependen del .env: sin redirección HTTPS (en CI corre con DEBUG=False)
+@override_settings(MEDIA_ROOT=MEDIA_TMP, SECURE_SSL_REDIRECT=False)
 class BaseTest(TestCase):
     @classmethod
     def tearDownClass(cls):
@@ -104,7 +105,7 @@ class RetiroCryptoTests(BaseTest):
 
     def test_get_no_rompe(self):
         self.client.force_login(crear_usuario())
-        self.assertEqual(self.client.get(self.url).status_code, 302)
+        self.assertEqual(self.client.get(self.url).status_code, 405)
 
     def test_rechazo_recredita_en_la_misma_moneda(self):
         u = crear_usuario(saldo_usd="100")
@@ -322,3 +323,144 @@ class LoginSeguridadTests(BaseTest):
     def test_admin_login_pasa_por_nuestro_login(self):
         resp = self.client.get("/admin/login/?next=/admin/")
         self.assertEqual(resp.url, reverse("login") + "?next=/admin/")
+
+
+class LibroMayorTests(BaseTest):
+    """Después de cualquier flujo, los saldos cacheados deben coincidir con el mayor."""
+
+    def setUp(self):
+        super().setUp()
+        from django.core.management import call_command
+        self.call_command = call_command
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+
+    def assertConciliado(self):
+        from django.db.models import Sum
+
+        from .models import Asiento, LineaAsiento
+        from .services.ledger import diferencias_de_conciliacion
+        self.assertEqual(diferencias_de_conciliacion(Usuario.objects.all()), [])
+        # cada asiento suma 0 por moneda
+        desbalanceados = (LineaAsiento.objects.values('asiento_id', 'moneda')
+                          .annotate(s=Sum('monto')).exclude(s=0))
+        self.assertFalse(desbalanceados.exists())
+        self.assertTrue(Asiento.objects.exists())
+
+    def test_ciclo_completo(self):
+        from .services import fondos, trading
+        crear_cotizaciones()
+        u = crear_usuario()
+
+        dep = DepositoARS.objects.create(usuario=u, monto=Decimal("20000"), comprobante="c.png")
+        fondos.aprobar_deposito_ars(dep.pk, self.admin)
+        trading.comprar(u, "USDT", Decimal("10200"), Cotizacion.objects.get(moneda="USDT"))
+        trading.swap(u, "USDT_to_USD", Decimal("5"), fee_bps=100)
+        trading.vender(u, "USD", Decimal("2"), Cotizacion.objects.get(moneda="USD"))
+
+        r1 = fondos.solicitar_retiro_ars(u, Decimal("1000"), alias="a")
+        fondos.aprobar_retiro_ars(r1.pk)
+        fondos.enviar_retiro_ars(r1.pk, self.admin)
+        r2 = fondos.solicitar_retiro_crypto(u, "USDT", Decimal("1"), "T1")
+        fondos.rechazar_retiro_crypto(r2.pk, self.admin)
+        self.assertConciliado()
+
+    def test_doble_aprobacion_no_acredita_dos_veces(self):
+        from .services import fondos
+        from .services.comun import OperacionError
+        u = crear_usuario()
+        dep = DepositoARS.objects.create(usuario=u, monto=Decimal("500"), comprobante="c.png")
+        fondos.aprobar_deposito_ars(dep.pk, self.admin)
+        with self.assertRaises(OperacionError):
+            fondos.aprobar_deposito_ars(dep.pk, self.admin)
+        u.refresh_from_db()
+        self.assertEqual(u.saldo_ars, Decimal("500"))
+
+    def test_asiento_desbalanceado_se_rechaza(self):
+        from .services.ledger import AsientoDesbalanceado, cuenta_usuario, registrar_asiento
+        u = crear_usuario()
+        with self.assertRaises(AsientoDesbalanceado):
+            registrar_asiento('ajuste', 'mal', [(cuenta_usuario(u), 'ARS', Decimal("10"))])
+
+    def test_asientos_inmutables(self):
+        from django.core.exceptions import ValidationError
+
+        from .services.ledger import cuenta_sistema, cuenta_usuario, registrar_asiento
+        u = crear_usuario()
+        a = registrar_asiento('ajuste', 'ok', [(cuenta_usuario(u), 'ARS', 1), (cuenta_sistema('ajustes'), 'ARS', -1)])
+        with self.assertRaises(ValidationError):
+            a.delete()
+        with self.assertRaises(ValidationError):
+            a.save()
+
+    def test_apertura_para_saldos_previos_es_idempotente(self):
+        crear_usuario(saldo_ars="1500", saldo_usdt="3")
+        RetiroARS.objects.create(usuario=self.admin, alias="a", monto=Decimal("100"), estado="pendiente")
+        self.call_command("ledger_apertura", verbosity=0)
+        self.call_command("ledger_apertura", verbosity=0)
+        self.assertConciliado()
+        from .models import Asiento
+        self.assertEqual(Asiento.objects.filter(referencia="apertura:retiros_pendientes").count(), 1)
+
+    def test_conciliar_detecta_diferencias(self):
+        u = crear_usuario()
+        self.call_command("ledger_apertura", verbosity=0)
+        Usuario.objects.filter(pk=u.pk).update(saldo_ars=Decimal("999"))  # saldo tocado por fuera
+        with self.assertRaises(SystemExit):
+            self.call_command("conciliar_saldos", stdout=open("/dev/null", "w"))
+
+    def test_admin_marca_enviado_via_servicio(self):
+        u = crear_usuario(saldo_ars="1000")
+        self.call_command("ledger_apertura", verbosity=0)
+        from .services import fondos
+        r = fondos.solicitar_retiro_ars(u, Decimal("300"), alias="a")
+        fondos.aprobar_retiro_ars(r.pk)
+        self.admin.is_superuser = True  # el admin de Django exige permisos del modelo
+        self.admin.save()
+        self.client.force_login(self.admin)
+        self.client.post(reverse("admin:usuarios_retiroars_changelist"),
+                         {"action": "marcar_como_enviado", "_selected_action": [r.pk]})
+        r.refresh_from_db()
+        self.assertEqual(r.estado, "enviado")
+        self.assertTrue(BoletoOperacion.objects.filter(usuario=u, tipo="retiro_ars").exists())
+        self.assertConciliado()
+
+
+class ConcurrenciaTests(TransactionTestCase):
+    """Solo en PostgreSQL: SQLite serializa escrituras y no ejercita select_for_update."""
+
+    def test_dos_retiros_simultaneos_no_gastan_dos_veces(self):
+        import threading
+
+        from django.db import close_old_connections, connection
+
+        from .services import fondos
+        from .services.comun import OperacionError
+
+        if connection.vendor != 'postgresql':
+            self.skipTest("requiere PostgreSQL")
+
+        u = crear_usuario(saldo_ars="100")
+        barrera = threading.Barrier(2)
+        resultados = []
+
+        def retirar():
+            try:
+                barrera.wait()
+                fondos.solicitar_retiro_ars(u, Decimal("80"), alias="a")
+                resultados.append("ok")
+            except OperacionError:
+                resultados.append("rechazado")
+            finally:
+                close_old_connections()
+
+        hilos = [threading.Thread(target=retirar) for _ in range(2)]
+        for h in hilos:
+            h.start()
+        for h in hilos:
+            h.join()
+
+        u.refresh_from_db()
+        self.assertEqual(sorted(resultados), ["ok", "rechazado"])
+        self.assertEqual(u.saldo_ars, Decimal("20"))

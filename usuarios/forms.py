@@ -6,7 +6,7 @@ from .validators import validar_tamano, validar_imagen
 from datetime import date, timedelta
 from django.conf import settings
 from django.utils import timezone
-from .models import Usuario, Pais, Provincia, Localidad, PERSONA_TIPO, ESTADO_CIVIL, SEXO_CHOICES, SupportTicket
+from .models import Pais, Provincia, Localidad, SupportTicket
 from django.contrib.auth.forms import AuthenticationForm
 from .models import ExchangeConfig
 
