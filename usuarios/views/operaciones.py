@@ -1,6 +1,7 @@
 """Compra, venta y swap (la lógica vive en services/trading.py)."""
 import logging
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
@@ -8,7 +9,7 @@ from django.views.decorators.http import require_POST
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 
-from usuarios.services import compliance, trading
+from usuarios.services import compliance, cotizaciones, trading
 from usuarios.services.comun import OperacionError
 
 from ..models import Cotizacion, ExchangeConfig
@@ -25,6 +26,10 @@ def operar(request):
     if not cot_usdt or not cot_usd:
         return HttpResponse("No hay cotización disponible. Intentá más tarde.", status=503)
     cotizaciones_vigentes = cotizacion_vigente(cot_usdt) and cotizacion_vigente(cot_usd)
+    if settings.COTIZACION_ACTUALIZAR_AL_VUELO and cotizaciones.actualizar_si_vencida(cotizaciones_vigentes):
+        cot_usdt = Cotizacion.objects.filter(moneda='USDT').order_by('-fecha').first()
+        cot_usd  = Cotizacion.objects.filter(moneda='USD').order_by('-fecha').first()
+        cotizaciones_vigentes = cotizacion_vigente(cot_usdt) and cotizacion_vigente(cot_usd)
     cfg = ExchangeConfig.current()
 
     if request.method == 'POST':

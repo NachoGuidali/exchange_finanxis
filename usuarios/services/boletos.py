@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import io
+import logging
 import uuid
 
 import qrcode
@@ -11,6 +12,8 @@ from django.urls import reverse
 from django.utils.timezone import localtime
 
 from usuarios.models import BoletoOperacion
+
+logger = logging.getLogger(__name__)
 
 
 def _get_weasyprint_HTML():
@@ -68,15 +71,22 @@ def emitir_boleto(usuario, tipo: str, numero: str, snapshot: dict, movimiento=No
     }
 
     # 2) HTML → PDF (pre) para hash
-    html_pre = render_to_string("boletos/boleto_base.html", ctx)
-    HTML = _get_weasyprint_HTML()
-    pdf_bytes = HTML(string=html_pre, base_url=base_url).write_pdf()
-    sha_hex = hashlib.sha256(pdf_bytes).hexdigest().upper()
+    try:
+        html_pre = render_to_string("boletos/boleto_base.html", ctx)
+        HTML = _get_weasyprint_HTML()
+        pdf_bytes = HTML(string=html_pre, base_url=base_url).write_pdf()
+        sha_hex = hashlib.sha256(pdf_bytes).hexdigest().upper()
 
-    # 3) (opcional) re-render con hash visible en el PDF
-    ctx["pdf_sha256"] = sha_hex
-    html_final = render_to_string("boletos/boleto_base.html", ctx)
-    pdf_bytes = HTML(string=html_final, base_url=base_url).write_pdf()
+        # 3) (opcional) re-render con hash visible en el PDF
+        ctx["pdf_sha256"] = sha_hex
+        html_final = render_to_string("boletos/boleto_base.html", ctx)
+        pdf_bytes = HTML(string=html_final, base_url=base_url).write_pdf()
+    except (ImportError, OSError) as e:
+        # WeasyPrint sin librerías de sistema (Pango). En producción esto debe fallar la operación.
+        if not getattr(settings, "BOLETOS_TOLERAR_ERROR_PDF", False):
+            raise
+        logger.warning("Boleto %s sin PDF (WeasyPrint no disponible): %s", numero, e)
+        return None
 
     # 4) Persistencia acorde a tu modelo
     boleto = BoletoOperacion.objects.create(

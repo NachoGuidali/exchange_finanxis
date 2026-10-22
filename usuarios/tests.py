@@ -768,3 +768,56 @@ class AuditoriaTests(BaseTest):
         r = auditar(None, "prueba")
         with self.assertRaises(ValidationError):
             r.delete()
+
+
+class DemoYCotizacionesTests(BaseTest):
+    def test_respaldo_binance_spot_si_p2p_falla(self):
+        from unittest import mock
+
+        import requests
+
+        from .services import cotizaciones
+        spot = _respuesta({"bidPrice": "1600.00", "askPrice": "1602.00"})
+        with mock.patch("usuarios.services.cotizaciones.requests.post", side_effect=requests.ConnectionError("bloqueado")), \
+             mock.patch("usuarios.services.cotizaciones.requests.get", return_value=spot):
+            cot, fuente = cotizaciones.actualizar("USDT")
+        self.assertEqual((fuente, cot.ref_venta), ("Binance spot", Decimal("1601")))
+
+    @override_settings(COTIZACION_ACTUALIZAR_AL_VUELO=True)
+    def test_operar_actualiza_cotizacion_vencida(self):
+        from unittest import mock
+        crear_cotizaciones(edad=timedelta(hours=2))
+        self.client.force_login(crear_usuario())
+
+        def nueva(moneda):
+            return Cotizacion.objects.create(moneda=moneda, compra=980, venta=1020, ref_compra=1000, ref_venta=1000), "test"
+        with mock.patch("usuarios.services.cotizaciones.actualizar", side_effect=nueva):
+            resp = self.client.get(reverse("operar"))
+        self.assertTrue(resp.context["cotizaciones_vigentes"])
+
+    def test_pdf_fallido_bloquea_salvo_en_demo(self):
+        from unittest import mock
+
+        from .services import fondos
+        admin = crear_usuario("admin")
+        u = crear_usuario()
+        roto = mock.patch("usuarios.services.boletos._get_weasyprint_HTML", side_effect=OSError("sin pango"))
+        dep = DepositoARS.objects.create(usuario=u, monto=Decimal("100"), comprobante="c.png")
+        with roto, self.assertRaises(OSError):
+            fondos.aprobar_deposito_ars(dep.pk, admin)
+        u.refresh_from_db()
+        self.assertEqual(u.saldo_ars, Decimal("0"))
+        with roto, override_settings(BOLETOS_TOLERAR_ERROR_PDF=True):
+            fondos.aprobar_deposito_ars(dep.pk, admin)
+        u.refresh_from_db()
+        self.assertEqual(u.saldo_ars, Decimal("100"))
+
+    def test_cargar_demo_solo_en_modo_demo(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        with self.assertRaises(CommandError):
+            call_command("cargar_demo")
+
+    @override_settings(DEMO_MODE=True)
+    def test_cartel_demo(self):
+        self.assertContains(self.client.get(reverse("login")), "Entorno de demostración")

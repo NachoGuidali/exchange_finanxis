@@ -119,6 +119,12 @@
       style="animation-delay:1.2s"></div>
   </div>
 
+  {% if DEMO_MODE %}
+  <div class="bg-amber-400 text-black text-center text-sm font-semibold py-1 px-4">
+    Entorno de demostración: los datos y operaciones son ficticios.
+  </div>
+  {% endif %}
+
   {% include "includes/navbar.html" %}
 
   <main id="main" class="container flex-1 py-8 lg:py-12">

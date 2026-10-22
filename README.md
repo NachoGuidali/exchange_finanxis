@@ -20,6 +20,11 @@ Generar una SECRET_KEY:
 python -c "from django.core.management.utils import get_random_secret_key as g; print(g())"
 ```
 
+## Demo en PythonAnywhere
+
+Para mostrar la app sin servidor propio: ver [DEMO_PYTHONANYWHERE.md](DEMO_PYTHONANYWHERE.md)
+(modo demo con datos ficticios, funciona en la cuenta free).
+
 ## Desarrollo local sin Docker
 
 ```bash

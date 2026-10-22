@@ -70,6 +70,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'usuarios.context_processors.demo',
             ],
         },
     },
@@ -225,6 +226,14 @@ TYC_VERSION = "2025-09"
 
 # Una cotización más vieja que esto bloquea compra/venta
 COTIZACION_MAX_EDAD_MIN = config("COTIZACION_MAX_EDAD_MIN", default=15, cast=int)
+# Sin Celery (ej. demo en PythonAnywhere): actualizar la cotización vencida al entrar a Operar
+COTIZACION_ACTUALIZAR_AL_VUELO = config("COTIZACION_ACTUALIZAR_AL_VUELO", default=False, cast=bool)
+
+# Modo demo: cartel visible en todas las páginas
+DEMO_MODE = config("DEMO_MODE", default=False, cast=bool)
+# Solo demo: si WeasyPrint no puede generar el PDF, la operación sigue sin boleto (en producción falla todo)
+BOLETOS_TOLERAR_ERROR_PDF = config("BOLETOS_TOLERAR_ERROR_PDF", default=False, cast=bool)
+
 # Segundos que el precio queda reservado para que el cliente confirme
 COTIZACION_RESERVA_SEG = config("COTIZACION_RESERVA_SEG", default=30, cast=int)
 
@@ -275,7 +284,11 @@ LOGGING = {
     'root': {'handlers': ['console'], 'level': config('LOG_LEVEL', default='INFO')},
     'loggers': {
         'axes': {'level': 'WARNING'},
+        # fontTools (usado por WeasyPrint) fija niveles DEBUG en sus sub-loggers
         'fontTools': {'level': 'WARNING'},
+        'fontTools.subset': {'level': 'WARNING'},
+        'fontTools.subset.timer': {'level': 'WARNING'},
+        'fontTools.ttLib.ttFont': {'level': 'WARNING'},
         'weasyprint': {'level': 'WARNING'},
     },
 }
