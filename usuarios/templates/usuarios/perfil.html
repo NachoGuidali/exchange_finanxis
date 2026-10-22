@@ -67,7 +67,7 @@
       <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
         <p class="text-xs text-gray-500">2FA</p>
         <p class="mt-1 font-semibold">
-          {% if request.user.has_2fa %}✅ Activo{% else %}⚠️ Desactivado{% endif %}
+          {% if request.user.totp_activo %}✅ Activo{% else %}⚠️ Desactivado{% endif %}
         </p>
       </div>
       <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">

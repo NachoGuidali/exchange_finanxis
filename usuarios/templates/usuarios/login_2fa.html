@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Verificación en 2 pasos — Finanxis{% endblock %}
+
+{% block content %}
+<section class="max-w-md mx-auto rounded-2xl border border-gray-200 bg-white p-6">
+  <header class="mb-3">
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Verificación en 2 pasos</h1>
+    <p class="text-gray-600 mt-1">Ingresá el código de 6 dígitos de tu app autenticadora.</p>
+  </header>
+
+  <form method="post" class="mt-4 space-y-3">
+    {% csrf_token %}
+    <input name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required autofocus
+           class="w-full rounded-xl border border-gray-300 px-3 py-2 text-center text-2xl tracking-widest">
+    <button class="w-full rounded-xl bg-primary text-dark font-semibold px-4 py-2 shadow-soft hover:opacity-90">
+      Verificar
+    </button>
+  </form>
+
+  <div class="pt-4 mt-4 border-t border-gray-200">
+    <a href="{% url 'login' %}" class="text-sm font-semibold text-gray-900 underline decoration-primary/40 hover:decoration-primary">
+      Volver al inicio de sesión
+    </a>
+  </div>
+</section>
+{% endblock %}

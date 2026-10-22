@@ -39,6 +39,7 @@ from .utils_email_verify import send_verification_email, build_verification_link
 from django.contrib.auth.views import LoginView
 from django.contrib import messages
 from .forms import EmailOrUsernameAuthenticationForm
+from .views_2fa import iniciar_login_2fa
 from django import forms
 
 logger = logging.getLogger(__name__)
@@ -69,8 +70,17 @@ class LoginViewCustom(LoginView):
         if not user.is_active:
             messages.error(self.request, "Tu email no está verificado. Revisá tu bandeja o reenviá el correo.")
             return self.form_invalid(form)
-        return super().form_valid(form) 
+        if user.totp_activo:
+            # contraseña OK: falta el segundo factor antes de iniciar sesión
+            return iniciar_login_2fa(self.request, user, self.get_success_url())
+        return super().form_valid(form)
     
+
+def login_bloqueado(request, credentials, *args, **kwargs):
+    """Respuesta de django-axes cuando se superan los intentos fallidos de login."""
+    messages.error(request, "Demasiados intentos fallidos. Esperá una hora o restablecé tu contraseña.")
+    return render(request, 'usuarios/login.html', {'form': EmailOrUsernameAuthenticationForm(request)}, status=429)
+
 
 #INICIO REGISTRO NUEVO
 
@@ -1812,19 +1822,6 @@ def cambiar_email(request):
     send_verification_email(request, u)
     messages.success(request, "Email actualizado. Te enviamos un enlace para verificarlo.")
     return redirect('verify_email_notice')
-
-
-@login_required
-def activar_2fa(request):
-    """2FA todavía no está implementado: no mostramos un estado falso de seguridad."""
-    messages.info(request, "La verificación en dos pasos (2FA) estará disponible próximamente.")
-    return redirect(f"{reverse('configuracion')}?tab=seguridad")
-
-
-@login_required
-def desactivar_2fa(request):
-    messages.info(request, "La verificación en dos pasos (2FA) estará disponible próximamente.")
-    return redirect(f"{reverse('configuracion')}?tab=seguridad")
 
 
 def tyc(request):

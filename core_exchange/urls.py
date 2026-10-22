@@ -16,17 +16,14 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from django.contrib.auth import views as auth_views
-from django.conf import settings
-from django.conf.urls.static import static
+from django.views.generic import RedirectView
+from usuarios.views_media import media_protegida
 
 urlpatterns = [
+    # El admin de Django usa nuestro login (con bloqueo por intentos y 2FA)
+    path('admin/login/', RedirectView.as_view(pattern_name='login', query_string=True)),
     path('admin/', admin.site.urls),
+    # Archivos subidos (DNI, comprobantes, boletos): solo dueño o staff
+    path('media/<path:path>', media_protegida, name='media_protegida'),
     path('', include('usuarios.urls')),
-    path('login/', auth_views.LoginView.as_view(template_name='usuarios/login.html'), name='login'),
-    path('logout/', auth_views.LogoutView.as_view(next_page='login'), name='logout'),
-    
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

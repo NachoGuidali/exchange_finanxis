@@ -1,0 +1,80 @@
+# Stack completo: web (gunicorn) + worker y beat (Celery) + PostgreSQL + Redis.
+# Uso:  cp .env.example .env  (completar)  &&  docker compose up -d --build
+#
+# IMPORTANTE: si ponés un nginx delante, NO sirvas /media/ desde nginx:
+# los DNI y comprobantes los entrega Django solo a su dueño o al staff.
+
+x-env: &env
+  DB_HOST: db
+  DB_NAME: ${DB_NAME:-finanxis}
+  DB_USER: ${DB_USER:-finanxis}
+  DB_PASSWORD: ${DB_PASSWORD:?Definí DB_PASSWORD en .env}
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  REDIS_CACHE_URL: redis://redis:6379/2
+
+x-app: &app
+  build: .
+  env_file: .env
+  environment: *env
+  volumes:
+    - media:/app/media
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  web:
+    <<: *app
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen(u.Request('http://localhost:8000/faq/', headers={'X-Forwarded-Proto': 'https'}))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    <<: *app
+    environment:
+      <<: *env
+      RUN_MIGRATIONS: "0"
+    command: ["celery", "-A", "core_exchange", "worker", "--loglevel=info"]
+
+  beat:
+    <<: *app
+    environment:
+      <<: *env
+      RUN_MIGRATIONS: "0"
+    command: ["celery", "-A", "core_exchange", "beat", "--loglevel=info", "--schedule", "/tmp/celerybeat-schedule"]
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${DB_NAME:-finanxis}
+      POSTGRES_USER: ${DB_USER:-finanxis}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Definí DB_PASSWORD en .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-finanxis} -d ${DB_NAME:-finanxis}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  media:

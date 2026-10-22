@@ -1,0 +1,11 @@
+.git
+.env
+env/
+venv/
+.venv/
+db.sqlite3
+media/
+staticfiles/
+**/__pycache__
+*.log
+*:Zone.Identifier

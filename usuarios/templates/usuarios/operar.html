@@ -199,9 +199,9 @@
             </div>
           </li>
           <!-- <li class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 flex items-start gap-2">
-            {% if request.user.has_2fa %}✅{% else %}◻️{% endif %}
+            {% if request.user.totp_activo %}✅{% else %}◻️{% endif %}
             <div><div class="font-medium">Activar 2FA</div>
-              {% if not request.user.has_2fa %}<a href="#" class="text-primary underline text-xs">Configurar</a>{% else %}<div class="text-gray-600 text-xs">Protegida</div>{% endif %}
+              {% if not request.user.totp_activo %}<a href="{% url 'activar_2fa' %}" class="text-primary underline text-xs">Configurar</a>{% else %}<div class="text-gray-600 text-xs">Protegida</div>{% endif %}
             </div>
           </li> -->
           <li class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">

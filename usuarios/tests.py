@@ -240,3 +240,85 @@ class CuentaTests(BaseTest):
     def test_tyc_anonimo_no_rompe(self):
         resp = self.client.post(reverse("tyc"))
         self.assertEqual(resp.status_code, 302)
+
+
+class MediaPrivadaTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.duenio = crear_usuario("duenio")
+        self.duenio.dni_frente = SimpleUploadedFile("dni.png", b"\x89PNG fake", content_type="image/png")
+        self.duenio.save()
+        self.url = self.duenio.dni_frente.url
+
+    def test_nombre_no_adivinable(self):
+        self.assertNotIn("dni.png", self.url)
+
+    def test_anonimo_no_accede(self):
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 302)  # al login
+
+    def test_otro_usuario_no_accede(self):
+        self.client.force_login(crear_usuario("otro"))
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+
+    def test_duenio_y_staff_acceden(self):
+        self.client.force_login(self.duenio)
+        resp = self.client.get(self.url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Security-Policy"], "sandbox")
+        admin = crear_usuario("admin")
+        admin.is_staff = True
+        admin.save()
+        self.client.force_login(admin)
+        self.assertEqual(self.client.get(self.url).status_code, 200)
+
+    def test_archivo_sin_registro_no_se_sirve(self):
+        self.client.force_login(self.duenio)
+        self.assertEqual(self.client.get("/media/../core_exchange/settings.py").status_code, 404)
+
+
+class LoginSeguridadTests(BaseTest):
+    def _login(self, password="Clave-Segura-123", username="cliente"):
+        return self.client.post(reverse("login"), {"username": username, "password": password})
+
+    def test_bloqueo_tras_intentos_fallidos(self):
+        crear_usuario()
+        for _ in range(5):
+            self._login(password="mala")
+        resp = self._login()  # la correcta también queda bloqueada
+        self.assertEqual(resp.status_code, 429)
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_con_2fa(self):
+        import pyotp
+        u = crear_usuario()
+        u.totp_secret = pyotp.random_base32()
+        u.totp_activo = True
+        u.save()
+
+        resp = self._login()
+        self.assertRedirects(resp, reverse("login_2fa"), fetch_redirect_response=False)
+        self.assertNotIn("_auth_user_id", self.client.session)  # todavía no entró
+
+        self.client.post(reverse("login_2fa"), {"codigo": "000000"})
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+        self.client.post(reverse("login_2fa"), {"codigo": pyotp.TOTP(u.totp_secret).now()})
+        self.assertEqual(self.client.session["_auth_user_id"], str(u.pk))
+
+    def test_activar_2fa_requiere_codigo_valido(self):
+        import pyotp
+        u = crear_usuario()
+        self.client.force_login(u)
+        self.client.get(reverse("activar_2fa"))
+        secret = self.client.session["2fa_secret_nuevo"]
+        self.client.post(reverse("activar_2fa"), {"codigo": "123456"})
+        u.refresh_from_db()
+        self.assertFalse(u.totp_activo)
+        self.client.post(reverse("activar_2fa"), {"codigo": pyotp.TOTP(secret).now()})
+        u.refresh_from_db()
+        self.assertTrue(u.totp_activo)
+
+    def test_admin_login_pasa_por_nuestro_login(self):
+        resp = self.client.get("/admin/login/?next=/admin/")
+        self.assertEqual(resp.url, reverse("login") + "?next=/admin/")

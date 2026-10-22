@@ -27,7 +27,7 @@
           </div>
         {% endif %}
 
-        <form method="post" action="{% url 'login' %}?next={% url 'dashboard' %}" class="space-y-4">
+        <form method="post" action="{% url 'login' %}{% if request.GET.next %}?next={{ request.GET.next|urlencode }}{% endif %}" class="space-y-4">
           {% csrf_token %}
 
           {# Usuario / email #}

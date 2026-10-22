@@ -44,7 +44,7 @@
               {% if request.user.estado_verificacion == 'aprobado' %}✅ KYC verificado{% elif request.user.estado_verificacion == 'pendiente' %}⌛ KYC pendiente{% else %}⚠️ KYC requerido{% endif %}
             </span>
             <!-- <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
-              {% if request.user.has_2fa %}🔒 2FA activo{% else %}🔓 Activá 2FA{% endif %}
+              {% if request.user.totp_activo %}🔒 2FA activo{% else %}🔓 Activá 2FA{% endif %}
             </span> -->
             <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">🧑‍💼 Soporte 24/7</span>
             <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">🏪 Retiros en sucursales</span>

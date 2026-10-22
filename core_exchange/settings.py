@@ -42,16 +42,19 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'usuarios',
     'django_celery_beat',
+    'axes',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware',  # debe ir último
 ]
 
 ROOT_URLCONF = 'core_exchange.urls'
@@ -74,6 +77,7 @@ TEMPLATES = [
 WSGI_APPLICATION = 'core_exchange.wsgi.application'
 
 AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',  # bloquea tras intentos fallidos; debe ir primero
     'usuarios.auth_backends.EmailOrUsernameBackend',
     'django.contrib.auth.backends.ModelBackend',
 ]
@@ -82,12 +86,35 @@ AUTHENTICATION_BACKENDS = [
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# PostgreSQL si DB_NAME está definido (producción / Docker); SQLite solo para desarrollo rápido.
+if config('DB_NAME', default=''):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME'),
+            'USER': config('DB_USER', default='finanxis'),
+            'PASSWORD': config('DB_PASSWORD', default=''),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default=5432, cast=int),
+            'CONN_MAX_AGE': 60,
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+
+# Cache compartido entre procesos (la config del exchange se cachea): Redis si está disponible.
+if config('REDIS_CACHE_URL', default=''):
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+            'LOCATION': config('REDIS_CACHE_URL'),
+        }
+    }
 
 
 # Password validation
@@ -127,6 +154,11 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+STORAGES = {
+    'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+    'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
+}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -136,7 +168,7 @@ AUTH_USER_MODEL = 'usuarios.Usuario'
 
 
 LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/usuarios/dashboard/'  
+LOGIN_REDIRECT_URL = 'dashboard'  
 LOGOUT_REDIRECT_URL = '/login/'
 
 
@@ -148,6 +180,14 @@ CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/1')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_BEAT_SCHEDULE = {
+    # Debe correr más seguido que COTIZACION_MAX_EDAD_MIN, si no se bloquea operar
+    'actualizar-cotizaciones': {
+        'task': 'usuarios.tasks.actualizar_cotizaciones_task',
+        'schedule': config('COTIZACION_CADA_SEG', default=300, cast=int),
+    },
+}
 
 
 # COMISION
@@ -195,6 +235,29 @@ if not DEBUG:
     X_FRAME_OPTIONS = "DENY"
 
 SESSION_COOKIE_HTTPONLY = True
+
+# Bloqueo de fuerza bruta en el login (django-axes)
+AXES_FAILURE_LIMIT = config('AXES_FAILURE_LIMIT', default=5, cast=int)
+AXES_COOLOFF_TIME = 1  # horas
+AXES_LOCKOUT_PARAMETERS = [['username', 'ip_address']]
+AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_CALLABLE = 'usuarios.views.login_bloqueado'
+# Detrás de un proxy (nginx / balanceador) cuántos saltos confiar para leer la IP real
+AXES_IPWARE_PROXY_COUNT = config('AXES_IPWARE_PROXY_COUNT', default=0, cast=int)
+AXES_IPWARE_META_PRECEDENCE_ORDER = ['HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR']
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {'simple': {'format': '{asctime} {levelname} {name}: {message}', 'style': '{'}},
+    'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'simple'}},
+    'root': {'handlers': ['console'], 'level': config('LOG_LEVEL', default='INFO')},
+    'loggers': {
+        'axes': {'level': 'WARNING'},
+        'fontTools': {'level': 'WARNING'},
+        'weasyprint': {'level': 'WARNING'},
+    },
+}
 
 # Solo para desarrollo: guarda los links de verificación en un archivo
 DEMO_SAVE_VERIFICATION_LINK = config("DEMO_SAVE_VERIFICATION_LINK", default=False, cast=bool)

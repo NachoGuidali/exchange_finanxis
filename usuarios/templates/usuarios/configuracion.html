@@ -93,14 +93,14 @@
           </div>
 
 
-          <!-- <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <h3 class="font-medium text-gray-900">Autenticación en 2 pasos (2FA)</h3>
                 <p class="text-sm text-gray-600">Protegé tu cuenta con un segundo factor (app autenticador).</p>
                 <p class="mt-1 text-sm">
                   Estado:
-                  {% if request.user.has_2fa %}
+                  {% if request.user.totp_activo %}
                     <span class="font-semibold text-emerald-600">Activo</span>
                   {% else %}
                     <span class="font-semibold text-rose-600">Desactivado</span>
@@ -108,14 +108,20 @@
                 </p>
               </div>
               <div class="shrink-0">
-                {% if request.user.has_2fa %}
-                  <a href="{% url 'desactivar_2fa' %}" class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100">Desactivar</a>
-                {% else %}
+                {% if not request.user.totp_activo %}
                   <a href="{% url 'activar_2fa' %}" class="rounded-xl bg-primary text-dark font-semibold px-4 py-2 text-sm shadow-soft hover:opacity-90">Activar 2FA</a>
                 {% endif %}
               </div>
             </div>
-          </div> -->
+            {% if request.user.totp_activo %}
+              <form method="post" action="{% url 'desactivar_2fa' %}" class="mt-3 flex flex-wrap items-center gap-3">
+                {% csrf_token %}
+                <input name="codigo" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required
+                       placeholder="Código de 6 dígitos" class="rounded-xl border border-gray-300 px-3 py-2 text-sm">
+                <button class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100">Desactivar 2FA</button>
+              </form>
+            {% endif %}
+          </div>
 
           <!-- Email -->
           <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">

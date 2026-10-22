@@ -13,6 +13,25 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 
 BPS_MIN, BPS_MAX = 0, 5000  # 0% a 50%
 
+
+# Rutas de subida con nombre aleatorio: los archivos privados (DNI, comprobantes)
+# no deben tener nombres adivinables. Se sirven solo vía views_media.
+def _nombre_aleatorio(carpeta, filename):
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'bin'
+    return f"{carpeta}/{uuid.uuid4().hex}.{ext}"
+
+def subir_dni(instance, filename):
+    return _nombre_aleatorio('documentos', filename)
+
+def subir_comprobante(instance, filename):
+    return _nombre_aleatorio('comprobantes', filename)
+
+def subir_comprobante_usdt(instance, filename):
+    return _nombre_aleatorio('comprobantes_usdt', filename)
+
+def subir_adjunto_ticket(instance, filename):
+    return _nombre_aleatorio('tickets', filename)
+
 class ExchangeConfig(models.Model):
     # guardo siempre una sola fila (singleton)
     singleton = models.BooleanField(default=True, editable=False, unique=True)
@@ -152,8 +171,8 @@ SEXO_CHOICES = (
 
 class Usuario(AbstractUser):
     # KYC (ya estaban)
-    dni_frente = models.ImageField(upload_to='documentos/', null=True, blank=True)
-    dni_dorso  = models.ImageField(upload_to='documentos/', null=True, blank=True)
+    dni_frente = models.ImageField(upload_to=subir_dni, null=True, blank=True)
+    dni_dorso  = models.ImageField(upload_to=subir_dni, null=True, blank=True)
     estado_verificacion = models.CharField(
         max_length=20,
         choices=[('pendiente','Pendiente'),('aprobado','Aprobado'),('rechazado','Rechazado')],
@@ -199,6 +218,10 @@ class Usuario(AbstractUser):
     email_confirmed = models.BooleanField(default=False)
     email_confirmed_at = models.DateTimeField(null=True, blank=True)
     email_confirm_sent_at = models.DateTimeField(null=True, blank=True)
+
+    # 2FA (TOTP, compatible con Google Authenticator / Authy)
+    totp_secret = models.CharField(max_length=64, blank=True)
+    totp_activo = models.BooleanField(default=False)
 
 
     def __str__(self):
@@ -247,7 +270,7 @@ class DepositoARS(models.Model):
 
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     monto = models.DecimalField(max_digits=20, decimal_places=2)
-    comprobante = models.ImageField(upload_to='comprobantes/')
+    comprobante = models.ImageField(upload_to=subir_comprobante)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
     fecha = models.DateTimeField(auto_now_add=True)
 
@@ -273,7 +296,7 @@ class DepositoUSDT(models.Model):
     monto = models.DecimalField(max_digits=20, decimal_places=2)
     red = models.CharField(max_length=10, choices=REDES)
     txid = models.CharField(max_length=200)
-    comprobante = models.ImageField(upload_to='comprobantes_usdt/')
+    comprobante = models.ImageField(upload_to=subir_comprobante_usdt)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
     fecha = models.DateTimeField(auto_now_add=True)
 
@@ -435,7 +458,7 @@ class SupportTicket(models.Model):
     categoria = models.CharField(max_length=32, choices=CATEGORIAS, default="otro")
     prioridad = models.CharField(max_length=16, choices=PRIORIDADES, default="media")
     mensaje   = models.TextField()
-    adjunto   = models.FileField(upload_to="tickets/", blank=True, null=True)
+    adjunto   = models.FileField(upload_to=subir_adjunto_ticket, blank=True, null=True)
     estado    = models.CharField(max_length=20, default="abierto")
     creado_en = models.DateTimeField(auto_now_add=True)
 
