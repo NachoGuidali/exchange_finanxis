@@ -3,10 +3,12 @@ import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
+from django.views.decorators.http import require_POST
 from django.http import HttpResponse
 from django.shortcuts import redirect, render
 
-from usuarios.services import trading
+from usuarios.services import compliance, trading
 from usuarios.services.comun import OperacionError
 
 from ..models import Cotizacion, ExchangeConfig
@@ -41,18 +43,16 @@ def operar(request):
 
             cot = cot_usdt if moneda == 'USDT' else cot_usd
             try:
-                if operacion == 'compra':
-                    trading.comprar(request.user, moneda, monto, cot)
-                else:
-                    trading.vender(request.user, moneda, monto, cot)
+                reserva = trading.cotizar(request.user, operacion, moneda, monto, cot)
+            except compliance.LimiteExcedido as e:
+                compliance.alerta_limite(request.user, e)
+                messages.error(request, str(e))
+                return redirect('operar')
             except OperacionError as e:
-                return HttpResponse(str(e), status=400)
-            except Exception:
-                logger.exception("Error procesando %s de %s (usuario %s)", operacion, moneda, request.user.pk)
-                return HttpResponse("Ocurrió un error al procesar la operación.", status=400)
-
-            messages.success(request, "Operación realizada con éxito.")
-            return redirect('dashboard')
+                messages.error(request, str(e))
+                return redirect('operar')
+            # el cliente confirma viendo el precio exacto, reservado unos segundos
+            return render(request, 'usuarios/confirmar_operacion.html', {'reserva': reserva})
 
         elif operacion == 'swap':
             amount = parse_monto(request.POST.get('monto'))
@@ -77,3 +77,25 @@ def operar(request):
         'swap_rate': trading.SWAP_RATE,
         'cotizaciones_vigentes': cotizaciones_vigentes,
     })
+
+
+@login_required
+@kyc_required
+@require_POST
+def confirmar_operacion(request):
+    try:
+        trading.ejecutar_cotizacion(request.user, request.POST.get('reserva'))
+    except compliance.LimiteExcedido as e:
+        compliance.alerta_limite(request.user, e)
+        messages.error(request, str(e))
+        return redirect('operar')
+    except (OperacionError, ValidationError) as e:
+        messages.error(request, e.messages[0] if isinstance(e, ValidationError) else str(e))
+        return redirect('operar')
+    except Exception:
+        logger.exception("Error confirmando operación (usuario %s)", request.user.pk)
+        messages.error(request, "Ocurrió un error al procesar la operación.")
+        return redirect('operar')
+
+    messages.success(request, "Operación realizada con éxito.")
+    return redirect('dashboard')

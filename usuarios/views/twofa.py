@@ -12,6 +12,8 @@ from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
+from usuarios.services.auditoria import auditar
+
 User = get_user_model()
 
 EMISOR = "Finanxis"
@@ -89,6 +91,7 @@ def activar_2fa(request):
             u.totp_secret = secret
             u.totp_activo = True
             u.save(update_fields=['totp_secret', 'totp_activo'])
+            auditar(u, '2fa_activado', u)
             del request.session['2fa_secret_nuevo']
             messages.success(request, "2FA activado. Desde ahora te vamos a pedir el código al ingresar.")
             return redirect(f"{reverse('configuracion')}?tab=seguridad")
@@ -108,5 +111,6 @@ def desactivar_2fa(request):
         u.totp_secret = ''
         u.totp_activo = False
         u.save(update_fields=['totp_secret', 'totp_activo'])
+        auditar(u, '2fa_desactivado', u)
         messages.success(request, "2FA desactivado.")
     return redirect(f"{reverse('configuracion')}?tab=seguridad")

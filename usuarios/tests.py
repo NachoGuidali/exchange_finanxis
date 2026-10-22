@@ -42,6 +42,14 @@ def crear_cotizaciones(edad=timedelta(0)):
 
 
 # Los tests no dependen del .env: sin redirección HTTPS (en CI corre con DEBUG=False)
+def operar(client, operacion, moneda, monto):
+    """Cotiza y confirma (flujo real en dos pasos). Devuelve la respuesta de la confirmación."""
+    resp = client.post(reverse("operar"), {"operacion": operacion, "moneda": moneda, "monto": monto})
+    if resp.status_code != 200 or "reserva" not in (resp.context or {}):
+        return resp
+    return client.post(reverse("confirmar_operacion"), {"reserva": resp.context["reserva"].id})
+
+
 @override_settings(MEDIA_ROOT=MEDIA_TMP, SECURE_SSL_REDIRECT=False)
 class BaseTest(TestCase):
     @classmethod
@@ -149,8 +157,8 @@ class OperarTests(BaseTest):
         crear_cotizaciones()
         u = crear_usuario(saldo_ars="10200")
         self.client.force_login(u)
-        resp = self.client.post(self.url, {"operacion": "compra", "moneda": "USDT", "monto": "10200"})
-        self.assertEqual(resp.status_code, 302)
+        resp = operar(self.client, "compra", "USDT", "10200")
+        self.assertRedirects(resp, reverse("dashboard"), fetch_redirect_response=False)
         u.refresh_from_db()
         self.assertEqual(u.saldo_ars, Decimal("0"))
         self.assertEqual(u.saldo_usdt, Decimal("10"))  # 10200 / 1020
@@ -181,8 +189,9 @@ class OperarTests(BaseTest):
         crear_cotizaciones()
         u = crear_usuario(saldo_ars="10")
         self.client.force_login(u)
-        resp = self.client.post(self.url, {"operacion": "compra", "moneda": "USDT", "monto": "1000"})
-        self.assertEqual(resp.status_code, 400)
+        operar(self.client, "compra", "USDT", "1000")
+        u.refresh_from_db()
+        self.assertEqual(u.saldo_ars, Decimal("10"))
         self.assertFalse(ApunteExchange.objects.exists())
 
     def test_swap_registra_salida_negativa_y_fee_una_vez(self):
@@ -355,9 +364,12 @@ class LibroMayorTests(BaseTest):
 
         dep = DepositoARS.objects.create(usuario=u, monto=Decimal("20000"), comprobante="c.png")
         fondos.aprobar_deposito_ars(dep.pk, self.admin)
-        trading.comprar(u, "USDT", Decimal("10200"), Cotizacion.objects.get(moneda="USDT"))
+        r = trading.cotizar(u, "compra", "USDT", Decimal("10200"), Cotizacion.objects.get(moneda="USDT"))
+        trading.ejecutar_cotizacion(u, r.id)
         trading.swap(u, "USDT_to_USD", Decimal("5"), fee_bps=100)
-        trading.vender(u, "USD", Decimal("2"), Cotizacion.objects.get(moneda="USD"))
+        u.refresh_from_db()
+        r = trading.cotizar(u, "venta", "USD", Decimal("2"), Cotizacion.objects.get(moneda="USD"))
+        trading.ejecutar_cotizacion(u, r.id)
 
         r1 = fondos.solicitar_retiro_ars(u, Decimal("1000"), alias="a")
         fondos.aprobar_retiro_ars(r1.pk)
@@ -464,3 +476,295 @@ class ConcurrenciaTests(TransactionTestCase):
         u.refresh_from_db()
         self.assertEqual(sorted(resultados), ["ok", "rechazado"])
         self.assertEqual(u.saldo_ars, Decimal("20"))
+
+
+class CotizacionReservadaTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        crear_cotizaciones()
+        self.u = crear_usuario(saldo_ars="20400")
+        self.client.force_login(self.u)
+
+    def _cotizar(self, monto="10200"):
+        resp = self.client.post(reverse("operar"), {"operacion": "compra", "moneda": "USDT", "monto": monto})
+        self.assertEqual(resp.status_code, 200)
+        return resp.context["reserva"]
+
+    def test_precio_bloqueado_aunque_cambie_la_cotizacion(self):
+        reserva = self._cotizar()
+        Cotizacion.objects.create(moneda="USDT", compra=1500, venta=2000, ref_compra=1700, ref_venta=1700)
+        self.client.post(reverse("confirmar_operacion"), {"reserva": reserva.id})
+        self.u.refresh_from_db()
+        self.assertEqual(self.u.saldo_usdt, Decimal("10"))  # al precio reservado (1020), no a 2000
+
+    def test_reserva_expirada(self):
+        from .models import CotizacionReservada
+        reserva = self._cotizar()
+        CotizacionReservada.objects.filter(pk=reserva.pk).update(expira=timezone.now() - timedelta(seconds=1))
+        self.client.post(reverse("confirmar_operacion"), {"reserva": reserva.id})
+        self.u.refresh_from_db()
+        self.assertEqual(self.u.saldo_usdt, Decimal("0"))
+
+    def test_reserva_no_se_reutiliza(self):
+        reserva = self._cotizar()
+        self.client.post(reverse("confirmar_operacion"), {"reserva": reserva.id})
+        self.client.post(reverse("confirmar_operacion"), {"reserva": reserva.id})
+        self.u.refresh_from_db()
+        self.assertEqual(self.u.saldo_usdt, Decimal("10"))
+
+    def test_reserva_de_otro_usuario(self):
+        reserva = self._cotizar()
+        otro = crear_usuario("otro", saldo_ars="20400")
+        self.client.force_login(otro)
+        self.client.post(reverse("confirmar_operacion"), {"reserva": reserva.id})
+        otro.refresh_from_db()
+        self.assertEqual(otro.saldo_usdt, Decimal("0"))
+
+    def test_reserva_invalida_no_rompe(self):
+        resp = self.client.post(reverse("confirmar_operacion"), {"reserva": "no-es-un-uuid"})
+        self.assertEqual(resp.status_code, 302)
+
+
+class ComplianceTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        from .models import ExchangeConfig
+        crear_cotizaciones()
+        cfg = ExchangeConfig.current()
+        cfg.umbral_alerta_ars = Decimal("100000")
+        cfg.limite_mensual_operado_ars = Decimal("500000")
+        cfg.limite_diario_retiro_ars = Decimal("200000")
+        cfg.save()
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+
+    def alertas(self, tipo):
+        from .models import AlertaCompliance
+        return AlertaCompliance.objects.filter(tipo=tipo)
+
+    def test_operacion_sobre_umbral_genera_alerta(self):
+        u = crear_usuario(saldo_ars="200000")
+        self.client.force_login(u)
+        operar(self.client, "compra", "USDT", "150000")
+        self.assertEqual(self.alertas("umbral").count(), 1)
+
+    def test_fraccionamiento(self):
+        u = crear_usuario(saldo_ars="200000")
+        self.client.force_login(u)
+        for _ in range(3):
+            operar(self.client, "compra", "USDT", "40000")  # cada una bajo el umbral, juntas lo superan
+        self.assertEqual(self.alertas("fraccionamiento").count(), 1)
+        self.assertEqual(self.alertas("umbral").count(), 0)
+
+    def test_limite_mensual_bloquea_y_deja_alerta(self):
+        u = crear_usuario(saldo_ars="900000")
+        self.client.force_login(u)
+        operar(self.client, "compra", "USDT", "600000")
+        u.refresh_from_db()
+        self.assertEqual(u.saldo_ars, Decimal("900000"))
+        self.assertEqual(self.alertas("limite_excedido").count(), 1)  # sobrevive al rollback
+
+    def test_limite_propio_del_usuario(self):
+        u = crear_usuario(saldo_ars="900000")
+        u.limite_mensual_ars = Decimal("1000000")
+        u.save()
+        self.client.force_login(u)
+        operar(self.client, "compra", "USDT", "600000")
+        u.refresh_from_db()
+        self.assertEqual(u.saldo_ars, Decimal("300000"))
+
+    def test_limite_diario_de_retiro(self):
+        u = crear_usuario(saldo_ars="500000")
+        self.client.force_login(u)
+        self.client.post(reverse("solicitar_retiro"), {"monto": "150000", "alias": "a"})
+        self.client.post(reverse("solicitar_retiro"), {"monto": "100000", "alias": "a"})  # 250k > 200k
+        self.assertEqual(RetiroARS.objects.count(), 1)
+        self.assertEqual(self.alertas("limite_excedido").count(), 1)
+
+    def test_retiro_rapido_tras_deposito(self):
+        from .services import fondos
+        u = crear_usuario()
+        dep = DepositoARS.objects.create(usuario=u, monto=Decimal("50000"), comprobante="c.png")
+        fondos.aprobar_deposito_ars(dep.pk, self.admin)
+        fondos.solicitar_retiro_ars(u, Decimal("49000"), alias="a")
+        self.assertEqual(self.alertas("retiro_rapido").count(), 1)
+
+    def test_resolver_alerta_exige_nota_y_audita(self):
+        from .models import AlertaCompliance, RegistroAuditoria
+        u = crear_usuario()
+        a = AlertaCompliance.objects.create(usuario=u, tipo="umbral", detalle="x", monto_ars=1)
+        self.client.force_login(self.admin)
+        self.client.post(reverse("resolver_alerta", args=[a.id]), {"estado": "descartada", "nota": ""})
+        a.refresh_from_db()
+        self.assertEqual(a.estado, "abierta")
+        self.client.post(reverse("resolver_alerta", args=[a.id]), {"estado": "descartada", "nota": "Cliente conocido"})
+        a.refresh_from_db()
+        self.assertEqual((a.estado, a.revisada_por), ("descartada", self.admin))
+        self.assertTrue(RegistroAuditoria.objects.filter(accion="alerta_descartada").exists())
+
+    def test_paginas_admin(self):
+        self.client.force_login(self.admin)
+        for nombre in ("compliance_alertas", "auditoria", "panel_admin", "panel_depositos_usdt"):
+            self.assertEqual(self.client.get(reverse(nombre)).status_code, 200, nombre)
+        self.client.force_login(crear_usuario("comun"))
+        self.assertEqual(self.client.get(reverse("compliance_alertas")).status_code, 302)
+
+
+def _respuesta(json_data):
+    from unittest import mock
+    r = mock.Mock()
+    r.json.return_value = json_data
+    r.raise_for_status.return_value = None
+    return r
+
+
+WALLET_TRC20 = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"  # cualquier dirección TRON válida sirve para el test
+WALLET_ERC20 = "0x4e68ccd3e89f51c3074ca5072bbac773960dfa36"
+
+
+@override_settings(WALLETS_EMPRESA={"TRC20": WALLET_TRC20, "ERC20": WALLET_ERC20})
+class OnchainTests(BaseTest):
+    TX = "ab" * 32
+
+    def _tron(self, *, destino_hex, monto_crudo, bloque=100, actual=200, resultado="SUCCESS"):
+        from .services.onchain import TRANSFER_TOPIC, tron_a_hex
+        info = {
+            "blockNumber": bloque, "receipt": {"result": resultado},
+            "log": [{"address": tron_a_hex("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"),
+                     "topics": [TRANSFER_TOPIC, "0" * 24 + "11" * 20, "0" * 24 + destino_hex],
+                     "data": f"{monto_crudo:064x}"}],
+        }
+        ahora = {"block_header": {"raw_data": {"number": actual}}}
+        return [_respuesta(info), _respuesta(ahora)]
+
+    def verificar(self, red, monto, respuestas):
+        from unittest import mock
+
+        from .services import onchain
+        with mock.patch("usuarios.services.onchain.requests.post", side_effect=respuestas):
+            return onchain.verificar(red, self.TX, Decimal(monto))
+
+    def test_tron_hex(self):
+        from .services.onchain import tron_a_hex
+        self.assertEqual(tron_a_hex("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"), "a614f803b6fd780986a42c78ec9c7f77e6ded13c")
+        with self.assertRaises(ValueError):
+            tron_a_hex("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6x")  # checksum inválido
+
+    def test_trc20_ok(self):
+        from .services.onchain import tron_a_hex
+        r = self.verificar("TRC20", "50", self._tron(destino_hex=tron_a_hex(WALLET_TRC20), monto_crudo=50_000_000))
+        self.assertEqual((r.estado, r.monto), ("verificado", Decimal("50")))
+
+    def test_trc20_otra_wallet(self):
+        r = self.verificar("TRC20", "50", self._tron(destino_hex="22" * 20, monto_crudo=50_000_000))
+        self.assertEqual(r.estado, "no_coincide")
+
+    def test_trc20_monto_menor(self):
+        from .services.onchain import tron_a_hex
+        r = self.verificar("TRC20", "50", self._tron(destino_hex=tron_a_hex(WALLET_TRC20), monto_crudo=10_000_000))
+        self.assertEqual(r.estado, "no_coincide")
+
+    def test_trc20_pocas_confirmaciones(self):
+        from .services.onchain import tron_a_hex
+        r = self.verificar("TRC20", "50", self._tron(destino_hex=tron_a_hex(WALLET_TRC20), monto_crudo=50_000_000,
+                                                     bloque=195, actual=200))
+        self.assertEqual(r.estado, "pendiente")
+
+    def test_trc20_fallida(self):
+        from .services.onchain import tron_a_hex
+        r = self.verificar("TRC20", "50", self._tron(destino_hex=tron_a_hex(WALLET_TRC20), monto_crudo=50_000_000,
+                                                     resultado="REVERT"))
+        self.assertEqual(r.estado, "no_coincide")
+
+    def test_erc20_ok_y_contrato_falso(self):
+        from .services.onchain import TRANSFER_TOPIC
+
+        def recibo(contrato):
+            return _respuesta({"result": {"status": "0x1", "blockNumber": hex(100), "logs": [
+                {"address": contrato, "topics": ["0x" + TRANSFER_TOPIC, "0x" + "0" * 64, "0x" + "0" * 24 + WALLET_ERC20[2:]],
+                 "data": hex(25_000_000)}]}})
+        bloque = _respuesta({"result": hex(150)})
+        r = self.verificar("ERC20", "25", [recibo("0xdAC17F958D2ee523a2206206994597C13D831ec7"), bloque])
+        self.assertEqual(r.estado, "verificado")
+        # mismo evento Transfer pero de un token falso que imita a USDT
+        r = self.verificar("ERC20", "25", [recibo("0x" + "99" * 20), bloque])
+        self.assertEqual(r.estado, "no_coincide")
+
+    def test_error_de_red(self):
+        import requests
+        r = self.verificar("TRC20", "50", requests.ConnectionError("caído"))
+        self.assertEqual(r.estado, "error")
+
+    def test_red_no_soportada(self):
+        from .services import onchain
+        self.assertEqual(onchain.verificar("SOL", self.TX, Decimal("1")).estado, "no_soportada")
+
+
+class DepositoUSDTAprobacionTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        from .models import DepositoUSDT
+        self.u = crear_usuario()
+        self.dep = DepositoUSDT.objects.create(usuario=self.u, monto=Decimal("50"), red="TRC20",
+                                               txid="ab" * 32, comprobante="c.png")
+        self.staff = crear_usuario("staff")
+        self.staff.is_staff = True
+        self.staff.save()
+        self.superu = crear_usuario("root")
+        self.superu.is_staff = self.superu.is_superuser = True
+        self.superu.save()
+
+    def _aprobar(self, quien, forzar=False):
+        self.client.force_login(quien)
+        data = {"forzar": "1"} if forzar else {}
+        self.client.post(reverse("aprobar_deposito_usdt", args=[self.dep.id]), data)
+        self.u.refresh_from_db()
+        return self.u.saldo_usdt
+
+    def test_sin_verificar_no_se_aprueba(self):
+        self.assertEqual(self._aprobar(self.staff), Decimal("0"))
+
+    def test_staff_no_puede_forzar(self):
+        self.assertEqual(self._aprobar(self.staff, forzar=True), Decimal("0"))
+
+    def test_superusuario_fuerza_y_queda_auditado(self):
+        from .models import RegistroAuditoria
+        self.assertEqual(self._aprobar(self.superu, forzar=True), Decimal("50"))
+        reg = RegistroAuditoria.objects.get(accion="deposito_usdt_forzado")
+        self.assertEqual((reg.actor, reg.ip), (self.superu, "127.0.0.1"))
+
+    def test_no_coincide_nunca_se_aprueba(self):
+        self.dep.verificacion_estado = "no_coincide"
+        self.dep.save()
+        self.assertEqual(self._aprobar(self.superu, forzar=True), Decimal("0"))
+
+    def test_verificado_se_aprueba(self):
+        self.dep.verificacion_estado = "verificado"
+        self.dep.save()
+        self.assertEqual(self._aprobar(self.staff), Decimal("50"))
+
+
+class AuditoriaTests(BaseTest):
+    def test_login_y_kyc_quedan_registrados(self):
+        from .models import RegistroAuditoria
+        crear_usuario()
+        self.client.post(reverse("login"), {"username": "cliente", "password": "Clave-Segura-123"})
+        self.assertTrue(RegistroAuditoria.objects.filter(accion="login").exists())
+
+        admin = crear_usuario("admin")
+        admin.is_staff = True
+        admin.save()
+        objetivo = crear_usuario("nuevo", aprobado=False)
+        self.client.force_login(admin)
+        self.client.post(reverse("cambiar_estado_verificacion", args=[objetivo.id]), {"estado": "aprobado"})
+        reg = RegistroAuditoria.objects.get(accion="kyc_cambio_estado")
+        self.assertEqual(reg.detalle, {"anterior": "pendiente", "nuevo": "aprobado"})
+
+    def test_registro_inmutable(self):
+        from django.core.exceptions import ValidationError
+
+        from .services.auditoria import auditar
+        r = auditar(None, "prueba")
+        with self.assertRaises(ValidationError):
+            r.delete()

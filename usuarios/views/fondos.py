@@ -1,15 +1,20 @@
 """Solicitudes de depósito y retiro del usuario (lógica en services/fondos.py)."""
+import logging
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.db import transaction
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from usuarios.services import fondos
+from usuarios.services import compliance, fondos
 from usuarios.services.comun import OperacionError
 
 from ..forms import DepositoARSForm, DepositoUSDTForm
 from ..utils import kyc_required, parse_monto, registrar_movimiento
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -73,21 +78,23 @@ def depositar_usdt(request):
                 saldo_antes=request.user.saldo_usdt,
                 saldo_despues=request.user.saldo_usdt
             )
-            messages.success(request, 'Solicitud enviada. En breve será verificada.')
+            transaction.on_commit(lambda: _programar_verificacion(dep.pk))
+            messages.success(request, 'Solicitud enviada. Verificamos la transacción en la red y te avisamos.')
             return redirect('dashboard')
     else:
         form = DepositoUSDTForm()
 
-    # opcional: mostrar tu wallet, red recomendada, etc.
-    datos_wallet = {
-        'wallet_trc20': 'TU_WALLET_TRC20',
-        'wallet_erc20': 'TU_WALLET_ERC20',
-    }
+    wallets = [(red, w) for red, w in settings.WALLETS_EMPRESA.items() if w]
+    return render(request, 'usuarios/depositar_usdt.html', {'form': form, 'wallets': wallets})
 
-    return render(request, 'usuarios/depositar_usdt.html', {
-        'form': form,
-        'datos_wallet': datos_wallet
-    })
+
+def _programar_verificacion(deposito_id):
+    """Encola la verificación on-chain. Si Celery no está disponible, el admin puede reintentarla."""
+    from usuarios.tasks import verificar_deposito_usdt_task
+    try:
+        verificar_deposito_usdt_task.apply_async(args=[deposito_id], retry=False)
+    except Exception:
+        logger.warning("No se pudo encolar la verificación on-chain del depósito %s", deposito_id, exc_info=True)
 
 
 @login_required
@@ -105,6 +112,10 @@ def solicitar_retiro(request):
                 cbu=(request.POST.get('cbu') or '').strip(),
                 banco=(request.POST.get('banco') or '').strip(),
             )
+        except compliance.LimiteExcedido as e:
+            compliance.alerta_limite(request.user, e)
+            messages.error(request, str(e))
+            return redirect('solicitar_retiro')
         except OperacionError as e:
             messages.error(request, str(e))
             return redirect('solicitar_retiro')
@@ -128,6 +139,10 @@ def solicitar_retiro_cripto(request):
         fondos.solicitar_retiro_crypto(
             request.user, moneda, monto, (request.POST.get('direccion_wallet') or '').strip()
         )
+    except compliance.LimiteExcedido as e:
+        compliance.alerta_limite(request.user, e)
+        messages.error(request, str(e))
+        return redirect('solicitar_retiro')
     except OperacionError as e:
         messages.error(request, str(e))
         return redirect('solicitar_retiro')

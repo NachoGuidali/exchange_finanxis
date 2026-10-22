@@ -52,6 +52,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'usuarios.middleware.RequestActualMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'axes.middleware.AxesMiddleware',  # debe ir último
@@ -224,6 +225,22 @@ TYC_VERSION = "2025-09"
 
 # Una cotización más vieja que esto bloquea compra/venta
 COTIZACION_MAX_EDAD_MIN = config("COTIZACION_MAX_EDAD_MIN", default=15, cast=int)
+# Segundos que el precio queda reservado para que el cliente confirme
+COTIZACION_RESERVA_SEG = config("COTIZACION_RESERVA_SEG", default=30, cast=int)
+
+# Wallets de la empresa para depósitos USDT (se muestran al cliente y se usan en la verificación on-chain)
+WALLETS_EMPRESA = {
+    'TRC20': config("WALLET_TRC20", default=""),
+    'ERC20': config("WALLET_ERC20", default=""),
+    'BEP20': config("WALLET_BEP20", default=""),
+    'SOL': config("WALLET_SOL", default=""),
+}
+TRONGRID_URL = config("TRONGRID_URL", default="https://api.trongrid.io")
+TRONGRID_API_KEY = config("TRONGRID_API_KEY", default="")
+RPC_URLS = {
+    'ERC20': config("ETH_RPC_URL", default="https://ethereum-rpc.publicnode.com"),
+    'BEP20': config("BSC_RPC_URL", default="https://bsc-dataseed.bnbchain.org"),
+}
 
 # --------------- seguridad--------------
 # En producción (DEBUG=False) se fuerza HTTPS y cookies seguras.

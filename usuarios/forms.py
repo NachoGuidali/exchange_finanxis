@@ -13,11 +13,15 @@ from .models import ExchangeConfig
 class ExchangeConfigForm(forms.ModelForm):
     class Meta:
         model = ExchangeConfig
-        fields = ("spread_bps_usdt","spread_bps_usd","swap_fee_bps")
+        fields = ("spread_bps_usdt","spread_bps_usd","swap_fee_bps",
+                  "umbral_alerta_ars","limite_mensual_operado_ars","limite_diario_retiro_ars")
         widgets = {
             "spread_bps_usdt": forms.NumberInput(attrs={"min":0, "step":1}),
             "spread_bps_usd":  forms.NumberInput(attrs={"min":0, "step":1}),
             "swap_fee_bps":    forms.NumberInput(attrs={"min":0, "step":1}),
+            "umbral_alerta_ars":          forms.NumberInput(attrs={"min":0, "step":"0.01"}),
+            "limite_mensual_operado_ars": forms.NumberInput(attrs={"min":0, "step":"0.01"}),
+            "limite_diario_retiro_ars":   forms.NumberInput(attrs={"min":0, "step":"0.01"}),
         }
 
 

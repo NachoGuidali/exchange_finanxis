@@ -10,14 +10,17 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.timezone import localtime
 from django.views.decorators.http import require_POST
 
-from usuarios.services import fondos
+from usuarios.services import fondos, onchain
+from usuarios.services.auditoria import auditar
 from usuarios.services.comun import OperacionError
 
 from ..forms import ExchangeConfigForm
 from ..models import (
+    AlertaCompliance,
     ApunteExchange,
     BoletoOperacion,
     CuentaExchange,
@@ -26,6 +29,7 @@ from ..models import (
     ExchangeConfig,
     Movimiento,
     RetiroARS,
+    RegistroAuditoria,
     RetiroCrypto,
     Usuario,
 )
@@ -84,7 +88,8 @@ def panel_admin(request):
     }
     cfg = ExchangeConfig.current()
     cfg_form = ExchangeConfigForm(instance=cfg)
-    context.update({"cfg_form": cfg_form, "cfg": cfg})
+    context.update({"cfg_form": cfg_form, "cfg": cfg,
+                    "kpi_alertas_abiertas": AlertaCompliance.objects.filter(estado='abierta').count()})
     return render(request, 'usuarios/panel_admin.html', context)
 
 
@@ -96,10 +101,12 @@ def cambiar_estado_verificacion(request, user_id):
     if request.method == 'POST':
         nuevo_estado = request.POST.get('estado')
         if nuevo_estado in ['pendiente', 'aprobado', 'rechazado']:
+            anterior = usuario.estado_verificacion
             usuario.estado_verificacion = nuevo_estado
             if nuevo_estado == 'aprobado':
                 usuario.is_active = True
             usuario.save()
+            auditar(request.user, 'kyc_cambio_estado', usuario, anterior=anterior, nuevo=nuevo_estado)
     return redirect('panel_admin')
 
 
@@ -411,9 +418,14 @@ def exchange_export_csv(request):
 @require_POST
 def guardar_config_exchange(request):
     cfg = ExchangeConfig.current()
+    antes = {f: str(getattr(cfg, f)) for f in ExchangeConfigForm.Meta.fields}
     form = ExchangeConfigForm(request.POST, instance=cfg)
     if form.is_valid():
+        form.instance.updated_by = request.user
         form.save()
+        despues = {f: str(getattr(cfg, f)) for f in ExchangeConfigForm.Meta.fields}
+        auditar(request.user, 'config_exchange', 'ExchangeConfig',
+                **{f: f"{antes[f]} → {despues[f]}" for f in antes if antes[f] != despues[f]})
         # invalidar caché para que se refleje inmediato
         from django.core.cache import cache
         cache.delete("exchange_config_current")
@@ -487,8 +499,67 @@ def rechazar_deposito(request, deposito_id):
 @user_passes_test(es_admin)
 @require_POST
 def aprobar_deposito_usdt(request, deposito_id):
-    return _accion_admin(request, lambda: fondos.aprobar_deposito_usdt(deposito_id, request.user),
+    forzar = request.POST.get('forzar') == '1'
+    return _accion_admin(request, lambda: fondos.aprobar_deposito_usdt(deposito_id, request.user, forzar=forzar),
                          'panel_depositos_usdt', "Depósito USDT aprobado.")
+
+
+@login_required
+@user_passes_test(es_admin)
+@require_POST
+def reverificar_deposito_usdt(request, deposito_id):
+    dep = get_object_or_404(DepositoUSDT, pk=deposito_id, estado='pendiente')
+    res = onchain.verificar_deposito(dep)
+    nivel = messages.success if res.estado == 'verificado' else messages.warning
+    nivel(request, f"Depósito #{dep.pk}: {dep.get_verificacion_estado_display()}. {res.detalle}")
+    return redirect('panel_depositos_usdt')
+
+
+# ---------------- Compliance ----------------
+
+@login_required
+@user_passes_test(es_admin)
+def compliance_alertas(request):
+    estado = request.GET.get('estado', 'abierta')
+    qs = AlertaCompliance.objects.select_related('usuario', 'revisada_por')
+    if estado in dict(AlertaCompliance.ESTADOS):
+        qs = qs.filter(estado=estado)
+    page = Paginator(qs, 50).get_page(request.GET.get('page'))
+    return render(request, 'usuarios/compliance_alertas.html', {
+        'page_obj': page, 'estado': estado, 'estados': AlertaCompliance.ESTADOS,
+        'abiertas': AlertaCompliance.objects.filter(estado='abierta').count(),
+    })
+
+
+@login_required
+@user_passes_test(es_admin)
+@require_POST
+def resolver_alerta(request, alerta_id):
+    alerta = get_object_or_404(AlertaCompliance, pk=alerta_id, estado='abierta')
+    estado = request.POST.get('estado')
+    nota = (request.POST.get('nota') or '').strip()
+    if estado not in ('descartada', 'reportada') or not nota:
+        messages.error(request, "Elegí descartar o reportar e ingresá una nota con el fundamento.")
+        return redirect('compliance_alertas')
+    alerta.estado = estado
+    alerta.nota = nota
+    alerta.revisada_por = request.user
+    alerta.revisada_en = timezone.now()
+    alerta.save()
+    auditar(request.user, f'alerta_{estado}', alerta, nota=nota, usuario=alerta.usuario_id)
+    messages.success(request, f"Alerta #{alerta.pk} marcada como {alerta.get_estado_display().lower()}.")
+    return redirect('compliance_alertas')
+
+
+@login_required
+@user_passes_test(es_admin)
+def auditoria(request):
+    qs = RegistroAuditoria.objects.select_related('actor')
+    q = (request.GET.get('q') or '').strip()
+    if q:
+        qs = qs.filter(Q(accion__icontains=q) | Q(objeto__icontains=q) | Q(actor__username__icontains=q))
+    page = Paginator(qs, 50).get_page(request.GET.get('page'))
+    return render(request, 'usuarios/auditoria.html', {'page_obj': page, 'q': q})
 
 
 @login_required

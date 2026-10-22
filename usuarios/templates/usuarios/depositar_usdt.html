@@ -1,18 +1,43 @@
 {% extends 'base.html' %}
-{% load static %}
+
+{% block title %}Depositar USDT — Finanxis{% endblock %}
 
 {% block content %}
-<h2>Depósito de USDT</h2>
-<p>Subí el comprobante y el TXID. Recordá usar la red correcta.</p>
+<section class="max-w-xl mx-auto rounded-2xl border border-gray-200 bg-white p-6 space-y-5">
+  <header>
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Depositar USDT</h1>
+    <p class="text-gray-600 mt-1">
+      Enviá USDT a la wallet de la red que elijas y cargá el TXID. Verificamos la transacción
+      en la blockchain antes de acreditarla.
+    </p>
+  </header>
 
-<ul>
-  <li>TRC20: {{ datos_wallet.wallet_trc20 }}</li>
-  <li>ERC20: {{ datos_wallet.wallet_erc20 }}</li>
-</ul>
+  {% if wallets %}
+    <ul class="space-y-2">
+      {% for red, wallet in wallets %}
+        <li class="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+          <span class="text-xs font-semibold text-gray-500">{{ red }}</span>
+          <div class="font-mono text-sm text-gray-900 break-all">{{ wallet }}</div>
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="text-xs text-rose-700">
+      Usá exactamente la misma red que indicás en el formulario: un envío por otra red puede perderse.
+    </p>
+  {% else %}
+    <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+      Los depósitos en USDT no están habilitados en este momento.
+    </p>
+  {% endif %}
 
-<form method="post" enctype="multipart/form-data">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit">Enviar</button>
-</form>
+  {% if wallets %}
+    <form method="post" enctype="multipart/form-data" class="space-y-3">
+      {% csrf_token %}
+      {{ form.as_p }}
+      <button type="submit" class="w-full rounded-xl bg-primary text-dark font-semibold px-4 py-3 shadow-soft hover:opacity-90">
+        Enviar
+      </button>
+    </form>
+  {% endif %}
+</section>
 {% endblock %}

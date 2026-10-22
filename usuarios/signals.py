@@ -131,3 +131,13 @@ def acumular_en_cuenta_solo_rentas(sender, instance: ApunteExchange, created, **
     CuentaExchange.objects.get_or_create(nombre="Exchange")
     # update con F() para que dos operaciones simultáneas no se pisen
     CuentaExchange.objects.filter(nombre="Exchange").update(**{campo: F(campo) + instance.monto_moneda})
+
+
+# -------- Auditoría de inicio de sesión --------
+from django.contrib.auth.signals import user_logged_in  # noqa: E402
+
+
+@receiver(user_logged_in)
+def auditar_login(sender, request, user, **kwargs):
+    from usuarios.services.auditoria import auditar
+    auditar(user, 'login', user, staff=user.is_staff)

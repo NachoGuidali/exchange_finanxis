@@ -4,6 +4,7 @@ from django.utils.timezone import now
 import uuid
 from django.conf import settings
 from django.utils.text import slugify
+from decimal import Decimal
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
@@ -51,6 +52,21 @@ class ExchangeConfig(models.Model):
         default=getattr(settings, "SPREAD_BPS_USD", 200),
         validators=[MinValueValidator(BPS_MIN), MaxValueValidator(BPS_MAX)],
         help_text="Spread aplicado a USD en bps."
+    )
+
+    # Compliance (montos en ARS equivalentes). Los valores deben definirlos el Oficial de
+    # Cumplimiento según la normativa vigente de UIF/CNV: estos defaults son solo de arranque.
+    umbral_alerta_ars = models.DecimalField(
+        max_digits=20, decimal_places=2, default=Decimal('5000000'),
+        help_text="Una operación, depósito o retiro igual o mayor genera una alerta de compliance."
+    )
+    limite_mensual_operado_ars = models.DecimalField(
+        max_digits=20, decimal_places=2, default=Decimal('50000000'),
+        help_text="Volumen máximo de compra+venta por usuario en 30 días (se puede ajustar por usuario)."
+    )
+    limite_diario_retiro_ars = models.DecimalField(
+        max_digits=20, decimal_places=2, default=Decimal('20000000'),
+        help_text="Monto máximo de retiros (ARS + cripto valuado) por usuario en 24 h."
     )
 
     updated_at = models.DateTimeField(default=timezone.now)
@@ -223,6 +239,9 @@ class Usuario(AbstractUser):
     totp_secret = models.CharField(max_length=64, blank=True)
     totp_activo = models.BooleanField(default=False)
 
+    # Límite propio de volumen mensual (ARS); vacío = usa el general de ExchangeConfig
+    limite_mensual_ars = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+
 
     def __str__(self):
         return self.username
@@ -299,6 +318,20 @@ class DepositoUSDT(models.Model):
     comprobante = models.ImageField(upload_to=subir_comprobante_usdt)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
     fecha = models.DateTimeField(auto_now_add=True)
+
+    # Verificación on-chain (services/onchain.py)
+    VERIFICACION = [
+        ('sin_verificar', 'Sin verificar'),
+        ('pendiente', 'Esperando confirmaciones'),
+        ('verificado', 'Verificado'),
+        ('no_coincide', 'No coincide'),
+        ('no_soportada', 'Red no soportada'),
+        ('error', 'Error al consultar'),
+    ]
+    verificacion_estado  = models.CharField(max_length=20, choices=VERIFICACION, default='sin_verificar')
+    verificacion_detalle = models.CharField(max_length=255, blank=True)
+    monto_onchain        = models.DecimalField(max_digits=30, decimal_places=6, null=True, blank=True)
+    verificado_en        = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f"{self.usuario.username} - {self.monto} USDT - {self.estado}"
@@ -636,3 +669,85 @@ class LineaAsiento(models.Model):
 
     def __str__(self):
         return f"{self.cuenta} {self.moneda} {self.monto}"
+
+
+## COMPLIANCE Y AUDITORÍA
+
+class RegistroAuditoria(models.Model):
+    """Quién hizo qué y desde dónde. Inmutable."""
+    fecha   = models.DateTimeField(default=timezone.now, db_index=True)
+    actor   = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                on_delete=models.PROTECT, related_name='+')
+    accion  = models.CharField(max_length=64, db_index=True)
+    objeto  = models.CharField(max_length=128, blank=True, db_index=True)  # ej. "DepositoARS:12"
+    detalle = models.JSONField(default=dict, blank=True)
+    ip      = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValidationError("El registro de auditoría es inmutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El registro de auditoría es inmutable.")
+
+    def __str__(self):
+        return f"{self.fecha:%Y-%m-%d %H:%M} {self.actor} {self.accion} {self.objeto}"
+
+
+class AlertaCompliance(models.Model):
+    TIPOS = [
+        ('umbral', 'Operación igual o mayor al umbral'),
+        ('fraccionamiento', 'Posible fraccionamiento (varias operaciones que suman el umbral)'),
+        ('retiro_rapido', 'Retiro dentro de las 24 h de un depósito'),
+        ('limite_excedido', 'Intento de superar un límite'),
+    ]
+    ESTADOS = [
+        ('abierta', 'Abierta'),
+        ('descartada', 'Descartada'),
+        ('reportada', 'Reportada (ROS)'),
+    ]
+
+    fecha       = models.DateTimeField(default=timezone.now, db_index=True)
+    usuario     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+                                    related_name='alertas_compliance')
+    tipo        = models.CharField(max_length=32, choices=TIPOS)
+    detalle     = models.CharField(max_length=255)
+    monto_ars   = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    referencia  = models.CharField(max_length=64, blank=True)
+    estado      = models.CharField(max_length=16, choices=ESTADOS, default='abierta', db_index=True)
+    revisada_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                     on_delete=models.PROTECT, related_name='+')
+    revisada_en = models.DateTimeField(null=True, blank=True)
+    nota        = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-fecha']
+
+    def __str__(self):
+        return f"{self.get_tipo_display()} — {self.usuario} — {self.estado}"
+
+
+class CotizacionReservada(models.Model):
+    """Precio bloqueado unos segundos para que el cliente confirme sin sorpresas."""
+    OPERACIONES = [('compra', 'Compra'), ('venta', 'Venta')]
+
+    id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    operacion   = models.CharField(max_length=8, choices=OPERACIONES)
+    moneda      = models.CharField(max_length=10)
+    monto       = models.DecimalField(max_digits=20, decimal_places=2)  # ARS en compra, moneda en venta
+    precio      = models.DecimalField(max_digits=20, decimal_places=2)
+    precio_ref  = models.DecimalField(max_digits=20, decimal_places=6)
+    resultado   = models.DecimalField(max_digits=20, decimal_places=2)  # lo que recibe el cliente
+    cotizacion  = models.ForeignKey(Cotizacion, on_delete=models.PROTECT)
+    creada      = models.DateTimeField(auto_now_add=True)
+    expira      = models.DateTimeField()
+    usada_en    = models.DateTimeField(null=True, blank=True)
+
+    @property
+    def vigente(self):
+        return self.usada_en is None and timezone.now() < self.expira

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Confirmar operación — Finanxis{% endblock %}
+
+{% block content %}
+<section class="max-w-md mx-auto rounded-2xl border border-gray-200 bg-white p-6">
+  <header class="mb-4">
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">
+      Confirmá tu {{ reserva.get_operacion_display|lower }}
+    </h1>
+    <p class="text-gray-600 mt-1">El precio queda reservado unos segundos.</p>
+  </header>
+
+  <dl class="divide-y divide-gray-100 text-sm">
+    {% if reserva.operacion == 'compra' %}
+      <div class="flex justify-between py-2"><dt class="text-gray-500">Pagás</dt><dd class="font-semibold text-gray-900">${{ reserva.monto }} ARS</dd></div>
+      <div class="flex justify-between py-2"><dt class="text-gray-500">Precio</dt><dd class="text-gray-900">${{ reserva.precio }} por {{ reserva.moneda }}</dd></div>
+      <div class="flex justify-between py-2"><dt class="text-gray-500">Recibís</dt><dd class="text-xl font-extrabold text-gray-900">{{ reserva.resultado }} {{ reserva.moneda }}</dd></div>
+    {% else %}
+      <div class="flex justify-between py-2"><dt class="text-gray-500">Entregás</dt><dd class="font-semibold text-gray-900">{{ reserva.monto }} {{ reserva.moneda }}</dd></div>
+      <div class="flex justify-between py-2"><dt class="text-gray-500">Precio</dt><dd class="text-gray-900">${{ reserva.precio }} por {{ reserva.moneda }}</dd></div>
+      <div class="flex justify-between py-2"><dt class="text-gray-500">Recibís</dt><dd class="text-xl font-extrabold text-gray-900">${{ reserva.resultado }} ARS</dd></div>
+    {% endif %}
+  </dl>
+
+  <p class="mt-4 text-sm text-gray-600" id="cuenta-regresiva" data-expira="{{ reserva.expira|date:'c' }}">
+    Precio válido por <b id="segundos">—</b> segundos.
+  </p>
+
+  <form method="post" action="{% url 'confirmar_operacion' %}" class="mt-4 flex gap-3">
+    {% csrf_token %}
+    <input type="hidden" name="reserva" value="{{ reserva.id }}">
+    <button id="btn-confirmar" class="flex-1 rounded-xl bg-primary text-dark font-semibold px-4 py-3 shadow-soft hover:opacity-90 disabled:opacity-50">
+      Confirmar
+    </button>
+    <a href="{% url 'operar' %}" class="rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm hover:bg-gray-50">Cancelar</a>
+  </form>
+</section>
+
+<script>
+  (function () {
+    const p = document.getElementById('cuenta-regresiva');
+    const s = document.getElementById('segundos');
+    const btn = document.getElementById('btn-confirmar');
+    const expira = new Date(p.dataset.expira).getTime();
+    function tick() {
+      const resta = Math.max(0, Math.round((expira - Date.now()) / 1000));
+      s.textContent = resta;
+      if (resta === 0) {
+        btn.disabled = true;
+        p.textContent = 'El precio expiró. Volvé a Operar para pedir uno nuevo.';
+        return;
+      }
+      setTimeout(tick, 500);
+    }
+    tick();
+  })();
+</script>
+{% endblock %}

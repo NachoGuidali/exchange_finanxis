@@ -6,6 +6,8 @@ Ciclo de un retiro en el mayor:
   solicitado: usuario -X  / retiros_pendientes +X
   enviado:    retiros_pendientes -X / tesoreria +X
   rechazado:  retiros_pendientes -X / usuario +X
+
+Toda acción de un admin queda en RegistroAuditoria.
 """
 from django.conf import settings
 from django.db import transaction
@@ -19,6 +21,8 @@ from usuarios.models import (
     RetiroCrypto,
     Usuario,
 )
+from usuarios.services import compliance
+from usuarios.services.auditoria import auditar
 from usuarios.services.boletos import emitir_boleto
 from usuarios.services.comun import (
     OperacionError,
@@ -77,6 +81,9 @@ def _aprobar_deposito(modelo, deposito_id, moneda, admin, *, tipo_bol, detalle, 
     )
     emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov, onchain=onchain)
     crear_notificacion(u, f"Tu depósito de {fmt} fue aprobado.")
+    compliance.evaluar(u, descripcion=f'Depósito {moneda}', referencia=f'{modelo.__name__}:{dep.pk}',
+                       monto_ars=compliance.valor_ars(moneda, dep.monto))
+    auditar(admin, 'deposito_aprobado', dep, moneda=moneda, monto=dep.monto, usuario=u.pk)
     return dep
 
 
@@ -87,8 +94,21 @@ def aprobar_deposito_ars(deposito_id, admin):
 
 
 @transaction.atomic
-def aprobar_deposito_usdt(deposito_id, admin):
+def aprobar_deposito_usdt(deposito_id, admin, *, forzar=False):
+    """
+    Solo se acredita si la transacción fue verificada on-chain. Un superusuario puede forzar
+    la aprobación cuando la verificación no es posible (red no soportada, API caída), nunca
+    cuando la verificación encontró que no coincide. Queda auditado.
+    """
     dep = DepositoUSDT.objects.get(pk=deposito_id)
+    if dep.verificacion_estado == 'no_coincide':
+        raise OperacionError(f"La transacción no coincide on-chain: {dep.verificacion_detalle}")
+    if dep.verificacion_estado != 'verificado':
+        if not (forzar and admin.is_superuser):
+            raise OperacionError("El depósito no está verificado on-chain. "
+                                 "Reintentá la verificación o pedí a un superusuario que lo fuerce.")
+        auditar(admin, 'deposito_usdt_forzado', dep, verificacion=dep.verificacion_estado,
+                detalle=dep.verificacion_detalle, monto=dep.monto)
     onchain = {
         'red': dep.red,
         'origen': '',
@@ -117,6 +137,7 @@ def rechazar_deposito(modelo, deposito_id, admin):
         descripcion=f'Depósito {moneda} rechazado por admin. Monto solicitado: {dep.monto}{extra}'
     )
     crear_notificacion(dep.usuario, f"Tu depósito de {dep.monto} {moneda} fue rechazado.")
+    auditar(admin, 'deposito_rechazado', dep, moneda=moneda, monto=dep.monto)
     return dep
 
 
@@ -126,6 +147,8 @@ def _reservar_retiro(usuario, moneda, monto, descripcion, crear_documento):
     u = _bloquear(Usuario, usuario.pk)
     if getattr(u, CAMPO_SALDO[moneda]) < monto:
         raise OperacionError(f"Saldo {moneda} insuficiente.")
+    monto_ars = compliance.valor_ars(moneda, monto)
+    compliance.verificar_limite_retiro(u, monto_ars)
 
     retiro = crear_documento(u)
     antes, despues = _acreditar(u, moneda, -monto)
@@ -137,6 +160,8 @@ def _reservar_retiro(usuario, moneda, monto, descripcion, crear_documento):
         (cuenta_usuario(u), moneda, -monto),
         (cuenta_sistema(CuentaContable.RETIROS_PENDIENTES), moneda, monto),
     ], referencia=f'{type(retiro).__name__}:{retiro.pk}')
+    compliance.evaluar_retiro(u, descripcion=f'Retiro {moneda}', monto_ars=monto_ars,
+                              referencia=f'{type(retiro).__name__}:{retiro.pk}')
     return retiro
 
 
@@ -166,12 +191,13 @@ def solicitar_retiro_crypto(usuario, moneda, monto, wallet):
 
 
 @transaction.atomic
-def aprobar_retiro_ars(retiro_id):
+def aprobar_retiro_ars(retiro_id, admin=None):
     retiro = _bloquear(RetiroARS, retiro_id)
     if retiro.estado != 'pendiente':
         raise OperacionError("El retiro ya fue procesado.")
     retiro.estado = 'aprobado'
     retiro.save()
+    auditar(admin, 'retiro_aprobado', retiro, moneda='ARS', monto=retiro.monto)
     return retiro
 
 
@@ -193,6 +219,9 @@ def _enviar_retiro(retiro, moneda, admin, *, descripcion, tipo_bol, tasa, onchai
                                destino=fmt, tasa=tasa)
     emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov, onchain=onchain)
     crear_notificacion(u, f"Tu retiro de {fmt} fue enviado.")
+    auditar(admin, 'retiro_enviado', retiro, moneda=moneda, monto=retiro.monto,
+            destino=getattr(retiro, 'direccion_wallet', '') or getattr(retiro, 'alias', ''),
+            txid=(onchain or {}).get('txid', ''))
 
 
 @transaction.atomic
@@ -249,6 +278,7 @@ def _rechazar_retiro(retiro, moneda, admin):
         (cuenta_usuario(u), moneda, retiro.monto),
     ], referencia=f'{type(retiro).__name__}:{retiro.pk}', creado_por=admin)
     crear_notificacion(u, f"Tu retiro de {retiro.monto} {moneda} fue rechazado. Se recreditó el saldo.")
+    auditar(admin, 'retiro_rechazado', retiro, moneda=moneda, monto=retiro.monto)
     return retiro
 
 

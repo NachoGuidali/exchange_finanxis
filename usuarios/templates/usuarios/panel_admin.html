@@ -21,6 +21,21 @@
       {{ cfg_form.swap_fee_bps }}
     </label>
   </div>
+  <h4 class="font-semibold mt-4 mb-2 text-sm">Compliance (ARS equivalentes)</h4>
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <label class="border rounded py-1 px-1 text-sm">
+      <span>Umbral de alerta por operación</span>
+      {{ cfg_form.umbral_alerta_ars }}
+    </label>
+    <label class="border rounded py-1 px-1 text-sm">
+      <span>Límite de volumen mensual por usuario</span>
+      {{ cfg_form.limite_mensual_operado_ars }}
+    </label>
+    <label class="border rounded py-1 px-1 text-sm">
+      <span>Límite diario de retiros por usuario</span>
+      {{ cfg_form.limite_diario_retiro_ars }}
+    </label>
+  </div>
   <button class="mt-4 rounded-lg bg-primary text-dark font-semibold px-4 py-2">Guardar</button>
   <p class="text-xs mt-2 opacity-70">Última actualización: {{ cfg.updated_at|date:"d/m/Y H:i" }}</p>
 </form>
@@ -60,10 +75,25 @@
       <p class="text-black/60 text-sm mt-1">Ingresos por transferencia/local.</p>
     </a>
 
-    <!-- <a href="{% url 'panel_depositos_usdt' %}" class="card p-5 hover:bg-white/5 transition">
+    <a href="{% url 'panel_depositos_usdt' %}" class="card border rounded p-5 hover:bg-white/5 transition">
       <div class="font-semibold">Depósitos USDT</div>
-      <p class="text-black/60 text-sm mt-1">On-chain / CEX.</p>
-    </a> -->
+      <p class="text-black/60 text-sm mt-1">Verificados on-chain.</p>
+    </a>
+
+    <a href="{% url 'compliance_alertas' %}" class="card border rounded p-5 hover:bg-white/5 transition">
+      <div class="flex items-center justify-between">
+        <div class="font-semibold">Compliance</div>
+        {% if kpi_alertas_abiertas %}
+          <span class="rounded-full bg-rose-100 text-rose-700 px-2 py-[2px] text-[11px]">{{ kpi_alertas_abiertas }}</span>
+        {% endif %}
+      </div>
+      <p class="text-black/60 text-sm mt-1">Alertas UIF y límites.</p>
+    </a>
+
+    <a href="{% url 'auditoria' %}" class="card border rounded p-5 hover:bg-white/5 transition">
+      <div class="font-semibold">Auditoría</div>
+      <p class="text-black/60 text-sm mt-1">Quién hizo qué y cuándo.</p>
+    </a>
 
     <a href="{% url 'panel_retiros' %}" class="card border rounded p-5 hover:bg-white/5 transition">
       <div class="flex items-center justify-between">
@@ -336,13 +366,13 @@
                   <button type="button" class="thumb-btn underline text-black/80 hover:text-neon" data-img="{{ d.comprobante.url }}">Ver</button>
                 {% else %}<span class="text-black/40">—</span>{% endif %}
               </td>
-              <td class="px-3 py-2">{{ d.fecha_subida|date:"d/m/Y H:i" }}</td>
+              <td class="px-3 py-2">{{ d.fecha|date:"d/m/Y H:i" }}</td>
               <td class="px-3 py-2">
                 <form method="post" action="{% url 'aprobar_deposito' d.id %}">
                   {% csrf_token %}
                   <button class="rounded-md bg-neon text-black py-1 font-semibold">Aprobar</button>
                 </form>
-                <form method="post" action="{% url 'rechazar_deposito_usdt' d.id %}" style="display:inline">{% csrf_token %}<button>Rechazar</button></form>
+                <form method="post" action="{% url 'rechazar_deposito' d.id %}" style="display:inline">{% csrf_token %}<button>Rechazar</button></form>
               </td>
             </tr>
             {% endif %}

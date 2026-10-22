@@ -1,32 +1,73 @@
 {% extends 'base.html' %}
 
+{% block title %}Depósitos USDT — Finanxis{% endblock %}
+
 {% block content %}
-<h2>Depósitos USDT (Admin)</h2>
-<table>
-  <thead>
-    <tr>
-      <th>Usuario</th><th>Monto</th><th>Red</th><th>TXID</th><th>Estado</th><th>Fecha</th><th>Acciones</th>
-    </tr>
-  </thead>
-  <tbody>
-  {% for d in depositos %}
-    <tr>
-      <td>{{ d.usuario.username }}</td>
-      <td>{{ d.monto }}</td>
-      <td>{{ d.red }}</td>
-      <td>{{ d.txid }}</td>
-      <td>{{ d.estado }}</td>
-      <td>{{ d.fecha|date:"Y-m-d H:i" }}</td>
-      <td>
-        {% if d.estado == 'pendiente' %}
-          <form method="post" action="{% url 'aprobar_deposito_usdt' d.id %}" style="display:inline">{% csrf_token %}<button>Aprobar</button></form>
-          <form method="post" action="{% url 'rechazar_deposito_usdt' d.id %}" style="display:inline">{% csrf_token %}<button>Rechazar</button></form>
-        {% else %}
-          -
-        {% endif %}
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
-</table>
+<section class="max-w-7xl mx-auto px-4 py-8 space-y-4">
+  <header>
+    <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Depósitos USDT</h1>
+    <p class="text-gray-600">
+      Solo se pueden aprobar depósitos verificados on-chain. Si la verificación no es posible
+      (red no soportada, API caída), un superusuario puede forzarla: queda en auditoría.
+    </p>
+  </header>
+
+  <div class="overflow-x-auto rounded-2xl border border-gray-200 bg-white">
+    <table class="w-full text-sm">
+      <thead class="bg-gray-50 text-gray-600">
+        <tr>
+          <th class="px-3 py-2 text-left">Usuario</th>
+          <th class="px-3 py-2 text-right">Declarado</th>
+          <th class="px-3 py-2 text-left">Red / TXID</th>
+          <th class="px-3 py-2 text-left">Verificación on-chain</th>
+          <th class="px-3 py-2 text-left">Estado</th>
+          <th class="px-3 py-2 text-left">Fecha</th>
+          <th class="px-3 py-2 text-left">Acciones</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+      {% for d in depositos %}
+        <tr class="align-top">
+          <td class="px-3 py-2"><a class="underline" href="{% url 'admin_usuario_perfil' d.usuario_id %}">{{ d.usuario.username }}</a></td>
+          <td class="px-3 py-2 text-right">{{ d.monto }}</td>
+          <td class="px-3 py-2"><div class="font-semibold">{{ d.red }}</div><div class="font-mono text-xs break-all">{{ d.txid }}</div></td>
+          <td class="px-3 py-2">
+            <span class="font-semibold {% if d.verificacion_estado == 'verificado' %}text-emerald-700{% elif d.verificacion_estado == 'no_coincide' %}text-rose-700{% else %}text-amber-700{% endif %}">
+              {{ d.get_verificacion_estado_display }}
+            </span>
+            {% if d.verificacion_detalle %}<div class="text-xs text-gray-600">{{ d.verificacion_detalle }}</div>{% endif %}
+          </td>
+          <td class="px-3 py-2">{{ d.get_estado_display }}</td>
+          <td class="px-3 py-2 whitespace-nowrap">{{ d.fecha|date:"d/m/Y H:i" }}</td>
+          <td class="px-3 py-2">
+            {% if d.estado == 'pendiente' %}
+              <div class="flex flex-wrap gap-2">
+                {% if d.verificacion_estado == 'verificado' %}
+                  <form method="post" action="{% url 'aprobar_deposito_usdt' d.id %}">{% csrf_token %}
+                    <button class="rounded-lg bg-emerald-600 text-white px-3 py-1">Aprobar</button>
+                  </form>
+                {% elif d.verificacion_estado != 'no_coincide' and request.user.is_superuser %}
+                  <form method="post" action="{% url 'aprobar_deposito_usdt' d.id %}"
+                        onsubmit="return confirm('¿Aprobar sin verificación on-chain? Queda registrado en auditoría.');">{% csrf_token %}
+                    <input type="hidden" name="forzar" value="1">
+                    <button class="rounded-lg border border-amber-400 bg-amber-50 text-amber-800 px-3 py-1">Forzar aprobación</button>
+                  </form>
+                {% endif %}
+                <form method="post" action="{% url 'reverificar_deposito_usdt' d.id %}">{% csrf_token %}
+                  <button class="rounded-lg border border-gray-300 bg-white px-3 py-1 hover:bg-gray-50">Reverificar</button>
+                </form>
+                <form method="post" action="{% url 'rechazar_deposito_usdt' d.id %}">{% csrf_token %}
+                  <button class="rounded-lg border border-rose-300 bg-white text-rose-700 px-3 py-1 hover:bg-rose-50">Rechazar</button>
+                </form>
+              </div>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="px-3 py-6 text-center text-gray-500">Sin depósitos.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
 {% endblock %}

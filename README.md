@@ -62,6 +62,44 @@ python manage.py conciliar_saldos   # compara saldos vs. mayor; sale con código
 Celery beat corre la conciliación a diario y deja un `ERROR` en los logs si encuentra diferencias.
 Un error en el mayor no se edita: se corrige con un asiento de ajuste.
 
+### Operar con precio bloqueado
+
+Compra y venta van en dos pasos: el cliente cotiza, ve el precio exacto reservado por
+`COTIZACION_RESERVA_SEG` segundos (30 por defecto) y confirma. Cada reserva se usa una sola vez.
+
+### Compliance (UIF / PSAV)
+
+Configurable desde el panel admin (en ARS equivalentes):
+
+- **Límites (bloquean):** volumen mensual de compra+venta por usuario (ajustable por usuario
+  en el admin de Django) y retiros diarios.
+- **Alertas (no bloquean):** operación igual o mayor al umbral, posible fraccionamiento
+  (3+ movimientos en 24 h que juntos llegan al umbral), retiro dentro de las 24 h de un depósito
+  e intentos de superar un límite.
+
+Las alertas se revisan en *Panel admin → Compliance*: descartar o marcar como reportada exige
+una nota y queda auditado. **Los valores por defecto son solo de arranque: los tiene que definir
+el Oficial de Cumplimiento según la normativa vigente.**
+
+### Verificación on-chain de depósitos USDT
+
+Al informar un depósito se consulta la red (TRC20 vía TronGrid, ERC20/BEP20 vía JSON-RPC):
+la transacción tiene que estar confirmada, transferir USDT del contrato oficial a la wallet de la
+empresa (`WALLET_*` en `.env`) y por al menos el monto declarado. Celery reintenta mientras faltan
+confirmaciones. Solo se aprueban depósitos verificados; si la red no se puede verificar (Solana,
+API caída), un superusuario puede forzar la aprobación y queda auditado. Si la verificación
+encontró que no coincide, no se puede aprobar.
+
+Limitación: si dos clientes envían a la misma wallet, el TXID identifica la transferencia pero no
+quién la hizo. Para producción conviene una dirección de depósito por cliente.
+
+### Auditoría
+
+`RegistroAuditoria` (inmutable) guarda quién, qué, sobre qué objeto y desde qué IP: aprobaciones
+y rechazos de depósitos y retiros, cambios de KYC y de configuración, resolución de alertas,
+depósitos forzados, logins, 2FA y cambios de email o contraseña. Se consulta en
+*Panel admin → Auditoría*.
+
 ## CI
 
 GitHub Actions (`.github/workflows/ci.yml`) corre en cada push y PR: lint (ruff), migraciones
@@ -76,6 +114,9 @@ al día, `check --deploy` y los tests contra PostgreSQL (incluido un test de con
 - Datos legales reales en `.env` (`EMPRESA_CUIT`, `EMPRESA_DOMICILIO`, `SUPPORT_CONTACTO`): salen impresos en los boletos.
 - Email real (SMTP) para verificación de cuentas y recuperación de contraseña.
 - Activar 2FA en todas las cuentas staff (Configuración → Seguridad).
+- Wallets de la empresa (`WALLET_TRC20`, `WALLET_ERC20`, `WALLET_BEP20`) y, para TRON, una
+  `TRONGRID_API_KEY` (sin clave la API limita las consultas).
+- Umbrales y límites de compliance definidos por el Oficial de Cumplimiento.
 - Backups diarios: `scripts/backup.sh` (ver cron en el script). Probar una restauración periódicamente.
 - Cuando todo esté estable, subir `SECURE_HSTS_SECONDS` a `31536000`.
 

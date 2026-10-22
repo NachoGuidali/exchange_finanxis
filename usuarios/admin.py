@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone  # 👈 NUEVO
 from django.contrib import messages
 
-from .models import Usuario, Cotizacion, RetiroARS, Pais, Provincia, Localidad, Asiento, LineaAsiento
+from .models import Usuario, Cotizacion, RetiroARS, Pais, Provincia, Localidad, Asiento, LineaAsiento, RegistroAuditoria
 from .services import fondos
 from .services.comun import OperacionError
 
@@ -90,8 +90,8 @@ class CustomUserAdmin(UserAdmin):
                 "email_confirm_sent_at",
             )
         }),
-        ("Saldos", {
-            "fields": ("saldo_ars", "saldo_usdt", "saldo_usd")
+        ("Saldos y límites", {
+            "fields": ("saldo_ars", "saldo_usdt", "saldo_usd", "limite_mensual_ars")
         }),
     )
 
@@ -233,6 +233,22 @@ class AsientoAdmin(admin.ModelAdmin):
     list_filter = ('tipo',)
     search_fields = ('descripcion', 'referencia')
     inlines = [LineaAsientoInline]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(RegistroAuditoria)
+class RegistroAuditoriaAdmin(admin.ModelAdmin):
+    list_display = ('fecha', 'actor', 'accion', 'objeto', 'ip')
+    list_filter = ('accion',)
+    search_fields = ('accion', 'objeto', 'actor__username')
 
     def has_add_permission(self, request):
         return False

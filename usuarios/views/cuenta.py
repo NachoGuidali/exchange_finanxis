@@ -16,6 +16,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from usuarios.services.auditoria import auditar
+
 from ..forms import SupportTicketForm
 from ..models import Localidad, Notificacion, Pais, Provincia, SupportTicket
 from ..utils_email_verify import send_verification_email
@@ -169,6 +171,7 @@ def cambiar_password(request):
         u.save()
         # Mantener la sesión iniciada tras el cambio
         update_session_auth_hash(request, u)
+        auditar(u, 'password_cambiada', u)
         messages.success(request, "Contraseña actualizada correctamente.")
     except Exception as e:
         messages.error(request, f"No se pudo actualizar la contraseña: {e}")
@@ -208,6 +211,7 @@ def cambiar_email(request):
     u.email_confirm_sent_at = timezone.now()
     u.save(update_fields=['email', 'email_confirmed', 'email_confirmed_at', 'email_confirm_sent_at'])
     send_verification_email(request, u)
+    auditar(u, 'email_cambiado', u, nuevo=email)
     messages.success(request, "Email actualizado. Te enviamos un enlace para verificarlo.")
     return redirect('verify_email_notice')
 
