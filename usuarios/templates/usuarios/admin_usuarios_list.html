@@ -1,21 +1,22 @@
-{% extends "base.html" %}
+{% extends "usuarios/admin_base.html" %}
+{% load finanxis %}
 {% block title %}Usuarios — Admin{% endblock %}
 {% block meta_description %}Listado de usuarios con filtros, búsqueda y acceso al perfil administrativo.{% endblock %}
 
-{% block content %}
-<section class="max-w-7xl mx-auto px-4 py-8">
+{% block admin_content %}
+<section class="min-w-0">
 
   <!-- Header + búsqueda -->
   <header class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
     <div>
       <h1 class="text-2xl sm:text-3xl font-extrabold">Usuarios</h1>
-      <p class="text-black/70">Buscá, filtrá y entrá al perfil de cada usuario.</p>
+      <p class="text-gray-600">Buscá, filtrá y entrá al perfil de cada usuario.</p>
     </div>
     <form method="get" action="" class="w-full md:w-auto">
       <div class="flex gap-2">
         <input name="q" value="{{ f.q }}"
                placeholder="Usuario, email, nombre o DNI…"
-               class="w-full md:w-96 rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon"/>
+               class="w-full md:w-96 rounded-lg border border-gray-200 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon"/>
         <button class="rounded-lg bg-neon text-black font-semibold px-4 py-2">Buscar</button>
       </div>
     </form>
@@ -24,8 +25,8 @@
   <!-- Filtros -->
   <form method="get" action="" class="card p-4 shadow-soft mb-6 grid gap-3 sm:grid-cols-5 text-sm">
     <div>
-      <label class="block text-black/70 mb-1">Estado verificación</label>
-      <select name="estado" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
+      <label class="block text-gray-600 mb-1">Estado verificación</label>
+      <select name="estado" class="w-full rounded-md border border-gray-200 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
         <option value="">Todos</option>
         <option value="pendiente" {% if f.estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
         <option value="aprobado"  {% if f.estado == 'aprobado' %}selected{% endif %}>Aprobado</option>
@@ -33,8 +34,8 @@
       </select>
     </div>
     <div>
-      <label class="block text-black/70 mb-1">Activo</label>
-      <select name="activo" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
+      <label class="block text-gray-600 mb-1">Activo</label>
+      <select name="activo" class="w-full rounded-md border border-gray-200 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
         <option value="">Todos</option>
         <option value="1" {% if f.activo == '1' %}selected{% endif %}>Sí</option>
         <option value="0" {% if f.activo == '0' %}selected{% endif %}>No</option>
@@ -43,17 +44,16 @@
     <div class="sm:col-span-2 flex items-end gap-2">
       <input type="hidden" name="q" value="{{ f.q }}">
       <button class="rounded-lg bg-neon text-black font-semibold px-4 py-2">Aplicar</button>
-      <a href="{% url 'admin_usuarios_list' %}" class="rounded-lg border border-white/10 px-4 py-2 hover:bg-white/5">Limpiar</a>
+      <a href="{% url 'admin_usuarios_list' %}" class="rounded-lg border border-gray-200 px-4 py-2 hover:bg-gray-50">Limpiar</a>
     </div>
     <div class="flex items-end justify-end">
-      <a href="{% url 'panel_admin' %}" class="text-sm underline">← Volver al panel</a>
     </div>
   </form>
 
   <!-- Tabla -->
   <div class="overflow-x-auto card p-0 shadow-soft">
     <table class="w-full text-sm">
-      <thead class="bg-white/5 text-black/80">
+      <thead class="bg-gray-50 text-black/80">
         <tr>
           <th class="px-3 py-2 text-left">Usuario</th>
           <th class="px-3 py-2 text-left">Nombre</th>
@@ -67,7 +67,7 @@
       </thead>
       <tbody>
         {% for u in usuarios %}
-        <tr class="border-t border-white/10 hover:bg-white/5">
+        <tr class="border-t border-gray-200 hover:bg-gray-50">
           <td class="px-3 py-2 font-medium">
             <a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' u.id %}">{{ u.username }}</a>
           </td>
@@ -97,20 +97,20 @@
           </td>
           <td class="px-3 py-2">
             <div class="space-x-1 whitespace-nowrap">
-              <span class="inline-block rounded bg-white/10 px-2 py-0.5">$ {{ u.saldo_ars }}</span>
-              <span class="inline-block rounded bg-white/10 px-2 py-0.5">{{ u.saldo_usdt }} USDT</span>
-              <span class="inline-block rounded bg-white/10 px-2 py-0.5">{{ u.saldo_usd }} USD</span>
+              <span class="inline-block rounded bg-gray-100 px-2 py-0.5">$ {{ u.saldo_ars|money }}</span>
+              <span class="inline-block rounded bg-gray-100 px-2 py-0.5">{{ u.saldo_usdt|money }} USDT</span>
+              <span class="inline-block rounded bg-gray-100 px-2 py-0.5">{{ u.saldo_usd|money }} USD</span>
             </div>
           </td>
           <td class="px-3 py-2">{{ u.date_joined|date:"d/m/Y H:i" }}</td>
           <td class="px-3 py-2">
-            <a class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5"
+            <a class="rounded-md border border-gray-200 px-3 py-1 hover:bg-gray-50"
                href="{% url 'admin_usuario_perfil' u.id %}">Ver perfil</a>
           </td>
         </tr>
         {% empty %}
         <tr>
-          <td colspan="8" class="px-3 py-6 text-center text-black/60">Sin resultados.</td>
+          <td colspan="8" class="px-3 py-6 text-center text-gray-500">Sin resultados.</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -120,12 +120,12 @@
   {% if usuarios.has_other_pages %}
   <div class="flex justify-center gap-2 py-4">
     {% if usuarios.has_previous %}
-      <a class="px-3 py-1 border border-white/10 rounded hover:bg-white/5"
+      <a class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50"
          href="?page={{ usuarios.previous_page_number }}&q={{ f.q }}&estado={{ f.estado }}&activo={{ f.activo }}">«</a>
     {% endif %}
     <span class="px-3 py-1">Página {{ usuarios.number }} / {{ usuarios.paginator.num_pages }}</span>
     {% if usuarios.has_next %}
-      <a class="px-3 py-1 border border-white/10 rounded hover:bg-white/5"
+      <a class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50"
          href="?page={{ usuarios.next_page_number }}&q={{ f.q }}&estado={{ f.estado }}&activo={{ f.activo }}">»</a>
     {% endif %}
   </div>

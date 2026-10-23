@@ -13,7 +13,7 @@
         <li><a href="{% url 'mis_movimientos' %}" class="barra-link" {% if ruta == 'mis_movimientos' %}aria-current="page"{% endif %}>Movimientos</a></li>
         <li><a href="{% url 'comprobantes' %}" class="barra-link" {% if ruta == 'comprobantes' %}aria-current="page"{% endif %}>Comprobantes</a></li>
         {% if request.user.is_staff %}
-          <li><a href="{% url 'panel_admin' %}" class="barra-link" {% if ruta == 'panel_admin' %}aria-current="page"{% endif %}>Administración</a></li>
+          <li><a href="{% url 'panel_admin' %}" class="barra-link" {% if request.path|slice:":16" == "/admin-dashboard" %}aria-current="page"{% endif %}>Administración</a></li>
         {% endif %}
       </ul>
 

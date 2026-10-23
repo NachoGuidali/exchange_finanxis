@@ -1,17 +1,16 @@
-{% extends "base.html" %}
+{% extends "usuarios/admin_base.html" %}
+{% load finanxis %}
 {% block title %}Retiros — Admin{% endblock %}
 {% block meta_description %}Aprobación y gestión de retiros ARS y CRYPTO.{% endblock %}
 
-{% block content %}
-<section class="max-w-7xl mx-auto px-4 py-8">
+{% block admin_content %}
+<section class="min-w-0">
 
   <header class="mb-6 flex items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Retiros</h1>
       <p class="text-gray-600">Aprobá o marcá como enviados los retiros de los usuarios.</p>
     </div>
-    <a href="{% url 'panel_admin' %}"
-       class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm hover:bg-gray-50">← Volver al panel</a>
   </header>
 
   <!-- ===== Retiros ARS ===== -->
@@ -40,7 +39,7 @@
                   {{ retiro.usuario.username }}
                 </a>
               </td>
-              <td class="px-3 py-2">${{ retiro.monto }}</td>
+              <td class="px-3 py-2">$ {{ retiro.monto|money }}</td>
               <td class="px-3 py-2">{{ retiro.alias|default:"—" }}</td>
               <td class="px-3 py-2 break-all font-mono text-xs">{{ retiro.cbu|default:"—" }}</td>
               <td class="px-3 py-2">{{ retiro.banco|default:"—" }}</td>
@@ -108,7 +107,7 @@
                 </a>
               </td>
               <td class="px-3 py-2">{{ retiro.moneda }}</td>
-              <td class="px-3 py-2">{{ retiro.monto }}</td>
+              <td class="px-3 py-2">{{ retiro.monto|money }}</td>
               <td class="px-3 py-2 break-all font-mono text-xs">{{ retiro.direccion_wallet }}</td>
               <td class="px-3 py-2">
                 <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium

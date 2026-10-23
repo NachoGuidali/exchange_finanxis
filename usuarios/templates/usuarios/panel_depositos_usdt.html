@@ -1,9 +1,10 @@
-{% extends 'base.html' %}
+{% extends "usuarios/admin_base.html" %}
+{% load finanxis %}
 
 {% block title %}Depósitos USDT — Finanxis{% endblock %}
 
-{% block content %}
-<section class="max-w-7xl mx-auto px-4 py-8 space-y-4">
+{% block admin_content %}
+<section class="min-w-0 space-y-4">
   <header>
     <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Depósitos USDT</h1>
     <p class="text-gray-600">
@@ -29,7 +30,7 @@
       {% for d in depositos %}
         <tr class="align-top">
           <td class="px-3 py-2"><a class="underline" href="{% url 'admin_usuario_perfil' d.usuario_id %}">{{ d.usuario.username }}</a></td>
-          <td class="px-3 py-2 text-right">{{ d.monto }}</td>
+          <td class="px-3 py-2 text-right">{{ d.monto|money }}</td>
           <td class="px-3 py-2"><div class="font-semibold">{{ d.red }}</div><div class="font-mono text-xs break-all">{{ d.txid }}</div></td>
           <td class="px-3 py-2">
             <span class="font-semibold {% if d.verificacion_estado == 'verificado' %}text-emerald-700{% elif d.verificacion_estado == 'no_coincide' %}text-rose-700{% else %}text-amber-700{% endif %}">

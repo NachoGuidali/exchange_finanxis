@@ -46,3 +46,14 @@ def dia_relativo(fecha):
         return "Ayer"
     texto = f"{dia.day} de {MESES[dia.month - 1]}"
     return texto if dia.year == hoy.year else f"{texto} de {dia.year}"
+
+
+@register.filter
+def hace(fecha):
+    """Antigüedad con una sola unidad: '5 minutos', '2 horas', '3 días'."""
+    from django.utils.timesince import timesince
+
+    try:
+        return timesince(fecha, depth=1)
+    except (ValueError, TypeError):
+        return ""

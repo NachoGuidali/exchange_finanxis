@@ -1,9 +1,10 @@
-{% extends "base.html" %}
+{% extends "usuarios/admin_base.html" %}
+{% load finanxis %}
 {% block title %}Cuenta Exchange — Full Finanzas{% endblock %}
 {% block meta_description %}Caja del exchange: rentas (spread/comisiones/ajustes) y flujo global (entradas/salidas).{% endblock %}
 
-{% block content %}
-<section class="max-w-7xl mx-auto px-4 py-8 space-y-8">
+{% block admin_content %}
+<section class="min-w-0 space-y-8">
 
   <!-- Header + Filtros -->
   <header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -62,19 +63,19 @@
   <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
     <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
       <p class="text-gray-600 text-sm">Saldo caja ARS</p>
-      <p class="text-2xl font-bold">${{ cuenta.saldo_ars|default:"0.00" }}</p>
+      <p class="num text-2xl font-bold text-gray-900">$ {{ cuenta.saldo_ars|money }}</p>
     </div>
     <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
       <p class="text-gray-600 text-sm">Saldo caja USDT</p>
-      <p class="text-2xl font-bold">{{ cuenta.saldo_usdt|default:"0.000000" }}</p>
+      <p class="num text-2xl font-bold text-gray-900">{{ cuenta.saldo_usdt|money:6 }}</p>
     </div>
     <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
       <p class="text-gray-600 text-sm">Saldo caja USD</p>
-      <p class="text-2xl font-bold">{{ cuenta.saldo_usd|default:"0.00" }}</p>
+      <p class="num text-2xl font-bold text-gray-900">US$ {{ cuenta.saldo_usd|money }}</p>
     </div>
     <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
       <p class="text-gray-600 text-sm">Renta (ARS) filtrada</p>
-      <p class="text-2xl font-bold">${{ ingresos_ars|floatformat:2 }}</p>
+      <p class="num text-2xl font-bold text-gray-900">$ {{ ingresos_ars|money }}</p>
       <p class="text-gray-500 text-xs mt-1">Solo spread/fee/ajustes (no incluye depósitos/retiros)</p>
     </div>
   </div>
@@ -98,7 +99,7 @@
       </div>
       <canvas id="chart-flujo" height="120"></canvas>
       <p class="text-xs text-gray-600 mt-2">
-        Entradas: ${{ total_entradas|floatformat:2 }} • Salidas: ${{ total_salidas|floatformat:2 }}
+        Entradas: $ {{ total_entradas|money }} • Salidas: $ {{ total_salidas|money }}
       </p>
     </div>
   </div> -->
@@ -119,7 +120,7 @@
           {% for t in totales_cat %}
           <tr class="hover:bg-gray-50">
             <td class="px-3 py-2">{{ t.categoria }}</td>
-            <td class="px-3 py-2">${{ t.total_ars|floatformat:2 }}</td>
+            <td class="px-3 py-2">$ {{ t.total_ars|money }}</td>
             <td class="px-3 py-2">{{ t.n }}</td>
           </tr>
           {% empty %}
@@ -147,10 +148,10 @@
               {% if t.moneda == 'USDT' %}
                 {{ t.total_mon|floatformat:6 }}
               {% else %}
-                {{ t.total_mon|floatformat:2 }}
+                {{ t.total_mon|money }}
               {% endif %}
             </td>
-            <td class="px-3 py-2">${{ t.total_ars|floatformat:2 }}</td>
+            <td class="px-3 py-2">$ {{ t.total_ars|money }}</td>
           </tr>
           {% empty %}
           <tr><td colspan="3" class="px-3 py-4 text-center text-gray-600">Sin datos.</td></tr>
@@ -182,8 +183,8 @@
           <td class="px-3 py-2 whitespace-nowrap">{{ a.fecha|date:"Y-m-d H:i" }}</td>
           <td class="px-3 py-2">{{ a.categoria }}</td>
           <td class="px-3 py-2">{{ a.moneda }}</td>
-          <td class="px-3 py-2">{{ a.monto_moneda }}</td>
-          <td class="px-3 py-2">${{ a.monto_ars }}</td>
+          <td class="px-3 py-2">{{ a.monto_moneda|money }}</td>
+          <td class="px-3 py-2">$ {{ a.monto_ars|money }}</td>
           <td class="px-3 py-2">{% if a.usuario %}{{ a.usuario.username }}{% else %}<span class="text-gray-500">—</span>{% endif %}</td>
           <td class="px-3 py-2">{{ a.detalle|default:"—" }}</td>
           <td class="px-3 py-2 text-xs">{{ a.ref_movimiento|default:"—" }}</td>

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{# Layout del panel admin: barra lateral en escritorio, navegación horizontal en celular y tablet #}
+{% block main_class %}container flex-1 py-6 lg:py-10{% endblock %}
+
+{% block content %}
+{% with ruta=request.resolver_match.url_name %}
+<div class="lg:grid lg:grid-cols-[14.5rem_minmax(0,1fr)] lg:gap-10">
+  <nav class="admin-nav" aria-label="Administración">
+    <div class="mb-3 hidden px-3 text-sm font-semibold text-gray-500 lg:block">Administración</div>
+    <ul class="admin-nav-lista">
+      <li><a href="{% url 'panel_admin' %}" {% if ruta == 'panel_admin' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v10H15l-1.5 3h-3L9 15H4z" stroke-linejoin="round"/></svg>
+        Pendientes{% if pendientes.total %}<span class="contador urgente">{{ pendientes.total }}</span>{% endif %}</a></li>
+      <li><a href="{% url 'admin_usuarios_list' %}" {% if ruta == 'admin_usuarios_list' or ruta == 'admin_usuario_perfil' or ruta == 'historial_usuario' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5" stroke-linecap="round"/></svg>
+        Usuarios{% if pendientes.kyc %}<span class="contador">{{ pendientes.kyc }}</span>{% endif %}</a></li>
+      <li><a href="{% url 'panel_depositos' %}" {% if ruta == 'panel_depositos' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v12m0 0-4.5-4.5M12 16l4.5-4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Depósitos en pesos{% if pendientes.depositos_ars %}<span class="contador">{{ pendientes.depositos_ars }}</span>{% endif %}</a></li>
+      <li><a href="{% url 'panel_depositos_usdt' %}" {% if ruta == 'panel_depositos_usdt' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 8.5h7M12 8.5v8M8 12.5c1 .6 2.4 1 4 1s3-.4 4-1" stroke-linecap="round"/></svg>
+        Depósitos USDT{% if pendientes.depositos_usdt %}<span class="contador">{{ pendientes.depositos_usdt }}</span>{% endif %}</a></li>
+      <li><a href="{% url 'panel_retiros' %}" {% if ruta == 'panel_retiros' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Retiros{% if pendientes.retiros %}<span class="contador">{{ pendientes.retiros }}</span>{% endif %}</a></li>
+      <li><a href="{% url 'compliance_alertas' %}" {% if ruta == 'compliance_alertas' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z" stroke-linejoin="round"/><path d="M12 8v4.5M12 15.5v.5" stroke-linecap="round"/></svg>
+        Compliance{% if pendientes.alertas %}<span class="contador urgente">{{ pendientes.alertas }}</span>{% endif %}</a></li>
+      <li class="admin-nav-separador" aria-hidden="true"></li>
+      <li><a href="{% url 'exchange_dashboard' %}" {% if ruta == 'exchange_dashboard' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round"/></svg>
+        Contabilidad</a></li>
+      <li><a href="{% url 'auditoria' %}" {% if ruta == 'auditoria' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h4" stroke-linejoin="round"/></svg>
+        Auditoría</a></li>
+      <li><a href="{% url 'parametros_exchange' %}" {% if ruta == 'parametros_exchange' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke-linecap="round"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+        Parámetros</a></li>
+    </ul>
+  </nav>
+
+  <div class="min-w-0 pt-6 lg:pt-0">
+    {% block admin_content %}{% endblock %}
+  </div>
+</div>
+{% endwith %}
+{% endblock %}

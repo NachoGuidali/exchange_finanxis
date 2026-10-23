@@ -1,0 +1,89 @@
+{% extends "usuarios/admin_base.html" %}
+{% block title %}Parámetros — Administración Finanxis{% endblock %}
+
+{% block admin_content %}
+<div class="max-w-3xl">
+  <div class="aparece">
+    <h1 class="text-3xl font-extrabold text-gray-900">Parámetros</h1>
+    <p class="mt-1 text-gray-600">
+      Última modificación el {{ cfg.updated_at|date:"d/m/Y H:i" }}{% if cfg.updated_by %} por {{ cfg.updated_by.get_full_name|default:cfg.updated_by.username }}{% endif %}.
+      Cada cambio queda registrado en Auditoría.
+    </p>
+  </div>
+
+  <form method="post" action="{% url 'guardar_config_exchange' %}" class="mt-6 space-y-6 aparece" style="--d:.08s">
+    {% csrf_token %}
+    {% if cfg_form.non_field_errors %}<div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ cfg_form.non_field_errors }}</div>{% endif %}
+
+    <section class="card p-5 sm:p-7">
+      <h2 class="text-lg font-bold text-gray-900">Precios</h2>
+      <p class="mt-1 text-sm text-gray-600">Se cargan en puntos básicos: 100 equivalen a 1%. Los spreads se aplican a la próxima actualización de la cotización.</p>
+      <div class="mt-5 grid gap-5 sm:grid-cols-3">
+        <label class="block">
+          <span class="etiqueta">Spread USDT</span>
+          {{ cfg_form.spread_bps_usdt }}
+          <span class="mt-1 block text-sm text-gray-500" data-ayuda>&nbsp;</span>
+          {% for e in cfg_form.spread_bps_usdt.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Spread dólar</span>
+          {{ cfg_form.spread_bps_usd }}
+          <span class="mt-1 block text-sm text-gray-500" data-ayuda>&nbsp;</span>
+          {% for e in cfg_form.spread_bps_usd.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Comisión del swap</span>
+          {{ cfg_form.swap_fee_bps }}
+          <span class="mt-1 block text-sm text-gray-500" data-ayuda>&nbsp;</span>
+          {% for e in cfg_form.swap_fee_bps.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+      </div>
+    </section>
+
+    <section class="card p-5 sm:p-7">
+      <h2 class="text-lg font-bold text-gray-900">Compliance</h2>
+      <p class="mt-1 text-sm text-gray-600">Montos en pesos. Los define el Oficial de Cumplimiento según la normativa vigente.</p>
+      <div class="mt-5 space-y-5">
+        <label class="block">
+          <span class="etiqueta">Umbral de alerta por operación</span>
+          {{ cfg_form.umbral_alerta_ars }}
+          <span class="mt-1 block text-sm text-gray-500"><span data-ayuda></span> Una operación, depósito o retiro igual o mayor genera una alerta (no se bloquea).</span>
+          {% for e in cfg_form.umbral_alerta_ars.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Límite mensual de compra y venta por usuario</span>
+          {{ cfg_form.limite_mensual_operado_ars }}
+          <span class="mt-1 block text-sm text-gray-500"><span data-ayuda></span> Volumen máximo en 30 días. Se puede ajustar por usuario desde el admin de Django.</span>
+          {% for e in cfg_form.limite_mensual_operado_ars.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Límite diario de retiros por usuario</span>
+          {{ cfg_form.limite_diario_retiro_ars }}
+          <span class="mt-1 block text-sm text-gray-500"><span data-ayuda></span> Pesos más cripto valuada, en 24 horas.</span>
+          {% for e in cfg_form.limite_diario_retiro_ars.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+      </div>
+    </section>
+
+    <div class="flex justify-end">
+      <button class="btn btn-lg btn-primario">Guardar parámetros</button>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Muestra cada valor en un formato legible mientras se edita: 200 bps → 2%, 50000000 → $ 50.000.000
+  (function () {
+    const fmt = (v, d) => Number(v).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: d });
+    document.querySelectorAll('[data-bps], [data-pesos]').forEach((input) => {
+      const ayuda = input.closest('label').querySelector('[data-ayuda]');
+      const pinta = () => {
+        const v = Number(input.value || 0);
+        ayuda.textContent = input.hasAttribute('data-bps') ? `Equivale a ${fmt(v / 100, 2)}%` : `$ ${fmt(v, 2)}.`;
+      };
+      input.addEventListener('input', pinta);
+      pinta();
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,505 +1,196 @@
-{% extends "base.html" %}
-{% block title %}Panel de Administración — Full Finanzas{% endblock %}
-{% block meta_description %}Control de KYC, depósitos, retiros y movimientos del exchange.{% endblock %}
+{% extends "usuarios/admin_base.html" %}
+{% load finanxis %}
+{% block title %}Pendientes — Administración Finanxis{% endblock %}
 
-{% block content %}
-<section class="max-w-7xl mx-auto px-4 py-8">
-<form action="{% url 'guardar_config_exchange' %}" method="post" class="rounded-xl border p-4 bg-white/5">
-  {% csrf_token %}
-  <h3 class="font-semibold mb-3">Parámetros del Exchange</h3>
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-    <label class=" border rounded py-1 px-1 text-sm">
-      <span>Spread USDT (bps)</span>
-      {{ cfg_form.spread_bps_usdt }}
-    </label>
-    <label class="border rounded py-1 px-1 text-sm">
-      <span>Spread USD (bps)</span>
-      {{ cfg_form.spread_bps_usd }}
-    </label>
-    <label class="border rounded py-1 px-1 text-sm">
-      <span>Fee Swap (bps)</span>
-      {{ cfg_form.swap_fee_bps }}
-    </label>
+{% block admin_content %}
+<div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between aparece">
+  <div>
+    <h1 class="text-3xl font-extrabold text-gray-900">Pendientes</h1>
+    <p class="mt-1 text-gray-600">
+      {% if pendientes.total %}{{ pendientes.total }} cosa{{ pendientes.total|pluralize:"s" }} esperando tu revisión, de la más vieja a la más nueva.{% else %}Todo al día.{% endif %}
+    </p>
   </div>
-  <h4 class="font-semibold mt-4 mb-2 text-sm">Compliance (ARS equivalentes)</h4>
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-    <label class="border rounded py-1 px-1 text-sm">
-      <span>Umbral de alerta por operación</span>
-      {{ cfg_form.umbral_alerta_ars }}
-    </label>
-    <label class="border rounded py-1 px-1 text-sm">
-      <span>Límite de volumen mensual por usuario</span>
-      {{ cfg_form.limite_mensual_operado_ars }}
-    </label>
-    <label class="border rounded py-1 px-1 text-sm">
-      <span>Límite diario de retiros por usuario</span>
-      {{ cfg_form.limite_diario_retiro_ars }}
-    </label>
-  </div>
-  <button class="mt-4 rounded-lg bg-primary text-dark font-semibold px-4 py-2">Guardar</button>
-  <p class="text-xs mt-2 opacity-70">Última actualización: {{ cfg.updated_at|date:"d/m/Y H:i" }}</p>
-</form>
+  <form method="get" class="relative sm:w-72" role="search">
+    <label for="buscar-usuario" class="sr-only">Buscar usuario</label>
+    <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+    <input id="buscar-usuario" type="search" name="q" placeholder="Buscar usuario, email o DNI" class="campo pl-11">
+  </form>
+</div>
 
-  <!-- Header + búsqueda global -->
-  <header class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-    <div>
-      <h1 class="text-2xl sm:text-3xl font-extrabold">Panel de Administración</h1>
-      <p class="text-black/70">Gestioná verificación, depósitos, retiros y movimientos.</p>
-    </div>
-    <form method="get" action="" class="w-full md:w-auto" role="search" aria-label="Búsqueda global">
-      <div class="flex gap-2">
-        <input
-          name="q"
-          value="{{ request.GET.q }}"
-          placeholder="Buscar usuario, email, DNI, código…"
-          class="w-full md:w-80 rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon"
-          aria-label="Buscar"
-        />
-        <button class="rounded-lg bg-neon text-black font-semibold px-4 py-2">Buscar</button>
-      </div>
-    </form>
-  </header>
-  <section class="max-w-7xl mx-auto px-4 py-6 space-y-6">
-  
+<!-- Contadores: cada uno filtra la cola -->
+<div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6 aparece" style="--d:.06s">
+  {% with p=pendientes %}
+  <a href="?" class="card card-link p-4 {% if not filtro %}ring-2 ring-gray-900{% endif %}">
+    <div class="text-sm text-gray-500">Todos</div>
+    <div class="num mt-1 text-3xl font-extrabold {% if p.total %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.total }}</div>
+  </a>
+  <a href="?tipo=kyc" class="card card-link p-4 {% if filtro == 'kyc' %}ring-2 ring-gray-900{% endif %}">
+    <div class="text-sm text-gray-500">Identidades</div>
+    <div class="num mt-1 text-3xl font-extrabold {% if p.kyc %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.kyc }}</div>
+  </a>
+  <a href="?tipo=deposito_ars" class="card card-link p-4 {% if filtro == 'deposito_ars' %}ring-2 ring-gray-900{% endif %}">
+    <div class="text-sm text-gray-500">Depósitos en pesos</div>
+    <div class="num mt-1 text-3xl font-extrabold {% if p.depositos_ars %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.depositos_ars }}</div>
+  </a>
+  <a href="?tipo=deposito_usdt" class="card card-link p-4 {% if filtro == 'deposito_usdt' %}ring-2 ring-gray-900{% endif %}">
+    <div class="text-sm text-gray-500">Depósitos USDT</div>
+    <div class="num mt-1 text-3xl font-extrabold {% if p.depositos_usdt %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.depositos_usdt }}</div>
+  </a>
+  <a href="?tipo=retiro_ars" class="card card-link p-4 {% if filtro == 'retiro_ars' or filtro == 'retiro_crypto' %}ring-2 ring-gray-900{% endif %}">
+    <div class="text-sm text-gray-500">Retiros</div>
+    <div class="num mt-1 text-3xl font-extrabold {% if p.retiros %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.retiros }}</div>
+  </a>
+  <a href="?tipo=alerta" class="card card-link p-4 {% if filtro == 'alerta' %}ring-2 ring-gray-900{% endif %}">
+    <div class="text-sm text-gray-500">Alertas</div>
+    <div class="num mt-1 text-3xl font-extrabold {% if p.alertas %}text-primary{% else %}text-gray-400{% endif %}">{{ p.alertas }}</div>
+  </a>
+  {% endwith %}
+</div>
 
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    <a href="{% url 'panel_depositos' %}" class="card border rounded p-5 hover:bg-white/5 transition">
-      <div class="flex items-center justify-between">
-        <div class="font-semibold">Depósitos ARS</div>
-        {% if kpi_depositos_pend %}
-          <span class="rounded-full bg-neon/20 text-neon px-2 py-[2px] text-[11px]">
-            {{ kpi_depositos_pend }}
-          </span>
-        {% endif %}
-      </div>
-      <p class="text-black/60 text-sm mt-1">Ingresos por transferencia/local.</p>
-    </a>
+<!-- Cola -->
+<section class="card mt-6 px-5 py-1 sm:px-6 aparece" style="--d:.12s" aria-label="Cola de pendientes">
+  {% for item in cola %}
+    {% with o=item.obj u=item.usuario %}
+    <article class="pendiente">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2 text-sm">
+          {% if item.tipo == 'kyc' %}<span class="tipo-pendiente bg-sky-50 text-sky-800">Identidad</span>
+          {% elif item.tipo == 'deposito_ars' %}<span class="tipo-pendiente bg-emerald-50 text-emerald-800">Depósito en pesos</span>
+          {% elif item.tipo == 'deposito_usdt' %}<span class="tipo-pendiente bg-emerald-50 text-emerald-800">Depósito USDT</span>
+          {% elif item.tipo == 'retiro_ars' %}<span class="tipo-pendiente bg-amber-50 text-amber-800">{% if o.estado == 'aprobado' %}Retiro aprobado, falta enviar{% else %}Retiro en pesos{% endif %}</span>
+          {% elif item.tipo == 'retiro_crypto' %}<span class="tipo-pendiente bg-amber-50 text-amber-800">Retiro {{ o.moneda }}</span>
+          {% else %}<span class="tipo-pendiente bg-rose-50 text-rose-800">Alerta de compliance</span>{% endif %}
+          <span class="text-gray-500">hace {{ item.fecha|hace }}</span>
+        </div>
 
-    <a href="{% url 'panel_depositos_usdt' %}" class="card border rounded p-5 hover:bg-white/5 transition">
-      <div class="font-semibold">Depósitos USDT</div>
-      <p class="text-black/60 text-sm mt-1">Verificados on-chain.</p>
-    </a>
-
-    <a href="{% url 'compliance_alertas' %}" class="card border rounded p-5 hover:bg-white/5 transition">
-      <div class="flex items-center justify-between">
-        <div class="font-semibold">Compliance</div>
-        {% if kpi_alertas_abiertas %}
-          <span class="rounded-full bg-rose-100 text-rose-700 px-2 py-[2px] text-[11px]">{{ kpi_alertas_abiertas }}</span>
-        {% endif %}
-      </div>
-      <p class="text-black/60 text-sm mt-1">Alertas UIF y límites.</p>
-    </a>
-
-    <a href="{% url 'auditoria' %}" class="card border rounded p-5 hover:bg-white/5 transition">
-      <div class="font-semibold">Auditoría</div>
-      <p class="text-black/60 text-sm mt-1">Quién hizo qué y cuándo.</p>
-    </a>
-
-    <a href="{% url 'panel_retiros' %}" class="card border rounded p-5 hover:bg-white/5 transition">
-      <div class="flex items-center justify-between">
-        <div class="font-semibold">Retiros</div>
-        {% with a=kpi_retiros_ars_pend|default:0 c=kpi_retiros_crypto_pend|default:0 %}
-          {% if a or c %}
-            <span class="rounded-full bg-neon/20 text-neon px-2 py-[2px] text-[11px]">
-              {{ a|add:c }}
-            </span>
+        <div class="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          {% if item.tipo == 'deposito_ars' or item.tipo == 'retiro_ars' %}
+            <span class="num text-xl font-bold text-gray-900">$ {{ o.monto|money }}</span>
+          {% elif item.tipo == 'deposito_usdt' %}
+            <span class="num text-xl font-bold text-gray-900">{{ o.monto|money }} <span class="text-sm text-gray-500">USDT</span></span>
+          {% elif item.tipo == 'retiro_crypto' %}
+            <span class="num text-xl font-bold text-gray-900">{{ o.monto|money }} <span class="text-sm text-gray-500">{{ o.moneda }}</span></span>
+          {% elif item.tipo == 'alerta' and o.monto_ars %}
+            <span class="num text-xl font-bold text-gray-900">$ {{ o.monto_ars|money }}</span>
           {% endif %}
-        {% endwith %}
+          <a href="{% url 'admin_usuario_perfil' u.pk %}" class="font-semibold text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-900">{{ u.get_full_name|default:u.username }}</a>
+          <span class="text-sm text-gray-500">{{ u.username }}{% if u.doc_nro %}, DNI {{ u.doc_nro }}{% endif %}</span>
+        </div>
+
+        <p class="mt-1 text-sm text-gray-600">
+          {% if item.tipo == 'kyc' %}Se registró el {{ u.date_joined|date:"d/m/Y" }}. Revisá las fotos del DNI antes de aprobar.
+          {% elif item.tipo == 'deposito_ars' %}Transferencia informada con comprobante.
+          {% elif item.tipo == 'deposito_usdt' %}Red {{ o.red }}. Verificación en la blockchain: <b class="{% if o.verificacion_estado == 'verificado' %}positivo{% elif o.verificacion_estado == 'no_coincide' %}text-rose-700{% endif %}">{{ o.get_verificacion_estado_display|lower }}</b>.
+          {% elif item.tipo == 'retiro_ars' %}A {{ o.alias }}{% if o.banco %} ({{ o.banco }}){% endif %}{% if o.cbu %}, CBU {{ o.cbu }}{% endif %}.
+          {% elif item.tipo == 'retiro_crypto' %}A <code class="break-all text-xs">{{ o.direccion_wallet }}</code>
+          {% else %}{{ o.detalle }}{% endif %}
+        </p>
       </div>
-      <p class="text-black/60 text-sm mt-1">ARS & cripto.</p>
-    </a>
 
-    <a href="{% url 'exchange_dashboard' %}" class="card border rounded p-5 hover:bg-white/5 transition">
-      <div class="font-semibold">Contabilidad</div>
-      <p class="text-black/60 text-sm mt-1">Caja, rentas y flujo global.</p>
-    </a>
+      <div class="flex flex-wrap items-center gap-2 md:justify-end">
+        {% if item.tipo == 'kyc' %}
+          <a href="{% url 'admin_usuario_perfil' u.pk %}" class="btn btn-sm btn-secundario">Ver DNI</a>
+          <form method="post" action="{% url 'cambiar_estado_verificacion' u.pk %}" data-confirmar="¿Rechazar la verificación de {{ u.username }}?">
+            {% csrf_token %}<input type="hidden" name="estado" value="rechazado"><input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="btn btn-sm btn-secundario">Rechazar</button>
+          </form>
+          <form method="post" action="{% url 'cambiar_estado_verificacion' u.pk %}">
+            {% csrf_token %}<input type="hidden" name="estado" value="aprobado"><input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="btn btn-sm btn-primario">Aprobar</button>
+          </form>
 
-    <a href="{% url 'panel_admin' %}#movs" class="card border rounded p-5 hover:bg-white/5 transition">
-      <div class="font-semibold">Movimientos</div>
-      <p class="text-black/60 text-sm mt-1">Listado y auditoría.</p>
-    </a>
+        {% elif item.tipo == 'deposito_ars' %}
+          {% if o.comprobante %}<a href="{{ o.comprobante.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-secundario">Ver comprobante</a>{% endif %}
+          <form method="post" action="{% url 'rechazar_deposito' o.pk %}" data-confirmar="¿Rechazar el depósito de $ {{ o.monto|money }} de {{ u.username }}?">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="btn btn-sm btn-secundario">Rechazar</button>
+          </form>
+          <form method="post" action="{% url 'aprobar_deposito' o.pk %}" data-confirmar="¿Confirmás que recibiste $ {{ o.monto|money }} de {{ u.username }}?">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="btn btn-sm btn-primario">Acreditar</button>
+          </form>
 
-    <a href="{% url 'admin_usuarios_list' %}" class="card border rounded p-5 hover:bg-white/5 transition">
-      <div class="font-semibold">Usuarios</div>
-      <p class="text-black/60 text-sm mt-1">KYC, límites y estado.</p>
-    </a>
+        {% elif item.tipo == 'deposito_usdt' %}
+          <form method="post" action="{% url 'rechazar_deposito_usdt' o.pk %}" data-confirmar="¿Rechazar el depósito de {{ o.monto|money }} USDT de {{ u.username }}?">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="btn btn-sm btn-secundario">Rechazar</button>
+          </form>
+          {% if o.verificacion_estado == 'verificado' %}
+            <form method="post" action="{% url 'aprobar_deposito_usdt' o.pk %}">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button class="btn btn-sm btn-primario">Acreditar</button>
+            </form>
+          {% else %}
+            <a href="{% url 'panel_depositos_usdt' %}" class="btn btn-sm btn-primario">Revisar</a>
+          {% endif %}
+
+        {% elif item.tipo == 'retiro_ars' %}
+          <form method="post" action="{% url 'rechazar_retiro_ars' o.pk %}" data-confirmar="¿Rechazar el retiro y devolverle $ {{ o.monto|money }} a {{ u.username }}?">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="btn btn-sm btn-secundario">Rechazar</button>
+          </form>
+          {% if o.estado == 'aprobado' %}
+            <form method="post" action="{% url 'enviar_retiro' o.pk %}" data-confirmar="¿Ya transferiste $ {{ o.monto|money }} a {{ o.alias }}?">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button class="btn btn-sm btn-primario">Marcar enviado</button>
+            </form>
+          {% else %}
+            <form method="post" action="{% url 'aprobar_retiro' o.pk %}">
+              {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button class="btn btn-sm btn-primario">Aprobar</button>
+            </form>
+          {% endif %}
+
+        {% elif item.tipo == 'retiro_crypto' %}
+          <form method="post" action="{% url 'rechazar_retiro_cripto' o.pk %}" data-confirmar="¿Rechazar el retiro y devolverle {{ o.monto|money }} {{ o.moneda }} a {{ u.username }}?">
+            {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <button class="btn btn-sm btn-secundario">Rechazar</button>
+          </form>
+          <a href="{% url 'panel_retiros' %}" class="btn btn-sm btn-primario">Cargar envío</a>
+
+        {% else %}
+          <a href="{% url 'compliance_alertas' %}" class="btn btn-sm btn-primario">Revisar alerta</a>
+        {% endif %}
+      </div>
+    </article>
+    {% endwith %}
+  {% empty %}
+    <div class="py-16 text-center">
+      <div class="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-50 text-emerald-700" aria-hidden="true">
+        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12.5 4.5 4.5L19 7.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <p class="mt-4 font-semibold text-gray-900">{% if filtro %}No hay pendientes de este tipo{% else %}No hay nada pendiente{% endif %}</p>
+      <p class="mt-1 text-sm text-gray-500">Cuando un cliente informe un depósito o pida un retiro, va a aparecer acá.</p>
+    </div>
+  {% endfor %}
+</section>
+
+<!-- Resumen del día -->
+<section class="mt-6 grid gap-3 sm:grid-cols-3 aparece" style="--d:.18s" aria-label="Resumen de hoy">
+  <div class="rounded-2xl bg-gray-100 px-5 py-4">
+    <div class="text-sm text-gray-500">Operaciones hoy</div>
+    <div class="num mt-1 text-2xl font-bold text-gray-900">{{ resumen_hoy.operaciones }}</div>
+  </div>
+  <div class="rounded-2xl bg-gray-100 px-5 py-4">
+    <div class="text-sm text-gray-500">Usuarios nuevos hoy</div>
+    <div class="num mt-1 text-2xl font-bold text-gray-900">{{ resumen_hoy.usuarios_nuevos }}</div>
+  </div>
+  <div class="rounded-2xl bg-gray-100 px-5 py-4">
+    <div class="flex items-center justify-between text-sm text-gray-500">Movimientos de todos los clientes
+      <a href="{% url 'exportar_movimientos_admin' %}" class="font-semibold text-gray-900 underline decoration-gray-300 underline-offset-2">CSV</a>
+    </div>
+    <div class="mt-1 text-sm text-gray-600">Exportá el listado completo para conciliar.</div>
   </div>
 </section>
 
-  <!-- KPIs -->
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-    <div class="card p-4 shadow-soft">
-      <p class="text-black/60 text-sm">Usuarios pendientes KYC</p>
-      <p class="text-2xl font-bold">{{ kpi_pendientes_kyc|default:"0" }}</p>
-    </div>
-    <div class="card p-4 shadow-soft">
-      <p class="text-black/60 text-sm">Depósitos pendientes</p>
-      <p class="text-2xl font-bold">{{ kpi_depositos_pend|default:"0" }}</p>
-    </div>
-    <div class="card p-4 shadow-soft">
-      <p class="text-black/60 text-sm">Retiros ARS pendientes</p>
-      <p class="text-2xl font-bold">{{ kpi_retiros_ars_pend|default:"0" }}</p>
-    </div>
-    <div class="card p-4 shadow-soft">
-      <p class="text-black/60 text-sm">Retiros CRYPTO pendientes</p>
-      <p class="text-2xl font-bold">{{ kpi_retiros_crypto_pend|default:"0" }}</p>
-    </div>
-  </div>
-
-  <!-- Tabs -->
-  <div class="mb-6 flex flex-wrap gap-2">
-    <a href="#kyc"            class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="kyc">KYC</a>
-    <a href="#retiros"        class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="retiros">Retiros ARS</a>
-    <a href="#retiros-crypto" class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="retiros-crypto">Retiros CRYPTO</a>
-    <a href="#depositos"      class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="depositos">Depósitos</a>
-    <a href="#movs"           class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="movs">Movimientos</a>
-    <a href="#export"         class="tab-btn rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5" data-tab="export">Exportar</a>
-  </div>
-
-  <!-- KYC -->
-  <section id="panel-kyc" data-panel="kyc" class="space-y-4">
-    <div class="flex items-center justify-between">
-      <h2 class="text-lg font-semibold">Usuarios con verificación pendiente</h2>
-      <p class="text-sm text-black/60">Hacé click en el usuario para abrir su perfil.</p>
-    </div>
-
-    <div class="overflow-x-auto card p-0">
-      <table class="w-full text-sm">
-        <thead class="bg-white/5 text-accent">
-          <tr>
-            <th class="px-3 py-2 text-left">Usuario</th>
-            <th class="px-3 py-2 text-left">Email</th>
-            <th class="px-3 py-2 text-left">DNI frente</th>
-            <th class="px-3 py-2 text-left">DNI dorso</th>
-            <th class="px-3 py-2 text-left">Estado</th>
-            <th class="px-3 py-2 text-left">Acciones</th>
-            <th class="px-3 py-2 text-left">Historial</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for u in usuarios %}
-            {% if u.estado_verificacion != 'aprobado' %}
-            <tr class="hover:bg-white/5">
-              <td class="px-3 py-2">
-                <a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' u.id %}">{{ u.username }}</a>
-              </td>
-              <td class="px-3 py-2">{{ u.email }}</td>
-              <td class="px-3 py-2">
-                {% if u.dni_frente %}
-                  <button type="button" class="thumb-btn underline text-black/80 hover:text-neon" data-img="{{ u.dni_frente.url }}">Ver</button>
-                {% else %}<span class="text-black/40">—</span>{% endif %}
-              </td>
-              <td class="px-3 py-2">
-                {% if u.dni_dorso %}
-                  <button type="button" class="thumb-btn underline text-black/80 hover:text-neon" data-img="{{ u.dni_dorso.url }}">Ver</button>
-                {% else %}<span class="text-black/40">—</span>{% endif %}
-              </td>
-              <td class="px-3 py-2 capitalize">
-                <span class="px-2 py-0.5 rounded border text-xs
-                  {% if u.estado_verificacion == 'aprobado' %} border-emerald-400 text-emerald-300
-                  {% elif u.estado_verificacion == 'pendiente' %} border-amber-400 text-amber-300
-                  {% elif u.estado_verificacion == 'rechazado' %} border-red-400 text-red-300
-                  {% else %} border-white/20 text-black/80 {% endif %}">
-                  {{ u.estado_verificacion }}
-                </span>
-              </td>
-              <td class="px-3 py-2">
-                <form method="post" action="{% url 'cambiar_estado_verificacion' u.id %}" class="flex items-center gap-2">
-                  {% csrf_token %}
-                  <label class="sr-only" for="estado-{{ u.id }}">Estado</label>
-                  <select id="estado-{{ u.id }}" name="estado"
-                          class="rounded-md border border-white/10 bg-white text-black px-2 py-1 focus:outline-none focus:ring-2 focus:ring-neon">
-                    <option value="pendiente" {% if u.estado_verificacion == 'pendiente' %}selected{% endif %}>Pendiente</option>
-                    <option value="aprobado" {% if u.estado_verificacion == 'aprobado' %}selected{% endif %}>Aprobado</option>
-                    <option value="rechazado" {% if u.estado_verificacion == 'rechazado' %}selected{% endif %}>Rechazado</option>
-                  </select>
-                  <button class="rounded-md bg-neon text-black px-3 py-1 font-semibold">Actualizar</button>
-                </form>
-              </td>
-              <td class="px-3 py-2">
-                <a class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5" href="{% url 'historial_usuario' u.id %}">Ver historial</a>
-              </td>
-            </tr>
-            {% endif %}
-          {% empty %}
-            <tr><td colspan="7" class="px-3 py-4 text-black/60 text-center">Sin pendientes.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Retiros ARS -->
-  <section id="panel-retiros" data-panel="retiros" class="space-y-4 hidden">
-    <h2 class="text-lg font-semibold">Retiros pendientes (ARS)</h2>
-    <div class="overflow-x-auto card p-0">
-      <table class="w-full text-sm">
-        <thead class="bg-white/5 text-accent">
-          <tr>
-            <th class="px-3 py-2 text-left">Usuario</th>
-            <th class="px-3 py-2 text-left">Monto</th>
-            <th class="px-3 py-2 text-left">Alias</th>
-            <th class="px-3 py-2 text-left">CBU</th>
-            <th class="px-3 py-2 text-left">Banco</th>
-            <th class="px-3 py-2 text-left">Estado</th>
-            <th class="px-3 py-2 text-left">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in retiros %}
-            {% if r.estado != 'enviado' %}
-            <tr class="hover:bg-white/5">
-              <td class="px-3 py-2"><a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' r.usuario.id %}">{{ r.usuario.username }}</a></td>
-              <td class="px-3 py-2">${{ r.monto }}</td>
-              <td class="px-3 py-2">{{ r.alias|default:"—" }}</td>
-              <td class="px-3 py-2 break-all">{{ r.cbu|default:"—" }}</td>
-              <td class="px-3 py-2">{{ r.banco|default:"—" }}</td>
-              <td class="px-3 py-2 capitalize">
-                <span class="px-2 py-0.5 rounded border text-xs
-                  {% if r.estado == 'aprobado' %} border-emerald-400 text-emerald-300
-                  {% elif r.estado == 'pendiente' %} border-amber-400 text-amber-300
-                  {% elif r.estado == 'enviado' %} border-sky-400 text-sky-300
-                  {% else %} border-red-400 text-red-300 {% endif %}">
-                  {{ r.estado }}
-                </span>
-              </td>
-              <td class="px-3 py-2">
-                <div class="flex flex-wrap gap-2">
-                  {% if r.estado == 'pendiente' %}
-                  <form method="post" action="{% url 'aprobar_retiro' r.id %}">{% csrf_token %}
-                    <button class="rounded-md bg-neon text-black px-3 py-1 font-semibold">Aprobar</button>
-                  </form>
-                  <form method="post" action="{% url 'rechazar_retiro_ars' r.id %}">{% csrf_token %}
-                    <button class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5">Rechazar</button>
-                  </form>
-                  {% endif %}
-                  {% if r.estado == 'aprobado' %}
-                  <form method="post" action="{% url 'enviar_retiro' r.id %}">{% csrf_token %}
-                    <button class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5">Marcar enviado</button>
-                  </form>
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
-            {% endif %}
-          {% empty %}
-            <tr><td colspan="7" class="px-3 py-4 text-black/60 text-center">Sin retiros pendientes.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Retiros CRYPTO -->
-  <section id="panel-retiros-crypto" data-panel="retiros-crypto" class="space-y-4 hidden">
-    <h2 class="text-lg font-semibold">Retiros CRYPTO</h2>
-    <div class="overflow-x-auto card p-0">
-      <table class="w-full text-sm">
-        <thead class="bg-white/5 text-accent">
-          <tr>
-            <th class="px-3 py-2 text-left">Usuario</th>
-            <th class="px-3 py-2 text-left">Moneda</th>
-            <th class="px-3 py-2 text-left">Monto</th>
-            <th class="px-3 py-2 text-left">Wallet</th>
-            <th class="px-3 py-2 text-left">Estado</th>
-            <th class="px-3 py-2 text-left">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for retiro in retiros_crypto %}
-          <tr class="hover:bg-white/5">
-            <td class="px-3 py-2"><a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' retiro.usuario.id %}">{{ retiro.usuario.username }}</a></td>
-            <td class="px-3 py-2">{{ retiro.moneda }}</td>
-            <td class="px-3 py-2">{{ retiro.monto }}</td>
-            <td class="px-3 py-2 break-all">{{ retiro.direccion_wallet }}</td>
-            <td class="px-3 py-2 capitalize">
-              <span class="px-2 py-0.5 rounded border text-xs
-                {% if retiro.estado == 'aprobado' %} border-emerald-400 text-emerald-300
-                {% elif retiro.estado == 'pendiente' %} border-amber-400 text-amber-300
-                {% else %} border-red-400 text-red-300 {% endif %}">
-                {{ retiro.estado }}
-              </span>
-            </td>
-            <td class="px-3 py-2">
-              {% if retiro.estado == 'pendiente' %}
-              <form method="post" action="{% url 'aprobar_retiro_cripto' retiro.id %}">{% csrf_token %}
-                <button class="rounded-md bg-neon text-black px-3 py-1 font-semibold">Aprobar</button>
-              </form>
-              <form method="post" action="{% url 'rechazar_retiro_cripto' retiro.id %}">{% csrf_token %}
-                <button class="rounded-md border border-white/10 px-3 py-1 hover:bg-white/5">Rechazar</button>
-              </form>
-              {% else %}
-              <span class="text-black/60">—</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="6" class="px-3 py-4 text-black/60 text-center">No hay retiros CRYPTO pendientes.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Depósitos -->
-  <section id="panel-depositos" data-panel="depositos" class="space-y-4 hidden">
-    <h2 class="text-lg font-semibold">Depósitos pendientes</h2>
-    <div class="overflow-x-auto card p-0">
-      <table class="w-full text-sm">
-        <thead class="bg-white/5 text-accent">
-          <tr>
-            <th class="px-3 py-2 text-left">Usuario</th>
-            <th class="px-3 py-2 text-left">Monto</th>
-            <th class="px-3 py-2 text-left">Comprobante</th>
-            <th class="px-3 py-2 text-left">Fecha</th>
-            <th class="px-3 py-2 text-left">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for d in depositos %}
-            {% if d.estado == 'pendiente' %}
-            <tr class="hover:bg-white/5">
-              <td class="px-3 py-2"><a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' d.usuario.id %}">{{ d.usuario.username }}</a></td>
-              <td class="px-3 py-2">${{ d.monto }}</td>
-              <td class="px-3 py-2">
-                {% if d.comprobante %}
-                  <button type="button" class="thumb-btn underline text-black/80 hover:text-neon" data-img="{{ d.comprobante.url }}">Ver</button>
-                {% else %}<span class="text-black/40">—</span>{% endif %}
-              </td>
-              <td class="px-3 py-2">{{ d.fecha|date:"d/m/Y H:i" }}</td>
-              <td class="px-3 py-2">
-                <form method="post" action="{% url 'aprobar_deposito' d.id %}">
-                  {% csrf_token %}
-                  <button class="rounded-md bg-neon text-black py-1 font-semibold">Aprobar</button>
-                </form>
-                <form method="post" action="{% url 'rechazar_deposito' d.id %}" style="display:inline">{% csrf_token %}<button>Rechazar</button></form>
-              </td>
-            </tr>
-            {% endif %}
-          {% empty %}
-            <tr><td colspan="5" class="px-3 py-4 text-black/60 text-center">Sin depósitos pendientes.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- Exportar -->
-  <section id="panel-export" data-panel="export" class="space-y-4 hidden">
-    <h2 class="text-lg font-semibold">Exportar movimientos</h2>
-    <form method="GET" action="{% url 'exportar_movimientos_admin' %}" class="card p-4 grid sm:grid-cols-5 gap-3">
-      <label class="block">
-        <span class="text-xs text-black/60">Desde</span>
-        <input type="date" name="desde" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
-      </label>
-      <label class="block">
-        <span class="text-xs text-black/60">Hasta</span>
-        <input type="date" name="hasta" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
-      </label>
-      <label class="block">
-        <span class="text-xs text-black/60">Moneda</span>
-        <select name="moneda" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
-          <option value="">Todas</option><option>ARS</option><option>USDT</option><option>USD</option>
-        </select>
-      </label>
-      <label class="block">
-        <span class="text-xs text-black/60">Tipo</span>
-        <select name="tipo" class="w-full rounded-md border border-white/10 bg-white text-black px-3 py-2 focus:ring-2 focus:ring-neon">
-          <option value="">Todos</option>
-          <option value="deposito">Depósito</option>
-          <option value="retiro">Retiro</option>
-          <option value="compra">Compra</option>
-          <option value="venta">Venta</option>
-          <option value="ajuste">Ajuste</option>
-        </select>
-      </label>
-      <div class="flex items-end">
-        <button class="w-full rounded-lg bg-neon text-black font-semibold px-4 py-2">📥 Exportar</button>
-      </div>
-    </form>
-  </section>
-
-  <!-- Últimos movimientos -->
-  <section id="panel-movs" data-panel="movs" class="space-y-4 hidden">
-    <h2 class="text-lg font-semibold">Últimos movimientos</h2>
-    <div class="overflow-x-auto card p-0">
-      <table class="w-full text-sm">
-        <thead class="bg-white/5 text-accent">
-          <tr>
-            <th class="px-3 py-2 text-left">Usuario</th>
-            <th class="px-3 py-2 text-left">Tipo</th>
-            <th class="px-3 py-2 text-left">Moneda</th>
-            <th class="px-3 py-2 text-left">Monto</th>
-            <th class="px-3 py-2 text-left">Descripción</th>
-            <th class="px-3 py-2 text-left">Fecha</th>
-            <th class="px-3 py-2 text-left">ID</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for m in movimientos %}
-          <tr class="hover:bg-white/5">
-            <td class="px-3 py-2"><a class="text-accent hover:underline" href="{% url 'admin_usuario_perfil' m.usuario.id %}">{{ m.usuario.username }}</a></td>
-            <td class="px-3 py-2">{{ m.tipo }}</td>
-            <td class="px-3 py-2">{{ m.moneda }}</td>
-            <td class="px-3 py-2">{{ m.monto }}</td>
-            <td class="px-3 py-2">{{ m.descripcion }}</td>
-            <td class="px-3 py-2">{{ m.fecha|date:"d/m/Y H:i" }}</td>
-            <td class="px-3 py-2 font-mono">{{ m.codigo }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="7" class="px-3 py-4 text-black/60 text-center">Sin registros recientes.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
-</section>
-
-<!-- Lightbox simple para imágenes + tabs -->
 <script>
-(function(){
-  // Tabs
-  const panels = document.querySelectorAll('[data-panel]');
-  const btns = document.querySelectorAll('.tab-btn');
-
-  function show(tab){
-    panels.forEach(p=>p.classList.toggle('hidden', p.dataset.panel!==tab));
-    btns.forEach(b=>{
-      const on = b.dataset.tab===tab;
-      b.classList.toggle('bg-white/10', on);
-      b.classList.toggle('text-black', on);
-      b.setAttribute('aria-current', on ? 'page' : 'false');
-    });
-    history.replaceState(null,'', '#'+tab);
-  }
-
-  const initial = (location.hash||'#kyc').replace('#','');
-  show(initial);
-  btns.forEach(b=>b.addEventListener('click', (e)=>{ e.preventDefault(); show(b.dataset.tab); }));
-
-  // Lightbox básico
-  const overlay = document.createElement('div');
-  overlay.className = 'fixed inset-0 z-50 hidden items-center justify-center bg-black/70 p-4';
-  overlay.innerHTML = `
-    <div class="max-w-3xl w-full">
-      <div class="relative card p-2">
-        <button class="absolute -top-3 -right-3 rounded-full bg-neon text-black font-bold h-8 w-8" aria-label="Cerrar">×</button>
-        <img id="lb-img" src="" class="w-full rounded-lg" alt="Comprobante/DNI">
-      </div>
-    </div>`;
-  document.body.appendChild(overlay);
-  const lbImg = overlay.querySelector('#lb-img');
-  const closeBtn = overlay.querySelector('button');
-  closeBtn.addEventListener('click', ()=> overlay.classList.add('hidden'));
-  overlay.addEventListener('click', (e)=>{ if(e.target===overlay) overlay.classList.add('hidden'); });
-
-  document.querySelectorAll('.thumb-btn').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      lbImg.src = b.getAttribute('data-img');
-      overlay.classList.remove('hidden');
-    });
-  });
-})();
+  // Las acciones que mueven saldo o rechazan piden confirmación
+  document.querySelectorAll('form[data-confirmar]').forEach((f) => f.addEventListener('submit', (e) => {
+    if (!confirm(f.dataset.confirmar)) e.preventDefault();
+  }));
+  document.querySelectorAll('.pendiente form').forEach((f) => f.addEventListener('submit', (e) => {
+    if (e.defaultPrevented) return;
+    f.querySelector('button').disabled = true;
+  }));
 </script>
 {% endblock %}

@@ -114,6 +114,7 @@ urlpatterns = [
         name="password_reset_complete",
     ),
     # path('admin-dashboard/config/', exchange_config_view, name='exchange_config'),
+    path('admin-dashboard/parametros/', views.parametros_exchange, name='parametros_exchange'),
     path('admin-dashboard/config/save/', guardar_config_exchange, name='guardar_config_exchange'),
     path('admin-dashboard/depositos-usdt/<int:deposito_id>/reverificar/', views.reverificar_deposito_usdt, name='reverificar_deposito_usdt'),
     path('admin-dashboard/compliance/', views.compliance_alertas, name='compliance_alertas'),

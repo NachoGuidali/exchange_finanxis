@@ -1,8 +1,9 @@
-{% extends "base.html" %}
+{% extends "usuarios/admin_base.html" %}
+{% load finanxis %}
 {% block title %}Compliance — Finanxis{% endblock %}
 
-{% block content %}
-<section class="max-w-7xl mx-auto px-4 py-8 space-y-6">
+{% block admin_content %}
+<section class="min-w-0 space-y-6">
   <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
     <div>
       <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Alertas de compliance</h1>
@@ -35,7 +36,7 @@
             <td class="px-3 py-2"><a class="underline" href="{% url 'admin_usuario_perfil' a.usuario_id %}">{{ a.usuario.username }}</a></td>
             <td class="px-3 py-2">{{ a.get_tipo_display }}</td>
             <td class="px-3 py-2">{{ a.detalle }}{% if a.referencia %}<div class="text-xs text-gray-500">{{ a.referencia }}</div>{% endif %}</td>
-            <td class="px-3 py-2 text-right whitespace-nowrap">${{ a.monto_ars|floatformat:2 }}</td>
+            <td class="px-3 py-2 text-right whitespace-nowrap">$ {{ a.monto_ars|money }}</td>
             <td class="px-3 py-2">
               {% if a.estado == 'abierta' %}
                 <form method="post" action="{% url 'resolver_alerta' a.id %}" class="space-y-2 min-w-[16rem]">

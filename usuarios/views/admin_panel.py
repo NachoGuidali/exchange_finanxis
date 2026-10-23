@@ -2,6 +2,7 @@
 import csv
 from datetime import datetime
 from decimal import Decimal
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
@@ -10,7 +11,9 @@ from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import localtime
 from django.views.decorators.http import require_POST
 
@@ -46,51 +49,48 @@ def staff_required(u):
 @login_required
 @user_passes_test(es_admin)
 def panel_admin(request):
+    """Pendientes: todo lo que espera una decisión del operador, del más viejo al más nuevo."""
     q = (request.GET.get('q') or '').strip()
-
-    # Base querysets (sin limitar resultados)
-    usuarios_qs   = Usuario.objects.all()
-    depositos_qs  = DepositoARS.objects.all()
-    retiros_qs    = RetiroARS.objects.all()
-    rcrypto_qs    = RetiroCrypto.objects.all()
-    movs_qs       = Movimiento.objects.select_related('usuario').order_by('-fecha')[:200]
-
-    # Si querés que búsqueda también afecte a los KPI y tablas:
     if q:
-        user_filter = (Q(username__icontains=q) |
-                       Q(email__icontains=q)    |
-                       Q(doc_nro__icontains=q))
-        usuarios_qs  = usuarios_qs.filter(user_filter)
-        depositos_qs = depositos_qs.filter(Q(usuario__username__icontains=q) | Q(usuario__email__icontains=q))
-        retiros_qs   = retiros_qs.filter(Q(usuario__username__icontains=q) | Q(usuario__email__icontains=q))
-        rcrypto_qs   = rcrypto_qs.filter(Q(usuario__username__icontains=q) | Q(usuario__email__icontains=q))
-        # movs_qs ya viene limitado a 200; si querés filtrar por q:
-        # movs_qs = Movimiento.objects.filter(Q(usuario__username__icontains=q) | ...).order_by('-fecha')[:200]
+        return redirect(f"{reverse('admin_usuarios_list')}?{urlencode({'q': q})}")
 
-    # ---------- KPIs (idénticos al criterio de la tabla) ----------
-    kpi_pendientes_kyc      = usuarios_qs.filter(estado_verificacion__iexact='pendiente').count()
-    kpi_depositos_pend      = depositos_qs.filter(estado__iexact='pendiente').count()
-    kpi_retiros_ars_pend    = retiros_qs.filter(estado__in=['pendiente','aprobado']).count()  # si “aprobado” aún no enviado
-    kpi_retiros_crypto_pend = rcrypto_qs.filter(estado__iexact='pendiente').count()
+    cola = []
+    for u in Usuario.objects.filter(estado_verificacion='pendiente'):
+        cola.append({'tipo': 'kyc', 'fecha': u.date_joined, 'usuario': u, 'obj': u})
+    for d in DepositoARS.objects.filter(estado='pendiente').select_related('usuario'):
+        cola.append({'tipo': 'deposito_ars', 'fecha': d.fecha, 'usuario': d.usuario, 'obj': d})
+    for d in DepositoUSDT.objects.filter(estado='pendiente').select_related('usuario'):
+        cola.append({'tipo': 'deposito_usdt', 'fecha': d.fecha, 'usuario': d.usuario, 'obj': d})
+    for r in RetiroARS.objects.filter(estado__in=('pendiente', 'aprobado')).select_related('usuario'):
+        cola.append({'tipo': 'retiro_ars', 'fecha': r.fecha_solicitud, 'usuario': r.usuario, 'obj': r})
+    for r in RetiroCrypto.objects.filter(estado='pendiente').select_related('usuario'):
+        cola.append({'tipo': 'retiro_crypto', 'fecha': r.fecha_solicitud, 'usuario': r.usuario, 'obj': r})
+    for al in AlertaCompliance.objects.filter(estado='abierta').select_related('usuario'):
+        cola.append({'tipo': 'alerta', 'fecha': al.fecha, 'usuario': al.usuario, 'obj': al})
+    cola.sort(key=lambda x: x['fecha'])
 
-    # Listas para las pestañas (podés dejarlas completas y filtrar en el template como ya hacés)
-    context = {
-        'usuarios': usuarios_qs,
-        'depositos': depositos_qs,
-        'retiros': retiros_qs,
-        'retiros_crypto': rcrypto_qs,
-        'movimientos': movs_qs,
+    filtro = request.GET.get('tipo', '')
+    tipos = {'kyc', 'deposito_ars', 'deposito_usdt', 'retiro_ars', 'retiro_crypto', 'alerta'}
+    if filtro in tipos:
+        cola = [c for c in cola if c['tipo'] == filtro]
 
-        'kpi_pendientes_kyc': kpi_pendientes_kyc,
-        'kpi_depositos_pend': kpi_depositos_pend,
-        'kpi_retiros_ars_pend': kpi_retiros_ars_pend,
-        'kpi_retiros_crypto_pend': kpi_retiros_crypto_pend,
+    hoy = timezone.localdate()
+    resumen_hoy = {
+        'operaciones': Movimiento.objects.filter(fecha__date=hoy, tipo__in=('compra', 'venta'), monto__gt=0).count(),
+        'usuarios_nuevos': Usuario.objects.filter(date_joined__date=hoy).count(),
     }
+    return render(request, 'usuarios/panel_admin.html', {
+        'cola': cola, 'filtro': filtro, 'resumen_hoy': resumen_hoy,
+    })
+
+
+@login_required
+@user_passes_test(es_admin)
+def parametros_exchange(request):
     cfg = ExchangeConfig.current()
-    cfg_form = ExchangeConfigForm(instance=cfg)
-    context.update({"cfg_form": cfg_form, "cfg": cfg,
-                    "kpi_alertas_abiertas": AlertaCompliance.objects.filter(estado='abierta').count()})
-    return render(request, 'usuarios/panel_admin.html', context)
+    return render(request, 'usuarios/parametros_exchange.html', {
+        'cfg': cfg, 'cfg_form': ExchangeConfigForm(instance=cfg),
+    })
 
 
 @login_required
@@ -107,6 +107,11 @@ def cambiar_estado_verificacion(request, user_id):
                 usuario.is_active = True
             usuario.save()
             auditar(request.user, 'kyc_cambio_estado', usuario, anterior=anterior, nuevo=nuevo_estado)
+            messages.success(request, f"{usuario.get_full_name() or usuario.username}: verificación {usuario.get_estado_verificacion_display().lower()}.")
+    siguiente = request.POST.get('next', '')
+    if siguiente and url_has_allowed_host_and_scheme(siguiente, allowed_hosts={request.get_host()},
+                                                     require_https=request.is_secure()):
+        return redirect(siguiente)
     return redirect('panel_admin')
 
 
@@ -429,10 +434,10 @@ def guardar_config_exchange(request):
         # invalidar caché para que se refleje inmediato
         from django.core.cache import cache
         cache.delete("exchange_config_current")
-        messages.success(request, "Configuración actualizada.")
+        messages.success(request, "Parámetros guardados.")
     else:
         messages.error(request, "Revisá los valores ingresados.")
-    return redirect('panel_admin')
+    return redirect('parametros_exchange')
 
 
 @login_required
@@ -469,13 +474,18 @@ def exportar_movimientos_usuario_admin(request, user_id):
 
 
 def _accion_admin(request, accion, destino, exito=None):
-    """Ejecuta una acción de services/fondos y avisa el resultado al admin."""
+    """Ejecuta una acción de services/fondos y avisa el resultado al admin.
+    Vuelve a `next` (p. ej. la cola de pendientes) si es una URL interna."""
     try:
         accion()
         if exito:
             messages.success(request, exito)
     except OperacionError as e:
         messages.error(request, str(e))
+    siguiente = request.POST.get('next', '')
+    if siguiente and url_has_allowed_host_and_scheme(siguiente, allowed_hosts={request.get_host()},
+                                                     require_https=request.is_secure()):
+        return redirect(siguiente)
     return redirect(destino)
 
 

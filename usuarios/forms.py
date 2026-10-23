@@ -16,12 +16,12 @@ class ExchangeConfigForm(forms.ModelForm):
         fields = ("spread_bps_usdt","spread_bps_usd","swap_fee_bps",
                   "umbral_alerta_ars","limite_mensual_operado_ars","limite_diario_retiro_ars")
         widgets = {
-            "spread_bps_usdt": forms.NumberInput(attrs={"min":0, "step":1}),
-            "spread_bps_usd":  forms.NumberInput(attrs={"min":0, "step":1}),
-            "swap_fee_bps":    forms.NumberInput(attrs={"min":0, "step":1}),
-            "umbral_alerta_ars":          forms.NumberInput(attrs={"min":0, "step":"0.01"}),
-            "limite_mensual_operado_ars": forms.NumberInput(attrs={"min":0, "step":"0.01"}),
-            "limite_diario_retiro_ars":   forms.NumberInput(attrs={"min":0, "step":"0.01"}),
+            "spread_bps_usdt": forms.NumberInput(attrs={"min":0, "step":1, "class": "campo num", "data-bps": ""}),
+            "spread_bps_usd":  forms.NumberInput(attrs={"min":0, "step":1, "class": "campo num", "data-bps": ""}),
+            "swap_fee_bps":    forms.NumberInput(attrs={"min":0, "step":1, "class": "campo num", "data-bps": ""}),
+            "umbral_alerta_ars":          forms.NumberInput(attrs={"min":0, "step":"0.01", "class": "campo num", "data-pesos": ""}),
+            "limite_mensual_operado_ars": forms.NumberInput(attrs={"min":0, "step":"0.01", "class": "campo num", "data-pesos": ""}),
+            "limite_diario_retiro_ars":   forms.NumberInput(attrs={"min":0, "step":"0.01", "class": "campo num", "data-pesos": ""}),
         }
 
 

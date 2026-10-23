@@ -883,3 +883,54 @@ class ActividadTests(BaseTest):
         self.assertEqual([a.tipo for a in resp.context["page_obj"]], ["compra"])
         csv = self.client.get(reverse("movimientos_exportar"), {"tipo": "compra"}).content.decode()
         self.assertEqual(len(csv.strip().splitlines()), 3)  # encabezado + las dos patas de la compra
+
+
+@override_settings(MEDIA_ROOT=MEDIA_TMP, SECURE_SSL_REDIRECT=False)
+class PanelPendientesTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+        self.client.force_login(self.admin)
+        self.cliente = crear_usuario()
+        self.nuevo = crear_usuario("nuevo", aprobado=False)
+        self.dep = DepositoARS.objects.create(usuario=self.cliente, monto=Decimal("1500"), comprobante="c.png")
+
+    def test_cola_ordenada_y_filtrable(self):
+        resp = self.client.get(reverse("panel_admin"))
+        fechas = [c["fecha"] for c in resp.context["cola"]]
+        self.assertEqual(fechas, sorted(fechas))  # del más viejo al más nuevo
+        tipos = {c["tipo"] for c in resp.context["cola"]}
+        self.assertTrue({"kyc", "deposito_ars"} <= tipos)
+        self.assertEqual(resp.context["pendientes"]["depositos_ars"], 1)
+        resp = self.client.get(reverse("panel_admin"), {"tipo": "deposito_ars"})
+        self.assertEqual([c["obj"] for c in resp.context["cola"]], [self.dep])
+
+    def test_acreditar_desde_la_cola_vuelve_a_la_cola(self):
+        destino = reverse("panel_admin") + "?tipo=deposito_ars"
+        resp = self.client.post(reverse("aprobar_deposito", args=[self.dep.pk]), {"next": destino})
+        self.assertRedirects(resp, destino, fetch_redirect_response=False)
+        self.cliente.refresh_from_db()
+        self.assertEqual(self.cliente.saldo_ars, Decimal("1500"))
+
+    def test_next_externo_se_ignora(self):
+        resp = self.client.post(reverse("cambiar_estado_verificacion", args=[self.nuevo.pk]),
+                                {"estado": "aprobado", "next": "https://evil.example/"})
+        self.assertRedirects(resp, reverse("panel_admin"), fetch_redirect_response=False)
+        self.nuevo.refresh_from_db()
+        self.assertEqual(self.nuevo.estado_verificacion, "aprobado")
+
+    def test_busqueda_va_al_listado_de_usuarios(self):
+        resp = self.client.get(reverse("panel_admin"), {"q": "nuevo"})
+        self.assertRedirects(resp, reverse("admin_usuarios_list") + "?q=nuevo", fetch_redirect_response=False)
+
+    def test_parametros(self):
+        self.assertContains(self.client.get(reverse("parametros_exchange")), "Guardar parámetros")
+        resp = self.client.post(reverse("guardar_config_exchange"), {
+            "spread_bps_usdt": 150, "spread_bps_usd": 200, "swap_fee_bps": 50,
+            "umbral_alerta_ars": "1000000", "limite_mensual_operado_ars": "5000000", "limite_diario_retiro_ars": "2000000",
+        })
+        self.assertRedirects(resp, reverse("parametros_exchange"), fetch_redirect_response=False)
+        from .models import ExchangeConfig
+        self.assertEqual(ExchangeConfig.objects.get().spread_bps_usdt, 150)
