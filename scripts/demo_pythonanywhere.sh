@@ -11,7 +11,8 @@ set -euo pipefail
 PASSWORD="${1:?Uso: bash scripts/demo_pythonanywhere.sh <contraseña-para-los-usuarios-demo>}"
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 USUARIO="$(whoami)"
-DOMINIO="${DOMINIO:-$USUARIO.pythonanywhere.com}"
+# el dominio va en minúscula aunque el usuario tenga mayúsculas
+DOMINIO="${DOMINIO:-${USUARIO,,}.pythonanywhere.com}"
 PY="${PY:-python3.12}"
 VENV="${VENV:-$HOME/.virtualenvs/finanxis}"
 WSGI="${WSGI:-/var/www/${DOMINIO//./_}_wsgi.py}"
