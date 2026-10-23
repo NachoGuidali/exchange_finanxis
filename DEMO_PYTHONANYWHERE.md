@@ -15,68 +15,40 @@ Celery ni Redis, el internet saliente está limitado a una lista de sitios permi
 > **Nunca subas `db.sqlite3` ni `media/` reales**: tienen DNI y datos personales.
 > La demo se carga con datos ficticios (`cargar_demo`).
 
-## 1. Código y entorno (consola Bash de PythonAnywhere)
+## 1. Cuenta
 
-El repo es privado: creá un *personal access token* de GitHub con permiso de lectura.
+Crear una cuenta *Beginner* (gratis) en https://www.pythonanywhere.com. La demo queda en
+`https://USUARIO.pythonanywhere.com`.
 
-```bash
-git clone https://<TOKEN>@github.com/NachoGuidali/exchange_finanxis.git
-cd exchange_finanxis
-mkvirtualenv --python=python3.12 finanxis
-pip install -r requirements.txt
-```
-
-## 2. Configuración
+## 2. Instalar (consola Bash de PythonAnywhere: *Consoles → Bash*)
 
 ```bash
-cp .env.demo.example .env
-python -c "from django.core.management.utils import get_random_secret_key as g; print(g())"
-nano .env    # pegar la SECRET_KEY y reemplazar USUARIO por tu usuario de PythonAnywhere
+git clone https://github.com/NachoGuidali/exchange_finanxis.git
+bash exchange_finanxis/scripts/demo_pythonanywhere.sh 'UnaClaveParaLaDemo123'
 ```
 
-## 3. Base de datos y datos demo
+El script crea el virtualenv, instala dependencias, genera el `.env` con una `SECRET_KEY` nueva,
+migra, junta los estáticos y carga los datos demo: `demo_admin` (superusuario), `demo_cliente`
+(KYC aprobado, con saldo e historial) y `demo_nuevo` (KYC pendiente, para mostrar la aprobación).
+Todos con esa contraseña. Tarda unos minutos (la instalación de paquetes es lo más lento).
 
-```bash
-python manage.py migrate
-python manage.py collectstatic --noinput
-python manage.py cargar_demo --password 'UnaClaveParaLaDemo123'
-```
+## 3. Web app (pestaña *Web*)
 
-Crea `demo_admin` (superusuario), `demo_cliente` (KYC aprobado, con saldo e historial) y
-`demo_nuevo` (KYC pendiente, para mostrar la aprobación). Todos con esa contraseña.
+1. *Add a new web app* → *Next* → **Manual configuration** (no "Django") → **Python 3.12**.
+2. Sección *Virtualenv*: `/home/USUARIO/.virtualenvs/finanxis`
+3. Sección *Security*: activar **Force HTTPS**.
+4. **No agregues `/media/`** en *Static files*: los archivos subidos los entrega la app solo a su
+   dueño o al staff (los estáticos ya los sirve whitenoise).
+5. En la consola Bash, volver a correr el script: escribe el archivo WSGI y recarga la app.
 
-Opcional: ver si WeasyPrint funciona en el servidor (si no, la demo anda igual, sin boletos PDF):
-
-```bash
-python -c "import weasyprint; weasyprint.HTML(string='<p>ok</p>').write_pdf(); print('PDF OK')"
-```
-
-## 4. Web app (pestaña *Web*)
-
-1. *Add a new web app* → *Manual configuration* → **Python 3.12**.
-2. *Virtualenv*: `/home/USUARIO/.virtualenvs/finanxis`
-3. *WSGI configuration file*: reemplazar todo el contenido por
-
-   ```python
-   import os, sys
-
-   path = '/home/USUARIO/exchange_finanxis'
-   if path not in sys.path:
-       sys.path.insert(0, path)
-   os.environ['DJANGO_SETTINGS_MODULE'] = 'core_exchange.settings'
-
-   from django.core.wsgi import get_wsgi_application
-   application = get_wsgi_application()
+   ```bash
+   bash exchange_finanxis/scripts/demo_pythonanywhere.sh 'UnaClaveParaLaDemo123'
    ```
 
-4. *Static files*: `/static/` → `/home/USUARIO/exchange_finanxis/staticfiles`
-   (opcional, whitenoise ya los sirve). **No agregues `/media/`**: los archivos subidos
-   solo los entrega la app a su dueño o al staff.
-5. Activar **Force HTTPS**.
-6. **Reload**.
+Listo: entrar a `https://USUARIO.pythonanywhere.com`.
 
-## 5. Mantenimiento
+## 4. Mantenimiento
 
 - La web app free vence al mes: entrá a la pestaña *Web* y tocá *Run until 1 month from today*.
-- Para actualizar el código: `git pull`, `python manage.py migrate`, `collectstatic` y *Reload*.
+- Para actualizar el código: `cd exchange_finanxis && git pull` y volver a correr el script (recarga solo).
 - Errores: pestaña *Web* → *Error log*.
