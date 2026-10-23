@@ -1,131 +1,78 @@
 {% load static %}
-
-<header class="border-b border-white/10 bg-black/80 backdrop-blur supports-[backdrop-filter]:bg-black/80">
-  <nav class="container flex h-16 items-center justify-between gap-4">
-    <!-- Logo -->
-    <a href="{% url 'dashboard' %}" class="group inline-flex items-center gap-3">
-      <img src="{% static 'img/logo.png' %}" alt="Finanxis" class="h-10 w-auto">
+{% with ruta=request.resolver_match.url_name %}
+<header class="barra sticky top-0 z-30 border-b border-white/10">
+  <nav class="container flex h-16 items-center gap-3 lg:gap-8" aria-label="Principal">
+    <a href="{% if request.user.is_authenticated %}{% url 'dashboard' %}{% else %}{% url 'home' %}{% endif %}" class="shrink-0">
+      <img src="{% static 'img/logo-nav.png' %}" alt="Finanxis" width="134" height="32" class="h-7 w-auto sm:h-8">
     </a>
 
-    <!-- Mobile toggle -->
-    <button class="lg:hidden rounded-md border border-white/10 p-2 text-white/80" data-mobile-toggle aria-label="Toggle menu">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-    </button>
+    {% if request.user.is_authenticated %}
+      <ul class="hidden lg:flex items-center gap-7">
+        <li><a href="{% url 'dashboard' %}" class="barra-link" {% if ruta == 'dashboard' %}aria-current="page"{% endif %}>Inicio</a></li>
+        <li><a href="{% url 'operar' %}" class="barra-link" {% if ruta == 'operar' or ruta == 'confirmar_operacion' %}aria-current="page"{% endif %}>Operar</a></li>
+        <li><a href="{% url 'mis_movimientos' %}" class="barra-link" {% if ruta == 'mis_movimientos' %}aria-current="page"{% endif %}>Movimientos</a></li>
+        <li><a href="{% url 'comprobantes' %}" class="barra-link" {% if ruta == 'comprobantes' %}aria-current="page"{% endif %}>Comprobantes</a></li>
+        {% if request.user.is_staff %}
+          <li><a href="{% url 'panel_admin' %}" class="barra-link" {% if ruta == 'panel_admin' %}aria-current="page"{% endif %}>Administración</a></li>
+        {% endif %}
+      </ul>
 
-    <!-- Links desktop -->
-    <ul class="hidden items-center gap-6 lg:flex">
-      <li><a href="{% url 'dashboard' %}" class="text-white/90 hover:text-white transition">Dashboard</a></li>
-      <a href="{% url 'operar' %}" class="text-white/90 hover:text-white transition">Operar</a></li>
-      
-      {% if request.user.is_staff or request.user.is_superuser %}
-        <li><a href="{% url 'panel_admin' %}" class="text-white/90 hover:text-white transition">Admin</a></li>
-      {% endif %}
-    </ul>
+      <div class="ml-auto flex items-center gap-2">
+        <a href="{% url 'agregar_saldo' %}" class="btn btn-sm btn-claro hidden sm:inline-flex">Ingresar dinero</a>
+        <a href="{% url 'operar' %}" class="btn btn-sm btn-primario hidden lg:inline-flex">Operar</a>
 
-    <!-- Acciones / Perfil -->
-    <div class="hidden items-center gap-2 lg:flex">
-      {% if request.user.is_authenticated %}
-        <!-- Dropdown Perfil -->
-        <div class="relative" id="perfil-dropdown">
-          <button
-            id="perfil-toggle"
-            class="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            aria-haspopup="menu" aria-expanded="false">
-            <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[11px] font-bold text-gray-700">
-              {{ request.user.username|slice:":1"|upper }}
-            </span>
-            <span class="hidden sm:inline">Perfil</span>
-            <svg class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor"><path d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.7a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z"/></svg>
+        <div class="relative">
+          <button id="perfil-toggle" type="button"
+            class="ml-1 grid h-9 w-9 place-items-center rounded-full bg-white/10 text-sm font-bold text-white hover:bg-white/15"
+            aria-haspopup="menu" aria-expanded="false" aria-controls="perfil-menu" aria-label="Mi cuenta">
+            {{ request.user.first_name|default:request.user.username|slice:":1"|upper }}
           </button>
 
-          <!-- Menu -->
-          <div
-            id="perfil-menu"
-            class="invisible opacity-0 pointer-events-none absolute right-0 mt-2 w-64 rounded-2xl border border-gray-200 bg-white shadow-lg transition duration-150"
-            role="menu" aria-labelledby="perfil-toggle">
-            <!-- Header usuario -->
-            <div class="px-4 py-3 border-b border-gray-200">
-              <div class="text-sm font-semibold text-gray-900">{{ request.user.username }}</div>
-              <div class="text-xs text-gray-600 truncate">{{ request.user.email }}</div>
-              <div class="mt-1 text-[11px] text-gray-500">
-                {% if request.user.estado_verificacion == 'aprobado' %}✅ Cuenta verificada
-                {% elif request.user.estado_verificacion == 'pendiente' %}⌛ Verificación pendiente
-                {% else %}⚠️ Verificación requerida{% endif %}
+          <div id="perfil-menu" role="menu"
+            class="hidden absolute right-0 mt-3 w-72 overflow-hidden rounded-2xl border border-gray-200 bg-white text-gray-800 shadow-xl">
+            <div class="px-4 py-4 border-b border-gray-200">
+              <div class="font-semibold text-gray-900">{{ request.user.get_full_name|default:request.user.username }}</div>
+              <div class="text-sm text-gray-500 truncate">{{ request.user.email }}</div>
+              <div class="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium
+                {% if request.user.estado_verificacion == 'aprobado' %}bg-emerald-50 text-emerald-800{% elif request.user.estado_verificacion == 'pendiente' %}bg-amber-50 text-amber-800{% else %}bg-rose-50 text-rose-800{% endif %}">
+                {% if request.user.estado_verificacion == 'aprobado' %}Identidad verificada
+                {% elif request.user.estado_verificacion == 'pendiente' %}Verificación en revisión
+                {% else %}Falta verificar tu identidad{% endif %}
               </div>
             </div>
-
-            <!-- Acciones -->
-            <div class="p-2">
-              <a href="{% url 'operar' %}" class="flex items-center gap-2 rounded-lg bg-primary/10 text-gray-900 px-3 py-2 hover:bg-primary/15">
-                🔁 <span class="text-sm font-medium">Operar</span>
-              </a>
-              <a href="{% url 'agregar_saldo' %}" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
-                💸 <span class="text-sm">Ingresar saldo</span>
-              </a>
-              <a href="{% url 'solicitar_retiro' %}" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
-                🏧 <span class="text-sm">Retirar</span>
-              </a>
-
+            <div class="p-2 text-[15px]">
+              <a role="menuitem" href="{% url 'agregar_saldo' %}" class="block rounded-lg px-3 py-2 hover:bg-gray-100">Ingresar dinero</a>
+              <a role="menuitem" href="{% url 'solicitar_retiro' %}" class="block rounded-lg px-3 py-2 hover:bg-gray-100">Retirar</a>
+              <a role="menuitem" href="{% url 'comprobantes' %}" class="block rounded-lg px-3 py-2 hover:bg-gray-100">Comprobantes</a>
               <div class="my-2 border-t border-gray-200"></div>
-
-              <a href="{% url 'configuracion' %}?tab=perfil" class="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
-                👤 <span class="text-sm">Mi perfil</span>
-              </a>
-              <a href="{% url 'configuracion' %}?tab=seguridad" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
-                🔒 <span class="text-sm">Seguridad</span>
-              </a>
-              <a href="{% url 'configuracion' %}" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
-                ⚙️ <span class="text-sm">Configuración</span>
-              </a>
-              <a href="{% url 'comprobantes' %}" class="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
-                🧾 <span class="text-sm">Comprobantes</span>
-              </a>
-
+              <a role="menuitem" href="{% url 'configuracion' %}?tab=perfil" class="block rounded-lg px-3 py-2 hover:bg-gray-100">Mi perfil</a>
+              <a role="menuitem" href="{% url 'configuracion' %}?tab=seguridad" class="block rounded-lg px-3 py-2 hover:bg-gray-100">Seguridad y 2FA</a>
+              <a role="menuitem" href="{% url 'configuracion' %}" class="block rounded-lg px-3 py-2 hover:bg-gray-100">Configuración</a>
+              <a role="menuitem" href="{% url 'soporte' %}" class="block rounded-lg px-3 py-2 hover:bg-gray-100">Ayuda</a>
+              {% if request.user.is_staff %}
+                <a role="menuitem" href="{% url 'panel_admin' %}" class="block rounded-lg px-3 py-2 hover:bg-gray-100 lg:hidden">Administración</a>
+              {% endif %}
               <div class="my-2 border-t border-gray-200"></div>
-
-              <form method="post" action="{% url 'logout' %}" class="mt-1">
+              <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
-                <button type="submit" class="w-full text-left flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
-                  🚪 <span class="text-sm">Cerrar sesión</span>
-                </button>
+                <button role="menuitem" type="submit" class="w-full text-left rounded-lg px-3 py-2 text-gray-600 hover:bg-gray-100">Cerrar sesión</button>
               </form>
             </div>
           </div>
         </div>
-      {% else %}
-        <a href="{% url 'login' %}" class="rounded-md px-3 py-2 text-sm text-white/80 hover:text-white">Iniciar sesión</a>
-        <a href="{% url 'registro' %}" class="rounded-md bg-primary px-3 py-2 text-sm font-semibold text-black hover:bg-[#e60f25] shadow-soft">Crear cuenta</a>
-      {% endif %}
-    </div>
+      </div>
+
+    {% else %}
+      <ul class="hidden md:flex items-center gap-7">
+        <li><a href="{% url 'home' %}#cotizacion" class="barra-link">Cotización</a></li>
+        <li><a href="{% url 'home' %}#como-funciona" class="barra-link">Cómo funciona</a></li>
+        <li><a href="{% url 'home' %}#preguntas" class="barra-link">Preguntas</a></li>
+      </ul>
+      <div class="ml-auto flex items-center gap-1 sm:gap-2">
+        <a href="{% url 'login' %}" class="btn btn-sm px-2 text-white/80 hover:text-white sm:px-3" {% if ruta == 'login' %}aria-current="page"{% endif %}>Ingresar</a>
+        <a href="{% url 'registro' %}" class="btn btn-sm btn-primario px-3 sm:px-4">Crear cuenta</a>
+      </div>
+    {% endif %}
   </nav>
-
-  <!-- Mobile menu -->
-  <div class="container lg:hidden">
-    <ul class="hidden flex-col gap-6 py-4" data-mobile-menu>
-      <li><a href="{% url 'dashboard' %}" class="block text-white/90">Dashboard</a></li>
-      {% if request.user.is_staff or request.user.is_superuser %}
-        <li><a href="{% url 'panel_admin' %}" class="block text-white/90">Admin</a></li>
-      {% endif %}
-
-      {% if request.user.is_authenticated %}
-        <li class="mt-2 text-white/60 text-xs uppercase tracking-wide">Perfil</li>
-        <li><a href="{% url 'operar' %}" class="block text-white/90 text-xl">🔁 Operar</a></li>
-        <li><a href="{% url 'agregar_saldo' %}" class="block text-white/90 text-xl">💸 Ingresar saldo</a></li>
-        <li><a href="{% url 'solicitar_retiro' %}" class="block text-white/90 text-xl">🏧 Retirar</a></li>
-        <li><a href="{% url 'configuracion' %}?tab=perfil" class="block text-white/90 text-xl">👤 Mi perfil</a></li>
-        <li><a href="{% url 'configuracion' %}?tab=seguridad" class="block text-white/90 text-xl">🔒 Seguridad</a></li>
-        <li><a href="{% url 'configuracion' %}" class="block text-white/90 text-xl">⚙️ Configuración</a></li>
-        <li><a href="{% url 'comprobantes' %}" class="block text-white/90 text-xl">🧾 Comprobantes</a></li>
-        <li>
-          <form method="post" action="{% url 'logout' %}" class="inline">
-            {% csrf_token %}
-            <button type="submit" class="rounded-md px-3 py-2 text-m text-white/80 hover:text-white">Cerrar sesión</button>
-          </form>
-        </li>
-      {% else %}
-        <li><a href="{% url 'login' %}" class="block text-white/90">Iniciar sesión</a></li>
-        <li><a href="{% url 'registro' %}" class="block text-white/90">Crear cuenta</a></li>
-      {% endif %}
-    </ul>
-  </div>
 </header>
+{% endwith %}

@@ -23,7 +23,7 @@ from ..models import (
     RetiroARS,
     RetiroCrypto,
 )
-from ..utils import kyc_required
+from ..utils import cotizacion_vigente, kyc_required
 
 
 def _rate_ars(moneda, cot_usd, cot_usdt):
@@ -63,6 +63,7 @@ def dashboard(request):
 
     cot_usdt = Cotizacion.objects.filter(moneda='USDT').order_by('-fecha').first()
     cot_usd  = Cotizacion.objects.filter(moneda='USD').order_by('-fecha').first()
+    vigente = cotizacion_vigente(cot_usdt) and cotizacion_vigente(cot_usd)
     # Placeholders si faltan cotizaciones
     if not cot_usdt: cot_usdt = type('X', (), {'compra':0,'venta':0})()
     if not cot_usd:  cot_usd  = type('X', (), {'compra':0,'venta':0})()
@@ -139,6 +140,12 @@ def dashboard(request):
         float(Decimal(request.user.saldo_usd  or 0) * p_usd),
     ]
 
+    total_ars = sum(comp_ars) or 1
+    composicion = [
+        {'moneda': m, 'unidades': u, 'ars': a, 'pct': round(a * 100 / total_ars, 1)}
+        for m, u, a in zip(comp_labels, comp_units, comp_ars)
+    ]
+
     notificaciones = Notificacion.objects.filter(usuario=request.user).order_by('-fecha')[:10]
     notificaciones_no_leidas = Notificacion.objects.filter(usuario=request.user, leida=False)
 
@@ -162,6 +169,8 @@ def dashboard(request):
         
         'comp_units':  comp_units,
         'comp_ars':    comp_ars,
+        'composicion': composicion,
+        'cotizacion_vigente': vigente,
         'notificaciones': notificaciones,
         'notificaciones_no_leidas': notificaciones_no_leidas,
     })

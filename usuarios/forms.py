@@ -96,12 +96,11 @@ class RegistroUsuarioForm(UserCreationForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # 🎨 Estilos
-        base = "w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-white placeholder-white/50"
-        select_base = base + " pr-8"
-        file_base = "w-full rounded-lg border border-white/10 bg-ink px-3 py-2 text-white " \
-                    "file:mr-3 file:rounded file:border-0 file:bg-neon file:text-black file:px-3 file:py-1.5"
-        checkbox_base = "h-4 w-4 rounded border-white/20 bg-ink text-neon focus:ring-neon"
+        # Estilos (clases de static/css/finanxis.css)
+        base = "campo"
+        select_base = "campo pr-8"
+        file_base = "campo-archivo"
+        checkbox_base = "casilla"
 
         for name, field in self.fields.items():
             classes = field.widget.attrs.get("class", "")
@@ -225,6 +224,10 @@ class DepositoARSForm(forms.ModelForm):
     class Meta:
         model = DepositoARS
         fields = ['monto', 'comprobante']
+        widgets = {
+            'monto': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'class': 'campo'}),
+            'comprobante': forms.ClearableFileInput(attrs={'class': 'campo-archivo'}),
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -238,7 +241,10 @@ class DepositoUSDTForm(forms.ModelForm):
         model = DepositoUSDT
         fields = ['monto', 'red', 'txid', 'comprobante']
         widgets = {
-            'monto': forms.NumberInput(attrs={'step': '0.01', 'min': '0'}),
+            'monto': forms.NumberInput(attrs={'step': '0.01', 'min': '0', 'class': 'campo'}),
+            'red': forms.Select(attrs={'class': 'campo'}),
+            'txid': forms.TextInput(attrs={'class': 'campo'}),
+            'comprobante': forms.ClearableFileInput(attrs={'class': 'campo-archivo'}),
         }
 
     def __init__(self, *args, **kwargs):

@@ -1,405 +1,206 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — Finanxis{% endblock %}
-{% block meta_description %}Panel de trading con saldos, PnL, composición de cartera, cotizaciones y actividad reciente.{% endblock %}
+{% load finanxis %}
+{% block title %}Inicio — Finanxis{% endblock %}
+{% block meta_description %}Tus saldos, la cotización del momento y tu actividad reciente.{% endblock %}
+{% block main_class %}flex-1{% endblock %}
+{% block messages_class %}container pt-6{% endblock %}
 
 {% block content %}
-<script>document.documentElement.classList.add('js');</script>
+<!-- Franja de saldo -->
+<section class="franja">
+  <div class="container py-8 lg:py-12">
+    <div class="flex items-start justify-between gap-4">
+      <p class="text-white/60">Hola, {{ request.user.first_name|default:request.user.username }}</p>
 
-<style>
-  /* Fallback: visible por defecto si JS no carga */
-  .reveal{opacity:1; transform:none}
+      <div class="relative">
+        <button id="btnNotif" type="button" class="relative grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15" aria-label="Notificaciones" aria-expanded="false" aria-controls="boxNotif">
+          <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 16V11a6 6 0 1 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0" stroke-linejoin="round"/></svg>
+          <span id="badgeNotif" class="hidden absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-black">0</span>
+        </button>
+        <div id="boxNotif" class="hidden absolute right-0 z-20 mt-2 w-[min(90vw,22rem)] max-h-[70vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white text-gray-800 shadow-xl">
+          <div class="border-b border-gray-200 px-4 py-3 text-sm font-semibold text-gray-900">Notificaciones</div>
+          <ul id="listNotif" class="divide-y divide-gray-200 text-sm"></ul>
+        </div>
+      </div>
+    </div>
 
-  /* Solo si hay JS, aplicamos la animación */
-  .js .reveal{
-    opacity:0;
-    transform:translateY(22px);
-    transition:opacity .6s cubic-bezier(.21,.67,.15,.99), transform .6s cubic-bezier(.21,.67,.15,.99);
-  }
-  .js .reveal.show{opacity:1; transform:none}
-</style>
+    <div class="mt-4 grid gap-8 lg:grid-cols-12 lg:items-end">
+      <div class="lg:col-span-7">
+        <div class="text-sm text-white/50">Patrimonio estimado en pesos</div>
+        <div class="num mt-1 text-[2.75rem] font-extrabold leading-none sm:text-6xl">
+          <span class="text-white/40 text-[0.55em] align-top">$</span>{{ kpi_cartera_ars|money }}
+        </div>
+        <dl class="mt-7 grid max-w-xl grid-cols-3 gap-4 border-t border-white/10 pt-5">
+          <div>
+            <dt class="text-xs text-white/50">Pesos</dt>
+            <dd class="num mt-1 whitespace-nowrap text-base font-bold sm:text-xl">$ {{ request.user.saldo_ars|money }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-white/50">USDT</dt>
+            <dd class="num mt-1 whitespace-nowrap text-base font-bold sm:text-xl">{{ request.user.saldo_usdt|money }}</dd>
+          </div>
+          <div>
+            <dt class="text-xs text-white/50">Dólares</dt>
+            <dd class="num mt-1 whitespace-nowrap text-base font-bold sm:text-xl">US$ {{ request.user.saldo_usd|money }}</dd>
+          </div>
+        </dl>
+      </div>
 
-<!-- 🔔 Notificaciones (flotante) -->
-<div id="notiFab" class="fixed right-2 sm:right-4 top-24 z-40">
-  <button id="btnNotif" class="relative h-11 w-11 rounded-xl border border-gray-200 bg-white shadow-card hover:bg-gray-50">🔔
-    <span id="badgeNotif" class="hidden absolute -top-1.5 -right-1.5 bg-primary text-white text-[10px] font-bold rounded-full w-5 h-5 flex items-center justify-center">0</span>
-  </button>
-  <div id="boxNotif" class="hidden mt-2 w-[min(90vw,22rem)] rounded-2xl border border-gray-200 bg-white shadow-lg max-h-[70vh] overflow-y-auto">
-    <div class="px-4 py-3 border-b border-gray-200 text-sm font-semibold">Notificaciones</div>
-    <ul id="listNotif" class="divide-y divide-gray-100 text-sm"></ul>
+      <div class="flex flex-wrap gap-3 lg:col-span-5 lg:justify-end">
+        <a href="{% url 'operar' %}" class="btn btn-lg btn-primario flex-1 sm:flex-none">Comprar o vender</a>
+        <a href="{% url 'agregar_saldo' %}" class="btn btn-lg btn-claro flex-1 sm:flex-none">Ingresar</a>
+        <a href="{% url 'solicitar_retiro' %}" class="btn btn-lg btn-claro flex-1 sm:flex-none">Retirar</a>
+      </div>
+    </div>
   </div>
-</div>
-
-<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-
-  <!-- ===== Encabezado / Estado de cuenta / CTA ===== -->
-  <header class="reveal">
-    <div class="rounded-2xl border border-gray-200 bg-white p-5 lg:p-6 shadow-soft">
-      <div class="grid gap-4 lg:grid-cols-12">
-        <div class="lg:col-span-7">
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Hola, {{ request.user.username }}</h1>
-          <p class="text-gray-600 mt-1">Seguimiento de tu cartera y accesos rápidos para operar.</p>
-
-          <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
-              {% if request.user.estado_verificacion == 'aprobado' %}✅ KYC verificado{% elif request.user.estado_verificacion == 'pendiente' %}⌛ KYC pendiente{% else %}⚠️ KYC requerido{% endif %}
-            </span>
-            <!-- <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
-              {% if request.user.totp_activo %}🔒 2FA activo{% else %}🔓 Activá 2FA{% endif %}
-            </span> -->
-            <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">🧑‍💼 Soporte 24/7</span>
-            <span class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">🏪 Retiros en sucursales</span>
-          </div>
-        </div>
-
-        <!-- Acciones clave -->
-        <div class="lg:col-span-5 flex flex-col sm:flex-row lg:flex-col gap-3">
-          <a href="{% url 'operar' %}" class="flex-1 inline-flex items-center justify-center rounded-xl bg-primary text-dark font-semibold px-5 py-3 text-sm shadow-soft hover:opacity-90">🚀 Nueva operación</a>
-          <div class="flex gap-3">
-            <a href="{% url 'agregar_saldo' %}" class="flex-1 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-3 text-sm text-center hover:bg-emerald-100">💸 Ingresar</a>
-            <a href="{% url 'solicitar_retiro' %}" class="flex-1 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 px-4 py-3 text-sm text-center hover:bg-amber-100">🏧 Retirar</a>
-          </div>
-        </div>
-      </div>
-    </div>
-  </header>
-
-  <!-- ===== Cabecera de trading: Saldos + Ticker + Atajos ===== -->
-  <section class="reveal grid gap-6 lg:grid-cols-12">
-    <!-- Saldos -->
-    <div class="lg:col-span-5 rounded-2xl border border-gray-200 bg-white p-5">
-      <h3 class="text-sm font-semibold text-gray-900">Saldos disponibles</h3>
-      <div class="mt-3 grid grid-cols-3 gap-3">
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <div class="text-xs text-gray-600">ARS</div>
-          <div class="mt-1 text-xl font-extrabold text-gray-900">${{ request.user.saldo_ars }}</div>
-        </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <div class="text-xs text-gray-600">USDT</div>
-          <div class="mt-1 text-xl font-extrabold text-gray-900">{{ request.user.saldo_usdt }}</div>
-        </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <div class="text-xs text-gray-600">USD</div>
-          <div class="mt-1 text-xl font-extrabold text-gray-900">{{ request.user.saldo_usd|default:"0.00" }}</div>
-        </div>
-      </div>
-      <p class="mt-2 text-[11px] text-gray-500">Tip: podés exportar movimientos desde <a href="{% url 'mis_movimientos' %}" class="underline">Mis movimientos</a>.</p>
-    </div>
-
-    <!-- Ticker / Cotizaciones -->
-    <div class="lg:col-span-4 rounded-2xl border border-gray-200 bg-white p-5">
-      <h3 class="text-sm font-semibold text-gray-900">Cotizaciones</h3>
-      <div class="mt-3 grid grid-cols-2 gap-3 text-sm">
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <div class="text-xs text-gray-600">USDT</div>
-          <div class="mt-1 flex justify-between"><span class="text-gray-700">Compra</span><span class="font-semibold">${{ cot_usdt.compra }}</span></div>
-          <div class="mt-1 flex justify-between"><span class="text-gray-700">Venta</span><span class="font-semibold">${{ cot_usdt.venta }}</span></div>
-        </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <div class="text-xs text-gray-600">USD</div>
-          <div class="mt-1 flex justify-between"><span class="text-gray-700">Compra</span><span class="font-semibold">${{ cot_usd.compra }}</span></div>
-          <div class="mt-1 flex justify-between"><span class="text-gray-700">Venta</span><span class="font-semibold">${{ cot_usd.venta }}</span></div>
-        </div>
-      </div>
-      <div class="mt-3 flex gap-2">
-        <a href="{% url 'operar' %}" class="flex-1 rounded-lg bg-primary text-dark text-xs font-semibold px-3 py-2 text-center shadow-soft hover:opacity-90">Operar ahora</a>
-        <a href="{% url 'agregar_saldo' %}" class="flex-1 rounded-lg border border-gray-200 bg-white text-xs px-3 py-2 text-center hover:bg-gray-50">Ingresa saldo</a>
-      </div>
-    </div>
-
-    <!-- Atajos -->
-    <div class="lg:col-span-3 rounded-2xl border border-gray-200 bg-primary/5 p-5">
-      <h3 class="text-sm font-semibold text-gray-900">Atajos</h3>
-      <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
-        <a class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-center hover:bg-gray-50" href="{% url 'comprobantes' %}">🧾 Comprobantes</a>
-        <a class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-center hover:bg-gray-50" href="{% url 'mis_movimientos' %}">☰ Movimientos</a>
-        <a class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-center hover:bg-gray-50" href="{% url 'soporte' %}">💬 Ayuda</a>
-        <!-- <a class="rounded-xl border border-gray-200 bg-white px-3 py-2 text-center hover:bg-gray-50" href="#">🎁 Referidos</a> -->
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== Visualizaciones: PnL + Composición ===== -->
-  <section class="reveal grid gap-6 lg:grid-cols-12">
-    <div class="lg:col-span-8 rounded-2xl border border-gray-200 bg-white p-5">
-      <div class="flex items-center justify-between mb-2">
-        <h3 class="text-lg font-semibold text-gray-900">Evolución 30 días — PnL / Flujo</h3>
-        <span class="text-xs text-gray-500">ARS (precio compra)</span>
-      </div>
-      <canvas id="fx-line" height="90"></canvas>
-      <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <p class="text-[11px] text-gray-600">Ingresado</p>
-          <p class="text-lg font-bold text-gray-900">${{ kpi_total_ingresado|floatformat:2 }}</p>
-        </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <p class="text-[11px] text-gray-600">Retirado</p>
-          <p class="text-lg font-bold text-gray-900">${{ kpi_total_retirado|floatformat:2 }}</p>
-        </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <p class="text-[11px] text-gray-600">Flujo neto</p>
-          <p class="text-lg font-bold text-gray-900">${{ kpi_flujo_neto|floatformat:2 }}</p>
-        </div>
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <p class="text-[11px] text-gray-600">Cartera (ARS)</p>
-          <p class="text-lg font-bold text-gray-900">${{ kpi_cartera_ars|floatformat:2 }}</p>
-        </div>
-      </div>
-    </div>
-
-    <div class="lg:col-span-4 rounded-2xl border border-gray-200 bg-white p-5">
-      <h3 class="text-lg font-semibold text-gray-900 mb-2">Composición de cartera</h3>
-      <canvas id="fx-donut" height="120"></canvas>
-      <p class="text-[11px] text-gray-600 mt-2">Ponderado a ARS. El tooltip muestra unidades originales.</p>
-    </div>
-  </section>
-
-  <!-- ===== Notificaciones recientes ===== -->
-  <!-- <section class="reveal rounded-2xl border border-gray-200 bg-white p-5">
-    <div class="flex items-center justify-between">
-      <h3 class="text-lg font-semibold text-gray-900">Notificaciones recientes</h3>
-      <a href="#" class="text-xs text-primary underline">Ver todas</a>
-    </div>
-    <ul class="mt-3 divide-y divide-gray-100 text-sm">
-      {% for n in notificaciones %}
-        <li class="py-2 flex items-start gap-2">
-          <span class="mt-1 text-primary">●</span>
-          <span class="text-gray-700">{{ n.fecha|date:"d/m/Y H:i" }} — {{ n.mensaje }} {% if not n.leida %}<strong class="text-primary">(nuevo)</strong>{% endif %}</span>
-        </li>
-      {% empty %}
-        <li class="py-4 text-gray-500">No hay notificaciones.</li>
-      {% endfor %}
-    </ul>
-  </section> -->
-
-  <!-- ===== Actividad reciente ===== -->
-  <section class="reveal rounded-2xl border border-gray-200 bg-white p-5">
-    <div class="flex items-center justify-between mb-2">
-      <h3 class="text-lg font-semibold text-gray-900">Actividad reciente</h3>
-      <a href="{% url 'mis_movimientos' %}" class="text-sm text-primary underline">Ver todo</a>
-    </div>
-    <div class="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-      <table class="w-full text-xs md:text-sm">
-        <thead class="bg-gray-50 text-gray-600">
-          <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-left">
-            <th>Fecha</th><th>Tipo</th><th>Moneda</th>
-            <th class="text-right">Monto</th><th class="text-right">Saldo antes</th><th class="text-right">Saldo después</th>
-            <th>Descripción</th><th>ID</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200">
-          {% for m in movimientos %}
-          <tr class="hover:bg-gray-50 transition">
-            <td class="px-3 py-2 whitespace-nowrap text-gray-700">{{ m.fecha }}</td>
-            <td class="px-3 py-2 text-gray-700">{{ m.get_tipo_display }}</td>
-            <td class="px-3 py-2 text-gray-700">{{ m.moneda }}</td>
-            <td class="px-3 py-2 text-right text-gray-900">${{ m.monto }}</td>
-            <td class="px-3 py-2 text-right text-gray-900">${{ m.saldo_antes }}</td>
-            <td class="px-3 py-2 text-right text-gray-900">${{ m.saldo_despues }}</td>
-            <td class="px-3 py-2 text-gray-700">{{ m.descripcion }}</td>
-            <td class="px-3 py-2 font-mono text-xs text-gray-600">{{ m.codigo }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="8" class="px-3 py-6 text-center text-gray-500">Sin movimientos aún.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
 </section>
 
-<!-- ===== Scripts ===== -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<div class="container grid gap-6 py-8 lg:grid-cols-12 lg:py-10">
 
-{# Datos seguros (si no existen en contexto, caerán a vacíos) #}
+  <!-- Actividad -->
+  <section class="card p-5 sm:p-6 lg:col-span-7">
+    <div class="flex items-center justify-between">
+      <h2 class="text-lg font-bold text-gray-900">Actividad reciente</h2>
+      <a href="{% url 'mis_movimientos' %}" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Ver todos</a>
+    </div>
+    <ul class="mt-2">
+      {% for m in movimientos %}
+      <li class="fila-mov">
+        <span class="icono-mov" aria-hidden="true">
+          {% if m.tipo == 'deposito' %}
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v12m0 0-4.5-4.5M12 16l4.5-4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          {% elif m.tipo == 'retiro' %}
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          {% else %}
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h12l-3.5-3.5M17 17H5l3.5 3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          {% endif %}
+        </span>
+        <div class="min-w-0">
+          <div class="truncate font-semibold text-gray-900">{{ m.descripcion|default:m.get_tipo_display }}</div>
+          <div class="text-sm text-gray-500">{{ m.get_tipo_display }}<span class="ml-2">{{ m.fecha|date:"d/m H:i" }}</span></div>
+        </div>
+        <div class="num text-right font-bold {% if m.monto > 0 %}positivo{% else %}text-gray-900{% endif %}">
+          {% if m.monto > 0 %}+{% elif m.monto < 0 %}−{% endif %}{% if m.moneda == 'ARS' %}$ {% endif %}{{ m.monto|absoluto|money }}{% if m.moneda != 'ARS' %} <span class="text-xs text-gray-500">{{ m.moneda }}</span>{% endif %}
+        </div>
+      </li>
+      {% empty %}
+      <li class="py-10 text-center">
+        <p class="font-semibold text-gray-900">Todavía no tenés movimientos</p>
+        <p class="mt-1 text-sm text-gray-500">Ingresá pesos o USDT para hacer tu primera operación.</p>
+        <a href="{% url 'agregar_saldo' %}" class="btn btn-sm btn-primario mt-4">Ingresar dinero</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <div class="space-y-6 lg:col-span-5">
+  {% include "includes/pizarra.html" with cot_usdt=cot_usdt cot_usd=cot_usd vigente=cotizacion_vigente %}
+
+  <!-- Composición -->
+  <section class="card p-5 sm:p-6">
+    <h2 class="text-lg font-bold text-gray-900">Cómo está repartido tu dinero</h2>
+    <div class="mt-4 flex h-3 overflow-hidden rounded-full bg-gray-100" role="img" aria-label="{% for c in composicion %}{{ c.moneda }} {{ c.pct }}%{% if not forloop.last %}, {% endif %}{% endfor %}">
+      {% for c in composicion %}{% if c.pct %}<span class="h-full {% if c.moneda == 'ARS' %}bg-gray-900{% elif c.moneda == 'USDT' %}bg-primary{% else %}bg-gray-400{% endif %}" style="width: {{ c.pct|stringformat:'.1f' }}%"></span>{% endif %}{% endfor %}
+    </div>
+    <dl class="mt-4 space-y-2.5 text-[15px]">
+      {% for c in composicion %}
+      <div class="flex items-center gap-3">
+        <span class="h-2.5 w-2.5 rounded-full {% if c.moneda == 'ARS' %}bg-gray-900{% elif c.moneda == 'USDT' %}bg-primary{% else %}bg-gray-400{% endif %}"></span>
+        <dt class="flex-1 text-gray-700">{% if c.moneda == 'ARS' %}Pesos{% elif c.moneda == 'USD' %}Dólares{% else %}USDT{% endif %}</dt>
+        <dd class="num text-gray-500">$ {{ c.ars|money }}</dd>
+        <dd class="num w-14 text-right font-semibold text-gray-900">{{ c.pct|floatformat:0 }}%</dd>
+      </div>
+      {% endfor %}
+    </dl>
+  </section>
+  </div>
+
+  <!-- Flujo de 30 días -->
+  <section class="card p-5 sm:p-6 lg:col-span-12">
+    <div class="flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h2 class="text-lg font-bold text-gray-900">Ingresos y retiros</h2>
+        <p class="text-sm text-gray-500">Últimos 30 días, valuado en pesos</p>
+      </div>
+      <dl class="flex gap-8">
+        <div><dt class="text-xs text-gray-500">Ingresaste</dt><dd class="num font-bold text-gray-900">$ {{ kpi_total_ingresado|money }}</dd></div>
+        <div><dt class="text-xs text-gray-500">Retiraste</dt><dd class="num font-bold text-gray-900">$ {{ kpi_total_retirado|money }}</dd></div>
+        <div><dt class="text-xs text-gray-500">Neto</dt><dd class="num font-bold text-gray-900">$ {{ kpi_flujo_neto|money }}</dd></div>
+      </dl>
+    </div>
+    <div class="relative mt-6 h-56"><canvas id="fx-flujo" aria-label="Gráfico de ingresos y retiros por día" role="img"></canvas></div>
+  </section>
+</div>
+
 {{ chart_labels|json_script:"fxLabels" }}
 {{ chart_deps|json_script:"fxDeps" }}
 {{ chart_rets|json_script:"fxRets" }}
-{{ chart_net|json_script:"fxNet" }}
-
-{{ comp_labels|json_script:"cmpLabels" }}
-{{ comp_units|json_script:"cmpUnits" }}
-{{ comp_ars|json_script:"cmpArs" }}
-
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-/* ==== REVEAL ROBUSTO (fix: usar "target" en vez de "t") ==== */
 (function () {
-  const els = document.querySelectorAll('.reveal');
+  const c = document.getElementById('fx-flujo');
+  if (!c || !window.Chart) return;
+  const css = getComputedStyle(document.documentElement);
+  const rgb = (v) => `rgb(${css.getPropertyValue(v).trim().replace(/ /g, ',')})`;
+  const leer = (id) => JSON.parse(document.getElementById(id)?.textContent || '[]');
+  const etiquetas = leer('fxLabels').map(d => d.slice(8, 10) + '/' + d.slice(5, 7));
+  const pesos = (v) => '$ ' + Number(v).toLocaleString('es-AR', { maximumFractionDigits: 0 });
 
-  // Si no hay JS o no hay elementos, nada que hacer
-  if (!('IntersectionObserver' in window) || !els.length) {
-    els.forEach(el => el.classList.add('show'));
-    return;
-  }
-
-  const io = new IntersectionObserver((entries) => {
-    entries.forEach(({ isIntersecting, target }) => {  // <<<<<< FIX ACA
-      if (isIntersecting) {
-        target.classList.add('show');
-        io.unobserve(target);
+  Chart.defaults.font.family = css.getPropertyValue('--font-ui');
+  new Chart(c, {
+    type: 'bar',
+    data: {
+      labels: etiquetas,
+      datasets: [
+        { label: 'Ingresos', data: leer('fxDeps'), backgroundColor: rgb('--g-900'), borderRadius: 4, maxBarThickness: 14 },
+        { label: 'Retiros', data: leer('fxRets'), backgroundColor: rgb('--rojo'), borderRadius: 4, maxBarThickness: 14 },
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', align: 'start', labels: { boxWidth: 10, boxHeight: 10, color: rgb('--g-600') } },
+        tooltip: { callbacks: { label: (x) => `${x.dataset.label}: ${pesos(x.raw)}` } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: rgb('--g-500'), maxRotation: 0, autoSkipPadding: 12 } },
+        y: { grid: { color: rgb('--g-200') }, border: { display: false }, ticks: { color: rgb('--g-500'), callback: pesos } }
       }
-    });
-  }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 });
-
-  els.forEach(el => io.observe(el));
-
-  // Fallback extra: asegura mostrar todo si algo quedó sin observar
-  setTimeout(() => {
-    document.querySelectorAll('.reveal:not(.show)').forEach(el => el.classList.add('show'));
-  }, 900);
-})();
-</script>
-
-<script>
-/* ==== CHARTS (Finanxis colors) ==== */
-(function () {
-  // Paleta Finanxis
-  const FX = {
-    primary:  '#FF1129',                        // rojo Finanxis
-    ink:      '#111827',                        // gris oscuro (texto fuerte)
-    cyan:     '#0EA5E9',                        // acento frío
-    tick:     '#4B5563',
-    grid:     'rgba(0,0,0,.06)',
-    alpha: {
-      primary: 'rgba(255, 17, 41, 0.14)',
-      ink:     'rgba(17, 24, 39, 0.10)',
-      cyan:    'rgba(14, 165, 233, 0.16)',
     }
-  };
-
-  // ===== Datos existentes (no tocamos nombres/estructura)
-  const L = JSON.parse(document.getElementById('fxLabels')?.textContent || '[]');
-  const D = JSON.parse(document.getElementById('fxDeps')?.textContent   || '[]');
-  const R = JSON.parse(document.getElementById('fxRets')?.textContent   || '[]');
-  const N = JSON.parse(document.getElementById('fxNet')?.textContent    || '[]');
-
-  // ===== Línea: Evolución 30 días — PnL / Flujo (colores Finanxis)
-  const c1 = document.getElementById('fx-line');
-  if (c1 && window.Chart){
-    new Chart(c1, {
-      type: 'line',
-      data: {
-        labels: L,
-        datasets: [
-          {
-            label:'Ingresos',
-            data: D,
-            borderColor: FX.primary,
-            backgroundColor: FX.alpha.primary,
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: .25
-          },
-          {
-            label:'Retiros',
-            data: R,
-            borderColor: FX.ink,
-            backgroundColor: FX.alpha.ink,
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: .25
-          },
-          {
-            label:'Neto',
-            data: N,
-            borderColor: FX.cyan,
-            backgroundColor: FX.alpha.cyan,
-            borderWidth: 2,
-            pointRadius: 0,
-            tension: .25
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: true } },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: FX.tick } },
-          y: { grid: { color: FX.grid },   ticks: { color: FX.tick } }
-        }
-      }
-    });
-  }
-
-  // ===== Donut: Composición (colores Finanxis)
-  const L2 = JSON.parse(document.getElementById('cmpLabels')?.textContent || '[]'); // p.ej. ['ARS','USDT','USD']
-  const U2 = JSON.parse(document.getElementById('cmpUnits') ?.textContent || '[]');
-  const A2 = JSON.parse(document.getElementById('cmpArs')   ?.textContent || '[]');
-
-  const c2 = document.getElementById('fx-donut');
-  if (c2 && window.Chart){
-    // Mapeo por etiqueta para que el color sea consistente sin importar el orden
-    const colorMap = { 'ARS': FX.ink, 'USDT': FX.primary, 'USD': FX.cyan };
-    const bg = L2.map(l => colorMap[l] || FX.cyan);
-
-    new Chart(c2, {
-      type: 'doughnut',
-      data: {
-        labels: L2,
-        datasets: [{
-          data: A2,
-          backgroundColor: bg,
-          borderColor: bg,
-          borderWidth: 1
-        }]
-      },
-      options: {
-        cutout: '60%',
-        plugins: {
-          legend: { position: 'bottom' },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const i = ctx.dataIndex;
-                const label = L2[i] ?? '';
-                const ars   = Number(A2[i] ?? 0).toFixed(2);
-                const unit  = Number(U2[i] ?? 0);
-                const unitFmt = (label === 'USDT') ? unit.toFixed(6) : unit.toFixed(2);
-                return `${label}: ${unitFmt} • $${ars} ARS`;
-              }
-            }
-          }
-        }
-      }
-    });
-  }
+  });
 })();
-</script>
 
-
-<script>
-/* ==== NOTIFICACIONES (simple) ==== */
-(function(){
+/* Notificaciones */
+(function () {
   const btn = document.getElementById('btnNotif');
   const box = document.getElementById('boxNotif');
-  const list= document.getElementById('listNotif');
-  const badge= document.getElementById('badgeNotif');
-
-  async function json(u){ const r=await fetch(u,{headers:{'X-Requested-With':'XMLHttpRequest'}}); if(!r.ok) throw new Error(); return r.json(); }
-  async function contar(){
-    try{
-      const d = await json('/notificaciones/contar/');
-      const n = Number(d?.no_leidas||0);
-      if(n>0){ badge.textContent=n>9?'9+':n; badge.classList.remove('hidden'); } else { badge.classList.add('hidden'); }
-    }catch(e){}
+  const list = document.getElementById('listNotif');
+  const badge = document.getElementById('badgeNotif');
+  async function json(u) { const r = await fetch(u, { headers: { 'X-Requested-With': 'XMLHttpRequest' } }); if (!r.ok) throw new Error(); return r.json(); }
+  function item(texto, clase) { const li = document.createElement('li'); li.className = clase || 'px-4 py-3'; li.textContent = texto; return li; }
+  async function contar() {
+    try {
+      const n = Number((await json('/notificaciones/contar/'))?.no_leidas || 0);
+      badge.textContent = n > 9 ? '9+' : n;
+      badge.classList.toggle('hidden', n === 0);
+    } catch (e) {}
   }
-  async function cargar(){
-    try{
-      const d = await json('/notificaciones/ajax/');
-      list.innerHTML = '';
-      const arr = d?.notificaciones||[];
-      if(!arr.length){ list.innerHTML = '<li class="px-4 py-3 text-gray-500">Sin notificaciones.</li>'; return; }
-      arr.forEach(n=>{
-        const li = document.createElement('li');
-        li.className='px-4 py-3 hover:bg-gray-50'; li.textContent=`${n.fecha}: ${n.mensaje}`;
-        list.appendChild(li);
-      });
+  async function cargar() {
+    try {
+      const arr = (await json('/notificaciones/ajax/'))?.notificaciones || [];
+      list.replaceChildren();
+      if (!arr.length) { list.appendChild(item('No tenés notificaciones.', 'px-4 py-6 text-center text-gray-500')); return; }
+      arr.forEach(n => list.appendChild(item(`${n.fecha}: ${n.mensaje}`)));
       badge.classList.add('hidden');
-    }catch(e){ list.innerHTML='<li class="px-4 py-3 text-rose-500">Error al cargar.</li>'; }
+    } catch (e) { list.replaceChildren(item('No se pudieron cargar las notificaciones.', 'px-4 py-3 text-rose-700')); }
   }
-  btn?.addEventListener('click', (e)=>{ e.stopPropagation(); box.classList.toggle('hidden'); if(!box.classList.contains('hidden')) cargar(); });
-  document.addEventListener('click', (e)=>{ if(btn && box && !btn.contains(e.target) && !box.contains(e.target)) box.classList.add('hidden'); });
+  btn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const abierto = !box.classList.toggle('hidden');
+    btn.setAttribute('aria-expanded', abierto);
+    if (abierto) cargar();
+  });
+  document.addEventListener('click', (e) => { if (!box.contains(e.target)) { box.classList.add('hidden'); btn.setAttribute('aria-expanded', 'false'); } });
   contar(); setInterval(contar, 60000);
 })();
 </script>

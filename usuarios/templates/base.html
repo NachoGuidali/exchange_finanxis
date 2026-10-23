@@ -1,107 +1,63 @@
-<!DOCTYPE html>
+{% load static %}<!DOCTYPE html>
 <html lang="es">
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#060606" />
 
   <title>{% block title %}Finanxis — Exchange de Criptoactivos{% endblock %}</title>
   <meta name="description"
-    content="{% block meta_description %}Intercambiá ARS ⇄ USDT/USD con experiencia simple y segura.{% endblock %}" />
+    content="{% block meta_description %}Comprá y vendé USDT y dólares con pesos. Precio bloqueado al confirmar y comprobante de cada operación.{% endblock %}" />
   <link rel="canonical" href="{% block canonical %}{{ request.build_absolute_uri }}{% endblock %}" />
+  <link rel="icon" type="image/png" href="{% static 'img/logo-emblema.png' %}" />
 
   <meta property="og:type" content="website" />
   <meta property="og:url" content="{{ request.build_absolute_uri|default:'' }}" />
   <meta property="og:title" content="Finanxis — Exchange de Criptoactivos" />
-  <meta property="og:description" content="Comprá y vendé cripto con ARS. Simple, rápido y seguro." />
+  <meta property="og:description" content="Comprá y vendé USDT y dólares con pesos." />
   <meta name="twitter:card" content="summary_large_image" />
 
-  <!-- Tailwind -->
+  <!-- Tema antes de pintar, para no parpadear -->
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('finanxis-theme'); } catch (e) {}
+      if (t === 'dark') document.documentElement.classList.add('theme-dark');
+    })();
+  </script>
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
+    // Los grises salen de variables CSS (finanxis.css) para que el tema oscuro aplique en todas las pantallas
+    var gris = {};
+    [50, 100, 200, 300, 400, 500, 600, 700, 800, 900].forEach(function (n) { gris[n] = 'rgb(var(--g-' + n + ') / <alpha-value>)'; });
     tailwind.config = {
       theme: {
-        container: { center: true, padding: '1rem' },
+        container: { center: true, padding: '1rem', screens: { '2xl': '1280px' } },
         extend: {
           colors: {
-            primary: { DEFAULT: '#FF1129' },           // color de marca principal
+            gray: gris,
+            primary: { DEFAULT: '#FF1129' },
             dark: { DEFAULT: '#060606' },
             light: { DEFAULT: '#FFFFFF' },
-            // escala “ink” que ya usabas
-            ink: {
-              50: '#0b0b0b', 100: '#131313', 200: '#1a1a1a', 300: '#222',
-              400: '#2a2a2a', 500: '#333', 600: '#3d3d3d', 700: '#5a5a5a',
-              800: '#9a9a9a', 900: '#e6e6e6'
-            },
-            // alias opcional p/compatibilidad con componentes previos
             brand: { red: '#FF1129', ink: '#060606', white: '#FFFFFF' }
           },
           boxShadow: {
-            soft: '0 8px 30px -10px rgba(255,17,41,0.35)',
-            card: '0 10px 24px -8px rgba(0,0,0,0.45)',
-            glow: '0 0 0 3px rgba(255,17,41,0.25), 0 10px 30px rgba(0,0,0,0.45)' // alias compat
+            soft: '0 1px 2px rgba(0,0,0,.06)',
+            card: '0 1px 2px rgba(0,0,0,.06)',
+            glow: 'none'
           },
-          borderRadius: { xl: '1rem', '2xl': '1.25rem' },
-          keyframes: {
-            float: { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-6px)' } },
-            pulseBorder: {
-              '0%,100%': { boxShadow: '0 0 0 0 rgba(255,17,41,0.35)' },
-              '50%': { boxShadow: '0 0 0 10px rgba(255,17,41,0)' },
-            },
-          },
-          animation: {
-            float: 'float 6s ease-in-out infinite',
-            pulseBorder: 'pulseBorder 2.5s ease-out infinite',
-          },
+          borderRadius: { xl: '0.875rem', '2xl': '1.125rem' }
         }
       }
     }
   </script>
 
-  <!-- Fuente -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet">
-
-  <style>
-    html {
-      font-family: Montserrat, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-    }
-
-    /* variables para compat; ahora en light */
-    :root {
-      --bg: #F9FAFB;
-      /* gray-50 */
-      --card: #FFFFFF;
-      --card-2: #F3F4F6;
-      --ring: #FF1129;
-    }
-
-    /* 👇 Temas: SOLO cambiamos el fondo del body */
-    body.theme-light {
-      background-color: #F9FAFB;   /* fondo claro */
-    }
-
-    body.theme-dark {
-      --bg: #0a0a0a44;        /* fondo sólido oscuro */
-      --card: #111111;
-      --card-2: #1A1A1A;
-      --ring: #FF1129;
-
-      background-color: var(--bg);
-      background-image: radial-gradient(
-          1200px 1400px at 50% 0%,
-          rgba(255, 17, 41, 0.3),
-          transparent
-      );
-    }
-
-    ::selection {
-      background: rgba(255, 17, 41, .2);
-      color: #111;
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Montserrat:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/finanxis.css' %}">
 
   {% block head_extra %}{% endblock %}
   {% block json_ld %}
@@ -111,25 +67,20 @@
   {% endblock %}
 </head>
 
-<body class="{% block body_class %}min-h-screen flex flex-col bg-gray-50 text-gray-800{% endblock %} antialiased">
-  <!-- blobs sutiles para light -->
-  <div class="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-    <div class="absolute -top-24 right-1/3 h-64 w-64 rounded-full bg-primary/10 blur-3xl animate-float"></div>
-    <div class="absolute -bottom-24 left-1/4 h-72 w-72 rounded-full bg-primary/5 blur-3xl animate-float"
-      style="animation-delay:1.2s"></div>
-  </div>
+<body class="{% block body_class %}min-h-screen flex flex-col{% endblock %} antialiased {% if request.user.is_authenticated %}pb-20 lg:pb-0{% endif %}">
+  <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 btn btn-primario">Ir al contenido</a>
 
   {% if DEMO_MODE %}
-  <div class="bg-amber-400 text-black text-center text-sm font-semibold py-1 px-4">
-    Entorno de demostración: los datos y operaciones son ficticios.
+  <div class="bg-amber-400 text-black text-center text-[13px] font-semibold py-1.5 px-4">
+    Entorno de demostración: los datos y las operaciones son ficticios.
   </div>
   {% endif %}
 
   {% include "includes/navbar.html" %}
 
-  <main id="main" class="container flex-1 py-8 lg:py-12">
+  <main id="main" class="{% block main_class %}container flex-1 py-8 lg:py-12{% endblock %}">
     {% if messages %}
-    <div class="container mb-6 space-y-2" aria-live="polite" aria-atomic="true">
+    <div class="{% block messages_class %}mb-6{% endblock %} space-y-2" aria-live="polite" aria-atomic="true">
       {% for message in messages %}
       {% with t=message.tags %}
       <div class="rounded-xl border px-4 py-3 text-sm
@@ -150,81 +101,46 @@
 
   {% include "includes/footer.html" %}
 
+  {% if request.user.is_authenticated %}
+    {% include "includes/pestanas.html" %}
+  {% endif %}
+
   {% block scripts %}
   <script>
-    const btn = document.querySelector('[data-mobile-toggle]');
-    const menu = document.querySelector('[data-mobile-menu]');
-    btn && btn.addEventListener('click', () => { menu?.classList.toggle('hidden'); });
-  </script>
-  <script>
     (function () {
-      const toggle = document.getElementById('perfil-toggle');
-      const menu = document.getElementById('perfil-menu');
-      if (!toggle || !menu) return;
+      // Menú móvil
+      var btn = document.querySelector('[data-mobile-toggle]');
+      var menu = document.querySelector('[data-mobile-menu]');
+      btn && btn.addEventListener('click', function () {
+        var abierto = !menu.classList.toggle('hidden');
+        btn.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+      });
 
-      function open() { menu.classList.remove('pointer-events-none', 'invisible', 'opacity-0'); toggle.setAttribute('aria-expanded', 'true'); }
-      function close() { menu.classList.add('pointer-events-none', 'invisible', 'opacity-0'); toggle.setAttribute('aria-expanded', 'false'); }
-
-      toggle.addEventListener('click', (e) => { e.stopPropagation(); (toggle.getAttribute('aria-expanded') === 'true') ? close() : open(); });
-      document.addEventListener('click', (e) => { if (!menu.contains(e.target) && e.target !== toggle) close(); });
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-    })();
-  </script>
-
-  <!-- 👇 Script de tema claro/oscuro: SOLO cambia fondo -->
-  <script>
-    (function () {
-      const STORAGE_KEY = 'finanxis-theme';
-
-      function applyTheme(theme) {
-        const body = document.body;
-        body.classList.remove('theme-light', 'theme-dark');
-        if (theme === 'dark') {
-          body.classList.add('theme-dark');
-        } else {
-          body.classList.add('theme-light');
-        }
+      // Menú de perfil
+      var toggle = document.getElementById('perfil-toggle');
+      var panel = document.getElementById('perfil-menu');
+      if (toggle && panel) {
+        var abrir = function () { panel.classList.remove('hidden'); toggle.setAttribute('aria-expanded', 'true'); };
+        var cerrar = function () { panel.classList.add('hidden'); toggle.setAttribute('aria-expanded', 'false'); };
+        toggle.addEventListener('click', function (e) { e.stopPropagation(); toggle.getAttribute('aria-expanded') === 'true' ? cerrar() : abrir(); });
+        document.addEventListener('click', function (e) { if (!panel.contains(e.target)) cerrar(); });
+        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
       }
 
-      function getStoredTheme() {
-        try {
-          return localStorage.getItem(STORAGE_KEY);
-        } catch (e) {
-          return null;
-        }
-      }
-
-      function setStoredTheme(theme) {
-        try {
-          localStorage.setItem(STORAGE_KEY, theme);
-        } catch (e) { }
-      }
-
-      // Aplicar tema inicial
-      const stored = getStoredTheme();
-      const initialTheme = (stored === 'dark') ? 'dark' : 'light';
-      applyTheme(initialTheme);
-
-      // Cuando el DOM está listo, sincronizar radios + botón
+      // Tema claro/oscuro (Configuración → Apariencia)
+      var KEY = 'finanxis-theme';
+      function aplicar(t) { document.documentElement.classList.toggle('theme-dark', t === 'dark'); }
       document.addEventListener('DOMContentLoaded', function () {
-        const radios = document.querySelectorAll('.theme-radio');
-        const saveBtn = document.getElementById('save-theme');
-
-        if (radios.length) {
-          // Preseleccionar según lo guardado
-          radios.forEach(r => {
-            r.checked = (r.value === initialTheme);
-          });
-
-          if (saveBtn) {
-            saveBtn.addEventListener('click', function () {
-              const selected = Array.from(radios).find(r => r.checked);
-              const theme = selected ? selected.value : 'light';
-              applyTheme(theme);
-              setStoredTheme(theme);
-            });
-          }
-        }
+        var radios = document.querySelectorAll('.theme-radio');
+        var guardar = document.getElementById('save-theme');
+        var actual = document.documentElement.classList.contains('theme-dark') ? 'dark' : 'light';
+        radios.forEach(function (r) { r.checked = (r.value === actual); });
+        guardar && guardar.addEventListener('click', function () {
+          var sel = Array.prototype.find.call(radios, function (r) { return r.checked; });
+          var t = sel ? sel.value : 'light';
+          aplicar(t);
+          try { localStorage.setItem(KEY, t); } catch (e) {}
+        });
       });
     })();
   </script>

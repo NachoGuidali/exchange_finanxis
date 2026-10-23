@@ -76,7 +76,7 @@ def operar(request):
         return HttpResponse("Operación no válida", status=400)
 
     return render(request, 'usuarios/operar.html', {
-        'cot_usdt': {'compra': cot_usdt.compra, 'venta': cot_usdt.venta},
+        'cot_usdt': {'compra': cot_usdt.compra, 'venta': cot_usdt.venta, 'fecha': cot_usdt.fecha},
         'cot_usd':  {'compra': cot_usd.compra,  'venta': cot_usd.venta},
         'swap_fee_bps': cfg.swap_fee_bps,
         'swap_rate': trading.SWAP_RATE,

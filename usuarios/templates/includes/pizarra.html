@@ -1,0 +1,27 @@
+{% load finanxis %}
+{# Uso: {% include "includes/pizarra.html" with cot_usdt=... cot_usd=... vigente=True %} #}
+<section class="pizarra" aria-label="Cotización">
+  <div class="pizarra-fila pizarra-cabecera">
+    <span></span>
+    <span class="text-right">Vendés a</span>
+    <span class="text-right">Comprás a</span>
+  </div>
+  <div class="pizarra-fila">
+    <span class="pizarra-moneda">USDT</span>
+    <span class="pizarra-precio"><small>$</small>{{ cot_usdt.compra|money }}</span>
+    <span class="pizarra-precio"><small>$</small>{{ cot_usdt.venta|money }}</span>
+  </div>
+  <div class="pizarra-fila">
+    <span class="pizarra-moneda">USD</span>
+    <span class="pizarra-precio"><small>$</small>{{ cot_usd.compra|money }}</span>
+    <span class="pizarra-precio"><small>$</small>{{ cot_usd.venta|money }}</span>
+  </div>
+  <div class="pizarra-pie">
+    {% if vigente %}
+      <span class="en-vivo">Actualizada {% if cot_usdt.fecha %}a las {{ cot_usdt.fecha|date:"H:i" }}{% endif %}</span>
+    {% else %}
+      <span class="en-vivo vencida">Cotización desactualizada</span>
+    {% endif %}
+    <span>Precios en pesos</span>
+  </div>
+</section>
