@@ -49,10 +49,12 @@ def cotizacion_vigente(cot):
 
 
 
-def registrar_movimiento(usuario, tipo, moneda, monto, descripcion="", admin=None, saldo_antes=None, saldo_despues=None):
+def registrar_movimiento(usuario, tipo, moneda, monto, descripcion="", admin=None, saldo_antes=None, saldo_despues=None,
+                         operacion=None):
     from .models import Movimiento
 
     return Movimiento.objects.create(
+        operacion=operacion,
         usuario=usuario,
         tipo=tipo,
         moneda=moneda,

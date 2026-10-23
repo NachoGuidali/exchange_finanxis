@@ -1,187 +1,151 @@
 {% extends "base.html" %}
-{% block title %}Mis movimientos — Finanxis{% endblock %}
-{% block meta_description %}Consulta y exportá tus movimientos con filtros por fecha, tipo y moneda.{% endblock %}
+{% load finanxis %}
+{% block title %}Movimientos — Finanxis{% endblock %}
+{% block meta_description %}Tus ingresos, retiros y operaciones, con el detalle y el comprobante de cada una.{% endblock %}
 
 {% block content %}
-<section class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-
-  <!-- Header -->
-  <header class="rounded-2xl border border-gray-200 bg-white p-5 lg:p-6 shadow-soft">
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-      <div>
-        <h1 class="text-2xl sm:text-3xl font-extrabold text-gray-900">Mis movimientos</h1>
-        <p class="text-gray-600 mt-1">Filtrá por fecha, tipo, moneda o buscá por descripción / ID. Exportá el resultado.</p>
-      </div>
-      <div class="flex gap-2">
-        <!-- Exporta la vista actual con filtros -->
-        <a href="?{{ request.GET.urlencode }}"
-           class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50">↻ Actualizar</a>
-        <a href="{% url 'mis_movimientos' %}"
-           class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-50">✖ Limpiar</a>
-        <a href="{% url 'movimientos_exportar' %}?{{ request.GET.urlencode }}"
-           class="rounded-xl bg-primary text-dark px-4 py-2 text-sm font-semibold shadow-soft hover:opacity-90">📥 Exportar CSV</a>
-      </div>
-    </div>
-  </header>
+<div class="mx-auto max-w-4xl">
+  <div class="flex flex-wrap items-end justify-between gap-4 aparece">
+    <h1 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">Movimientos</h1>
+    <a href="{% url 'movimientos_exportar' %}{% if query_filtros %}?{{ query_filtros }}{% endif %}" class="btn btn-sm btn-secundario">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Descargar CSV
+    </a>
+  </div>
 
   <!-- Filtros -->
-  <form method="get" class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
-    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-      <label class="block">
-        <span class="text-xs text-gray-600">Desde</span>
-        <input type="date" name="desde" value="{{ params.desde|default:'' }}"
-               class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
+  <form method="get" class="mt-6 space-y-3 aparece" style="--d:.06s" id="filtros">
+    {# conserva el tipo elegido al buscar; va primero para que, sin JS, gane el chip que se toque #}
+    {% if params.tipo %}<input type="hidden" name="tipo" value="{{ params.tipo }}" data-tipo-oculto>{% endif %}
+    <div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Tipo de movimiento">
+      <button type="submit" name="tipo" value="" class="chip" aria-current="{% if not params.tipo %}true{% else %}false{% endif %}">Todos</button>
+      {% for valor, nombre in tipos %}
+        <button type="submit" name="tipo" value="{{ valor }}" class="chip" aria-current="{% if params.tipo == valor %}true{% else %}false{% endif %}">{{ nombre }}</button>
+      {% endfor %}
+    </div>
+
+    <div class="flex flex-col gap-3 sm:flex-row">
+      <label class="relative flex-1">
+        <span class="sr-only">Buscar</span>
+        <svg class="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+        <input type="search" name="q" value="{{ params.q }}" placeholder="Buscar por descripción o código" class="campo pl-11">
       </label>
-      <label class="block">
-        <span class="text-xs text-gray-600">Hasta</span>
-        <input type="date" name="hasta" value="{{ params.hasta|default:'' }}"
-               class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
-      </label>
-      <label class="block">
-        <span class="text-xs text-gray-600">Tipo</span>
-        <select name="tipo"
-                class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
-          <option value="">Todos</option>
-          <option value="compra"   {% if params.tipo == 'compra' %}selected{% endif %}>Compra</option>
-          <option value="venta"    {% if params.tipo == 'venta' %}selected{% endif %}>Venta</option>
-          <option value="swap"     {% if params.tipo == 'swap' %}selected{% endif %}>Swap</option>
-          <option value="deposito" {% if params.tipo == 'deposito' %}selected{% endif %}>Depósito</option>
-          <option value="retiro"   {% if params.tipo == 'retiro' %}selected{% endif %}>Retiro</option>
-          <option value="ajuste"   {% if params.tipo == 'ajuste' %}selected{% endif %}>Ajuste</option>
-        </select>
-      </label>
-      <label class="block">
-        <span class="text-xs text-gray-600">Moneda</span>
-        <select name="moneda"
-                class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
-          <option value="">Todas</option>
-          <option value="ARS"  {% if params.moneda == 'ARS'  %}selected{% endif %}>ARS</option>
+      <label class="sm:w-56">
+        <span class="sr-only">Moneda</span>
+        <select name="moneda" class="campo">
+          <option value="">Todas las monedas</option>
+          <option value="ARS" {% if params.moneda == 'ARS' %}selected{% endif %}>Pesos</option>
           <option value="USDT" {% if params.moneda == 'USDT' %}selected{% endif %}>USDT</option>
-          <option value="USD"  {% if params.moneda == 'USD'  %}selected{% endif %}>USD</option>
-        </select>
-      </label>
-      <label class="block">
-        <span class="text-xs text-gray-600">Orden</span>
-        <select name="orden"
-                class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
-          <option value="-fecha" {% if params.orden == '-fecha' %}selected{% endif %}>Fecha ↓</option>
-          <option value="fecha"  {% if params.orden == 'fecha'  %}selected{% endif %}>Fecha ↑</option>
-          <option value="-monto" {% if params.orden == '-monto' %}selected{% endif %}>Monto ↓</option>
-          <option value="monto"  {% if params.orden == 'monto'  %}selected{% endif %}>Monto ↑</option>
-        </select>
-      </label>
-      <label class="block">
-        <span class="text-xs text-gray-600">Por página</span>
-        <select name="por_pagina"
-                class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
-          {% for n in por_pagina_opts %}
-            <option value="{{ n }}" {% if params.por_pagina == n %}selected{% endif %}>{{ n }}</option>
-          {% endfor %}
+          <option value="USD" {% if params.moneda == 'USD' %}selected{% endif %}>Dólares</option>
         </select>
       </label>
     </div>
 
-    <div class="mt-3 grid gap-3 sm:grid-cols-3">
-      <label class="block sm:col-span-2">
-        <span class="text-xs text-gray-600">Buscar</span>
-        <input type="text" name="q" value="{{ params.q|default:'' }}" placeholder="Descripción o ID…"
-               class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary">
-      </label>
-      <div class="flex items-end gap-2">
-        <button class="w-full rounded-xl bg-primary text-dark font-semibold px-4 py-2 shadow-soft hover:opacity-90">Aplicar</button>
-        <a href="{% url 'mis_movimientos' %}" class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2 text-center hover:bg-gray-50">Limpiar</a>
+    <details class="group" {% if params.desde or params.hasta %}open{% endif %}>
+      <summary class="inline-flex cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-gray-900">
+        Filtrar por fecha
+        <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <div class="mt-3 grid grid-cols-2 gap-3 sm:max-w-md">
+        <label><span class="etiqueta">Desde</span><input type="date" name="desde" value="{{ params.desde }}" class="campo"></label>
+        <label><span class="etiqueta">Hasta</span><input type="date" name="hasta" value="{{ params.hasta }}" class="campo"></label>
       </div>
+    </details>
+    <div class="flex items-center gap-4">
+      <button type="submit" class="btn btn-sm btn-primario">Aplicar</button>
+      {% if params.activos %}<a href="{% url 'mis_movimientos' %}" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Limpiar filtros</a>{% endif %}
     </div>
   </form>
 
-  <!-- Totales por moneda -->
-  <section class="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
-    <h2 class="text-lg font-semibold text-gray-900">Totales por moneda (según filtros)</h2>
-    <div class="mt-3 overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-gray-600">
-          <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-left">
-            <th>Moneda</th>
-            <th class="text-right">Total</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200">
-          {% for t in totales %}
-          <tr class="hover:bg-gray-50">
-            <td class="px-3 py-2 text-gray-800">{{ t.moneda }}</td>
-            <td class="px-3 py-2 text-right text-gray-900">
-              {% if t.moneda == 'USDT' %}{{ t.total|floatformat:6 }}{% else %}${{ t.total|floatformat:2 }}{% endif %}
-            </td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="2" class="px-3 py-4 text-center text-gray-500">Sin resultados.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <p class="mt-2 text-[11px] text-gray-500">Los totales reflejan el resultado del listado filtrado.</p>
-  </section>
-
-  <!-- Tabla de movimientos -->
-  <section class="rounded-2xl border border-gray-200 bg-white p-0 shadow-card overflow-x-auto">
-    <table class="w-full text-xs md:text-sm">
-      <thead class="bg-gray-50 text-gray-600">
-        <tr class="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:text-left">
-          <th>Fecha</th>
-          <th>Tipo</th>
-          <th>Moneda</th>
-          <th class="text-right">Monto</th>
-          <th class="text-right">Saldo antes</th>
-          <th class="text-right">Saldo después</th>
-          <th>Descripción</th>
-          <th>ID</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-gray-200">
-        {% for m in page_obj %}
-        <tr class="hover:bg-gray-50 transition">
-          <td class="px-3 py-2 whitespace-nowrap text-gray-700">{{ m.fecha }}</td>
-          <td class="px-3 py-2 text-gray-700">{{ m.get_tipo_display }}</td>
-          <td class="px-3 py-2 text-gray-700">{{ m.moneda }}</td>
-          <td class="px-3 py-2 text-right text-gray-900">
-            {% if m.moneda == 'USDT' %}{{ m.monto }}{% else %}${{ m.monto }}{% endif %}
-          </td>
-          <td class="px-3 py-2 text-right text-gray-900">
-            {% if m.moneda == 'USDT' %}{{ m.saldo_antes }}{% else %}${{ m.saldo_antes }}{% endif %}
-          </td>
-          <td class="px-3 py-2 text-right text-gray-900">
-            {% if m.moneda == 'USDT' %}{{ m.saldo_despues }}{% else %}${{ m.saldo_despues }}{% endif %}
-          </td>
-          <td class="px-3 py-2 text-gray-700">{{ m.descripcion }}</td>
-          <td class="px-3 py-2 font-mono text-[11px] text-gray-600">{{ m.codigo }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="8" class="px-3 py-6 text-center text-gray-500">Sin movimientos para los filtros seleccionados.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </section>
-
-  <!-- Paginación -->
-  {% if page_obj.paginator.num_pages > 1 %}
-  <nav class="flex items-center justify-between text-sm">
-    <span class="text-gray-600">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-    <div class="flex gap-2">
-      {% if page_obj.has_previous %}
-        <a class="rounded-lg border border-gray-300 px-3 py-1 hover:bg-gray-50"
-           href="?page=1&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">« Primera</a>
-        <a class="rounded-lg border border-gray-300 px-3 py-1 hover:bg-gray-50"
-           href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">‹ Anterior</a>
-      {% endif %}
-      {% if page_obj.has_next %}
-        <a class="rounded-lg border border-gray-300 px-3 py-1 hover:bg-gray-50"
-           href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">Siguiente ›</a>
-        <a class="rounded-lg border border-gray-300 px-3 py-1 hover:bg-gray-50"
-           href="?page={{ page_obj.paginator.num_pages }}&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">Última »</a>
-      {% endif %}
-    </div>
-  </nav>
+  {% if netos %}
+    <dl class="mt-6 flex flex-wrap gap-x-8 gap-y-2 rounded-2xl bg-gray-100 px-5 py-4 aparece" style="--d:.1s">
+      <dt class="w-full text-sm text-gray-500">Resultado de los movimientos filtrados</dt>
+      {% for moneda, neto in netos %}
+        <dd class="num font-bold {% if neto > 0 %}positivo{% else %}text-gray-900{% endif %}">
+          {% if neto > 0 %}+{% elif neto < 0 %}−{% endif %}{% if moneda == 'ARS' %}$ {% endif %}{{ neto|absoluto|money }}{% if moneda != 'ARS' %} <span class="text-xs text-gray-500">{{ moneda }}</span>{% endif %}
+        </dd>
+      {% endfor %}
+    </dl>
   {% endif %}
 
-</section>
+  <!-- Lista agrupada por día -->
+  <section class="card mt-6 px-4 py-2 sm:px-6 aparece" style="--d:.14s" aria-label="Lista de movimientos">
+    {% for a in page_obj %}
+      {% ifchanged a.fecha|date:"Ymd" %}
+        <h2 class="{% if not forloop.first %}mt-4 border-t border-gray-200 {% endif %}pb-1 pt-4 text-sm font-semibold text-gray-500">{{ a.fecha|dia_relativo }}</h2>
+      {% endifchanged %}
+      <details class="mov">
+        <summary class="fila-mov">{% include "includes/actividad_fila.html" with a=a %}</summary>
+        <div class="mov-detalle">
+          <dl class="space-y-1.5 text-sm">
+            <div class="flex justify-between gap-4"><dt class="text-gray-500">Fecha y hora</dt><dd class="text-gray-900">{{ a.fecha|date:"d/m/Y H:i:s" }}</dd></div>
+            {% for m in a.movimientos %}
+              {% if m.monto %}
+              <div class="flex justify-between gap-4">
+                <dt class="text-gray-500">Saldo en {% if m.moneda == 'ARS' %}pesos{% elif m.moneda == 'USD' %}dólares{% else %}USDT{% endif %}</dt>
+                <dd class="num text-right text-gray-900"><span class="whitespace-nowrap">{{ m.saldo_antes|money }}</span> <span class="text-gray-400">→</span> <span class="whitespace-nowrap">{{ m.saldo_despues|money }}</span></dd>
+              </div>
+              {% endif %}
+            {% endfor %}
+            {% if a.movimientos|length == 1 and a.movimientos.0.descripcion %}
+              <div class="flex justify-between gap-4"><dt class="shrink-0 text-gray-500">Detalle</dt><dd class="text-right text-gray-700">{{ a.movimientos.0.descripcion }}</dd></div>
+            {% endif %}
+            <div class="flex items-center justify-between gap-4">
+              <dt class="text-gray-500">Código</dt>
+              <dd class="flex min-w-0 items-center gap-2">
+                <code class="truncate text-xs text-gray-600">{{ a.movimientos.0.codigo }}</code>
+                <button type="button" class="shrink-0 text-xs font-semibold text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-900" data-copiar="{{ a.movimientos.0.codigo }}">Copiar</button>
+              </dd>
+            </div>
+          </dl>
+          {% if a.boleto %}
+            <a href="{% url 'descargar_boleto' a.boleto.numero %}" class="btn btn-sm btn-secundario mt-4">
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6" stroke-linejoin="round"/></svg>
+              Descargar comprobante
+            </a>
+          {% endif %}
+        </div>
+      </details>
+    {% empty %}
+      <div class="py-14 text-center">
+        {% if params.activos %}
+          <p class="font-semibold text-gray-900">No hay movimientos con esos filtros</p>
+          <a href="{% url 'mis_movimientos' %}" class="btn btn-sm btn-secundario mt-4">Ver todos</a>
+        {% else %}
+          <p class="font-semibold text-gray-900">Todavía no tenés movimientos</p>
+          <p class="mt-1 text-sm text-gray-500">Cuando ingreses dinero u operes, lo vas a ver acá.</p>
+          <a href="{% url 'agregar_saldo' %}" class="btn btn-sm btn-primario mt-4">Ingresar dinero</a>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </section>
+
+  {% if page_obj.paginator.num_pages > 1 %}
+    <nav class="mt-6 flex items-center justify-between" aria-label="Páginas">
+      {% if page_obj.has_previous %}
+        <a class="btn btn-sm btn-secundario" href="?{% if query_filtros %}{{ query_filtros }}&{% endif %}page={{ page_obj.previous_page_number }}">Más recientes</a>
+      {% else %}<span></span>{% endif %}
+      <span class="text-sm text-gray-500">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a class="btn btn-sm btn-secundario" href="?{% if query_filtros %}{{ query_filtros }}&{% endif %}page={{ page_obj.next_page_number }}">Más antiguos</a>
+      {% else %}<span></span>{% endif %}
+    </nav>
+  {% endif %}
+</div>
+
+<script>
+  (function () {
+    // Al buscar o cambiar moneda se conserva el tipo elegido (los chips mandan el suyo)
+    const form = document.getElementById('filtros');
+    const oculto = form.querySelector('[data-tipo-oculto]');
+    form.addEventListener('submit', (e) => {
+      if (oculto) oculto.disabled = !!(e.submitter && e.submitter.name === 'tipo');
+    });
+    form.querySelector('select[name="moneda"]').addEventListener('change', () => form.requestSubmit());
+
+    document.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(b.dataset.copiar); b.textContent = 'Copiado'; setTimeout(() => (b.textContent = 'Copiar'), 1500); } catch (e) {}
+    }));
+  })();
+</script>
 {% endblock %}

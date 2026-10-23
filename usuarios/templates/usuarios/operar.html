@@ -18,8 +18,9 @@
 <div class="mt-8 grid gap-6 lg:grid-cols-12">
 
   <!-- Formulario -->
-  <section class="card p-5 sm:p-7 lg:col-span-7">
+  <section class="card p-5 sm:p-7 lg:col-span-7 aparece">
     <div class="segmento" role="tablist" aria-label="Tipo de operación">
+      <span class="segmento-pill" aria-hidden="true"></span>
       <button type="button" role="tab" data-tab="comprar" aria-controls="panel-comprar" aria-selected="true">Comprar</button>
       <button type="button" role="tab" data-tab="vender" aria-controls="panel-vender" aria-selected="false">Vender</button>
       <button type="button" role="tab" data-tab="swap" aria-controls="panel-swap" aria-selected="false">Swap</button>
@@ -48,7 +49,7 @@
 
         <div class="rounded-2xl bg-gray-50 p-5" aria-live="polite">
           <div class="text-sm text-gray-500">Recibís aproximadamente</div>
-          <div class="num mt-1 text-3xl font-extrabold text-gray-900"><span id="c-recibe">—</span> <span id="c-sym" class="text-lg text-gray-500"></span></div>
+          <div class="num mt-1 text-3xl font-extrabold text-gray-900"><span id="c-recibe" class="inline-block">—</span> <span id="c-sym" class="text-lg text-gray-500"></span></div>
           <dl class="mt-4 space-y-1.5 border-t border-gray-200 pt-4 text-sm">
             <div class="flex justify-between"><dt class="text-gray-500">Pagás</dt><dd class="num text-gray-900" id="c-ars">—</dd></div>
             <div class="flex justify-between"><dt class="text-gray-500">Precio de referencia</dt><dd class="num text-gray-900" id="c-rate">—</dd></div>
@@ -80,7 +81,7 @@
 
         <div class="rounded-2xl bg-gray-50 p-5" aria-live="polite">
           <div class="text-sm text-gray-500">Recibís aproximadamente</div>
-          <div class="num mt-1 text-3xl font-extrabold text-gray-900"><span id="v-ars">—</span></div>
+          <div class="num mt-1 text-3xl font-extrabold text-gray-900"><span id="v-ars" class="inline-block">—</span></div>
           <dl class="mt-4 space-y-1.5 border-t border-gray-200 pt-4 text-sm">
             <div class="flex justify-between"><dt class="text-gray-500">Vendés</dt><dd class="num text-gray-900"><span id="v-monto-txt">—</span> <span id="v-sym"></span></dd></div>
             <div class="flex justify-between"><dt class="text-gray-500">Precio de referencia</dt><dd class="num text-gray-900" id="v-rate">—</dd></div>
@@ -127,7 +128,7 @@
   </section>
 
   <!-- Lateral -->
-  <aside class="space-y-6 lg:col-span-5">
+  <aside class="grid content-start gap-6 lg:col-span-5 aparece" style="--d:.1s">
     {% include "includes/pizarra.html" with cot_usdt=cot_usdt cot_usd=cot_usd vigente=cotizaciones_vigentes %}
 
     <section class="card p-5 sm:p-6">
@@ -153,8 +154,13 @@
 (function () {
   // Pestañas
   const tabs = document.querySelectorAll('[data-tab]');
+  const segmento = document.querySelector('.segmento');
   function activar(tab) {
-    tabs.forEach(b => b.setAttribute('aria-selected', b.dataset.tab === tab ? 'true' : 'false'));
+    tabs.forEach((b, i) => {
+      const on = b.dataset.tab === tab;
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+      if (on) segmento.style.setProperty('--i', i);
+    });
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'panel-' + tab));
   }
   tabs.forEach(b => b.addEventListener('click', () => activar(b.dataset.tab)));
@@ -169,6 +175,12 @@
     return isNaN(n) ? 0 : n;
   };
   const dato = (el, k) => num(el?.dataset?.[k]);
+  // Escribe un valor y, si cambió, lo hace destellar para que se note la actualización
+  const mostrar = (el, texto) => {
+    if (el.textContent === texto) return;
+    el.textContent = texto;
+    el.classList.remove('cambia'); void el.offsetWidth; el.classList.add('cambia');
+  };
   const habilitar = (btn, ok) => { btn.disabled = !ok || btn.hasAttribute('data-pausado'); };
   const procesando = (form) => form.addEventListener('submit', () => {
     const b = form.querySelector('button'); b.disabled = true; b.textContent = 'Procesando…';
@@ -186,7 +198,7 @@
       $('c-sym').textContent = sel.value;
       $('c-ars').textContent = '$ ' + fmt(ars);
       $('c-rate').textContent = '$ ' + fmt(precio);
-      $('c-recibe').textContent = ok ? fmt(ars / precio) : '—';
+      mostrar($('c-recibe'), ok ? fmt(ars / precio) : '—');
       $('c-warning').classList.toggle('hidden', !insuf);
       habilitar(btn, ok && !insuf);
     }
@@ -205,7 +217,7 @@
       $('v-sym').textContent = sel.value;
       $('v-monto-txt').textContent = fmt(monto);
       $('v-rate').textContent = '$ ' + fmt(precio);
-      $('v-ars').textContent = ok ? '$ ' + fmt(monto * precio) : '—';
+      mostrar($('v-ars'), ok ? '$ ' + fmt(monto * precio) : '—');
       $('v-warning').classList.toggle('hidden', !insuf);
       habilitar(btn, ok && !insuf);
     }
@@ -230,7 +242,7 @@
       const ok = c.monto > 0 && TASA > 0, insuf = ok && c.monto > saldo;
       $('s-route').textContent = c.usdAUsdt ? 'Dólares a USDT' : 'USDT a dólares';
       $('s-rate').textContent = fmt(TASA);
-      $('s-recibe').textContent = ok ? `${fmt(c.recibe)} ${c.destino}` : '—';
+      mostrar($('s-recibe'), ok ? `${fmt(c.recibe)} ${c.destino}` : '—');
       $('s-warning').classList.toggle('hidden', !insuf);
       habilitar(btn, ok && !insuf);
     }

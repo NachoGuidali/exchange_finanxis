@@ -821,3 +821,65 @@ class DemoYCotizacionesTests(BaseTest):
     @override_settings(DEMO_MODE=True)
     def test_cartel_demo(self):
         self.assertContains(self.client.get(reverse("login")), "Entorno de demostración")
+
+
+@override_settings(MEDIA_ROOT=MEDIA_TMP, SECURE_SSL_REDIRECT=False)
+class ActividadTests(BaseTest):
+    """Movimientos mostrados como actividades legibles (una compra = una fila)."""
+
+    def setUp(self):
+        super().setUp()
+        crear_cotizaciones()
+        self.u = crear_usuario(saldo_ars="200000", saldo_usd="50")
+        self.client.force_login(self.u)
+
+    def _agrupar(self):
+        from .services import presentacion
+        return presentacion.agrupar(Movimiento.objects.filter(usuario=self.u))
+
+    def test_compra_y_swap_se_agrupan_con_texto_legible(self):
+        from .services import trading
+        operar(self.client, "compra", "USDT", "102000")
+        trading.swap(self.u, "USD_to_USDT", Decimal("10"), fee_bps=100)
+        swap, compra = self._agrupar()
+        self.assertEqual((compra.tipo, compra.titulo, compra.moneda), ("compra", "Compraste USDT", "USDT"))
+        self.assertEqual(compra.monto, Decimal("100.00"))
+        self.assertIn("Pagaste $ 102.000,00", compra.detalle)
+        self.assertIsNotNone(compra.boleto)
+        self.assertEqual((swap.tipo, swap.titulo), ("swap", "Convertiste dólares a USDT"))
+        self.assertEqual(swap.monto, Decimal("9.90"))
+        self.assertEqual(len(swap.movimientos), 2)
+
+    def test_deposito_informado_queda_en_revision(self):
+        from .utils import registrar_movimiento
+        registrar_movimiento(self.u, "deposito", "ARS", 0,
+                             "Solicitud de depósito ARS enviada (monto: $15000.00). En revisión.")
+        (a,) = self._agrupar()
+        self.assertEqual((a.titulo, a.estado, a.detalle), ("Informaste un depósito en pesos", "En revisión", "Por $ 15.000,00"))
+        self.assertIsNone(a.monto)
+
+    def test_migracion_empareja_operaciones_previas(self):
+        import importlib
+        from django.apps import apps
+        from .utils import registrar_movimiento
+        registrar_movimiento(self.u, "compra", "ARS", Decimal("-1020"), "Compra de USDT a $1020")
+        registrar_movimiento(self.u, "compra", "USDT", Decimal("1"), "Compra de USDT con $1020 ARS")
+        registrar_movimiento(self.u, "deposito", "ARS", Decimal("500"), "Depósito aprobado")
+        mig = importlib.import_module("usuarios.migrations.0024_movimiento_operacion")
+        mig.agrupar_existentes(apps, None)
+        ops = set(Movimiento.objects.filter(tipo="compra").values_list("operacion", flat=True))
+        self.assertEqual(len(ops), 1)
+        self.assertIsNotNone(ops.pop())
+        self.assertIsNone(Movimiento.objects.get(tipo="deposito").operacion)
+
+    def test_filtros_y_csv(self):
+        from .services import trading
+        operar(self.client, "compra", "USDT", "102000")
+        trading.swap(self.u, "USD_to_USDT", Decimal("10"), fee_bps=100)
+        resp = self.client.get(reverse("mis_movimientos"), {"tipo": "swap"})
+        self.assertEqual([a.tipo for a in resp.context["page_obj"]], ["swap"])
+        self.assertContains(resp, "Convertiste dólares a USDT")
+        resp = self.client.get(reverse("mis_movimientos"), {"moneda": "ARS"})
+        self.assertEqual([a.tipo for a in resp.context["page_obj"]], ["compra"])
+        csv = self.client.get(reverse("movimientos_exportar"), {"tipo": "compra"}).content.decode()
+        self.assertEqual(len(csv.strip().splitlines()), 3)  # encabezado + las dos patas de la compra

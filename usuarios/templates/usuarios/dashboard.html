@@ -10,7 +10,7 @@
 <section class="franja">
   <div class="container py-8 lg:py-12">
     <div class="flex items-start justify-between gap-4">
-      <p class="text-white/60">Hola, {{ request.user.first_name|default:request.user.username }}</p>
+      <p class="texto-suave">Hola, {{ request.user.first_name|default:request.user.username }}</p>
 
       <div class="relative">
         <button id="btnNotif" type="button" class="relative grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white hover:bg-white/15" aria-label="Notificaciones" aria-expanded="false" aria-controls="boxNotif">
@@ -25,28 +25,28 @@
     </div>
 
     <div class="mt-4 grid gap-8 lg:grid-cols-12 lg:items-end">
-      <div class="lg:col-span-7">
-        <div class="text-sm text-white/50">Patrimonio estimado en pesos</div>
+      <div class="lg:col-span-7 aparece">
+        <div class="text-sm texto-suave">Patrimonio estimado en pesos</div>
         <div class="num mt-1 text-[2.75rem] font-extrabold leading-none sm:text-6xl">
-          <span class="text-white/40 text-[0.55em] align-top">$</span>{{ kpi_cartera_ars|money }}
+          <span class="texto-suave text-[0.55em] align-top">$</span><span data-contar="{{ kpi_cartera_ars|stringformat:'.2f' }}">{{ kpi_cartera_ars|money }}</span>
         </div>
         <dl class="mt-7 grid max-w-xl grid-cols-3 gap-4 border-t border-white/10 pt-5">
           <div>
-            <dt class="text-xs text-white/50">Pesos</dt>
+            <dt class="text-xs texto-suave">Pesos</dt>
             <dd class="num mt-1 whitespace-nowrap text-base font-bold sm:text-xl">$ {{ request.user.saldo_ars|money }}</dd>
           </div>
           <div>
-            <dt class="text-xs text-white/50">USDT</dt>
+            <dt class="text-xs texto-suave">USDT</dt>
             <dd class="num mt-1 whitespace-nowrap text-base font-bold sm:text-xl">{{ request.user.saldo_usdt|money }}</dd>
           </div>
           <div>
-            <dt class="text-xs text-white/50">Dólares</dt>
+            <dt class="text-xs texto-suave">Dólares</dt>
             <dd class="num mt-1 whitespace-nowrap text-base font-bold sm:text-xl">US$ {{ request.user.saldo_usd|money }}</dd>
           </div>
         </dl>
       </div>
 
-      <div class="flex flex-wrap gap-3 lg:col-span-5 lg:justify-end">
+      <div class="flex flex-wrap gap-3 lg:col-span-5 lg:justify-end aparece" style="--d:.08s">
         <a href="{% url 'operar' %}" class="btn btn-lg btn-primario flex-1 sm:flex-none">Comprar o vender</a>
         <a href="{% url 'agregar_saldo' %}" class="btn btn-lg btn-claro flex-1 sm:flex-none">Ingresar</a>
         <a href="{% url 'solicitar_retiro' %}" class="btn btn-lg btn-claro flex-1 sm:flex-none">Retirar</a>
@@ -58,31 +58,14 @@
 <div class="container grid gap-6 py-8 lg:grid-cols-12 lg:py-10">
 
   <!-- Actividad -->
-  <section class="card p-5 sm:p-6 lg:col-span-7">
+  <section class="card p-5 sm:p-6 lg:col-span-7 aparece" style="--d:.14s">
     <div class="flex items-center justify-between">
       <h2 class="text-lg font-bold text-gray-900">Actividad reciente</h2>
       <a href="{% url 'mis_movimientos' %}" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Ver todos</a>
     </div>
     <ul class="mt-2">
-      {% for m in movimientos %}
-      <li class="fila-mov">
-        <span class="icono-mov" aria-hidden="true">
-          {% if m.tipo == 'deposito' %}
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v12m0 0-4.5-4.5M12 16l4.5-4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          {% elif m.tipo == 'retiro' %}
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          {% else %}
-            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h12l-3.5-3.5M17 17H5l3.5 3.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          {% endif %}
-        </span>
-        <div class="min-w-0">
-          <div class="truncate font-semibold text-gray-900">{{ m.descripcion|default:m.get_tipo_display }}</div>
-          <div class="text-sm text-gray-500">{{ m.get_tipo_display }}<span class="ml-2">{{ m.fecha|date:"d/m H:i" }}</span></div>
-        </div>
-        <div class="num text-right font-bold {% if m.monto > 0 %}positivo{% else %}text-gray-900{% endif %}">
-          {% if m.monto > 0 %}+{% elif m.monto < 0 %}−{% endif %}{% if m.moneda == 'ARS' %}$ {% endif %}{{ m.monto|absoluto|money }}{% if m.moneda != 'ARS' %} <span class="text-xs text-gray-500">{{ m.moneda }}</span>{% endif %}
-        </div>
-      </li>
+      {% for a in actividades %}
+      <li class="fila-mov">{% include "includes/actividad_fila.html" with a=a mostrar_dia=True %}</li>
       {% empty %}
       <li class="py-10 text-center">
         <p class="font-semibold text-gray-900">Todavía no tenés movimientos</p>
@@ -93,7 +76,7 @@
     </ul>
   </section>
 
-  <div class="space-y-6 lg:col-span-5">
+  <div class="grid content-start gap-6 lg:col-span-5 aparece" style="--d:.2s">
   {% include "includes/pizarra.html" with cot_usdt=cot_usdt cot_usd=cot_usd vigente=cotizacion_vigente %}
 
   <!-- Composición -->
@@ -116,19 +99,20 @@
   </div>
 
   <!-- Flujo de 30 días -->
-  <section class="card p-5 sm:p-6 lg:col-span-12">
+  <section class="card p-5 sm:p-6 lg:col-span-12 aparece" style="--d:.26s">
     <div class="flex flex-wrap items-end justify-between gap-4">
       <div>
         <h2 class="text-lg font-bold text-gray-900">Ingresos y retiros</h2>
         <p class="text-sm text-gray-500">Últimos 30 días, valuado en pesos</p>
       </div>
-      <dl class="flex gap-8">
-        <div><dt class="text-xs text-gray-500">Ingresaste</dt><dd class="num font-bold text-gray-900">$ {{ kpi_total_ingresado|money }}</dd></div>
-        <div><dt class="text-xs text-gray-500">Retiraste</dt><dd class="num font-bold text-gray-900">$ {{ kpi_total_retirado|money }}</dd></div>
-        <div><dt class="text-xs text-gray-500">Neto</dt><dd class="num font-bold text-gray-900">$ {{ kpi_flujo_neto|money }}</dd></div>
+      <dl class="grid w-full grid-cols-3 gap-4 text-sm sm:flex sm:w-auto sm:gap-8 sm:text-base">
+        <div><dt class="text-xs text-gray-500">Ingresaste</dt><dd class="num whitespace-nowrap font-bold text-gray-900">$ {{ kpi_total_ingresado|money }}</dd></div>
+        <div><dt class="text-xs text-gray-500">Retiraste</dt><dd class="num whitespace-nowrap font-bold text-gray-900">$ {{ kpi_total_retirado|money }}</dd></div>
+        <div><dt class="text-xs text-gray-500">Neto</dt><dd class="num whitespace-nowrap font-bold text-gray-900">$ {{ kpi_flujo_neto|money }}</dd></div>
       </dl>
     </div>
     <div class="relative mt-6 h-56"><canvas id="fx-flujo" aria-label="Gráfico de ingresos y retiros por día" role="img"></canvas></div>
+    <p id="fx-flujo-vacio" class="hidden mt-6 rounded-xl bg-gray-50 px-4 py-8 text-center text-sm text-gray-500">Cuando tengas ingresos y retiros en distintos días, acá vas a ver cómo se mueve tu dinero.</p>
   </section>
 </div>
 
@@ -140,6 +124,14 @@
 (function () {
   const c = document.getElementById('fx-flujo');
   if (!c || !window.Chart) return;
+  const dias = JSON.parse(document.getElementById('fxDeps')?.textContent || '[]')
+    .map((v, i) => v || JSON.parse(document.getElementById('fxRets').textContent)[i]).filter(Boolean).length;
+  if (dias < 3) {
+    // con uno o dos días el gráfico queda casi vacío: se muestra un mensaje
+    c.parentElement.classList.add('hidden');
+    document.getElementById('fx-flujo-vacio').classList.remove('hidden');
+    return;
+  }
   const css = getComputedStyle(document.documentElement);
   const rgb = (v) => `rgb(${css.getPropertyValue(v).trim().replace(/ /g, ',')})`;
   const leer = (id) => JSON.parse(document.getElementById(id)?.textContent || '[]');

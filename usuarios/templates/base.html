@@ -127,6 +127,24 @@
         document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrar(); });
       }
 
+      // Cifras que cuentan desde 0 al cargar (data-contar="1234.56"); el HTML ya trae el valor final
+      var quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!quieto) {
+        document.querySelectorAll('[data-contar]').forEach(function (el) {
+          var fin = parseFloat(el.getAttribute('data-contar'));
+          if (!isFinite(fin) || fin === 0) return;
+          var fmt = function (v) { return v.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+          var t0 = null, dur = 900;
+          function paso(t) {
+            if (t0 === null) t0 = t;
+            var p = Math.min(1, (t - t0) / dur);
+            el.textContent = fmt(fin * (1 - Math.pow(1 - p, 3)));
+            if (p < 1) requestAnimationFrame(paso);
+          }
+          requestAnimationFrame(paso);
+        });
+      }
+
       // Tema claro/oscuro (Configuración → Apariencia)
       var KEY = 'finanxis-theme';
       function aplicar(t) { document.documentElement.classList.toggle('theme-dark', t === 'dark'); }

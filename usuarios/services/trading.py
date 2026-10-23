@@ -3,6 +3,7 @@ Compra, venta y swap. Cada función es atómica: saldo, movimientos, mayor, apun
 renta y boleto se confirman juntos o no se confirma nada (OperacionError → rollback).
 """
 from datetime import timedelta
+import uuid
 from decimal import Decimal
 
 from django.conf import settings
@@ -124,13 +125,14 @@ def comprar(usuario, moneda, monto_ars, *, precio, precio_ref, cotizacion_id):
     ccy_antes, ccy_despues = _mover(u, moneda, recibido)
     u.save(update_fields=['saldo_ars', CAMPO_SALDO[moneda]])
 
+    op = uuid.uuid4()
     registrar_movimiento(
-        usuario=u, tipo='compra', moneda='ARS', monto=-monto_ars,
+        usuario=u, tipo='compra', moneda='ARS', monto=-monto_ars, operacion=op,
         descripcion=f'Compra de {moneda} a ${precio}',
         saldo_antes=ars_antes, saldo_despues=ars_despues
     )
     mov_ccy = registrar_movimiento(
-        usuario=u, tipo='compra', moneda=moneda, monto=recibido,
+        usuario=u, tipo='compra', moneda=moneda, monto=recibido, operacion=op,
         descripcion=f'Compra de {moneda} con ${monto_ars} ARS',
         saldo_antes=ccy_antes, saldo_despues=ccy_despues
     )
@@ -178,13 +180,14 @@ def vender(usuario, moneda, monto_ccy, *, precio, precio_ref, cotizacion_id):
     ars_antes, ars_despues = _mover(u, 'ARS', ars_recibe)
     u.save(update_fields=['saldo_ars', CAMPO_SALDO[moneda]])
 
+    op = uuid.uuid4()
     registrar_movimiento(
-        usuario=u, tipo='venta', moneda=moneda, monto=-monto_ccy,
+        usuario=u, tipo='venta', moneda=moneda, monto=-monto_ccy, operacion=op,
         descripcion=f'Venta de {moneda} a ${precio}',
         saldo_antes=ccy_antes, saldo_despues=ccy_despues
     )
     mov_ars = registrar_movimiento(
-        usuario=u, tipo='venta', moneda='ARS', monto=ars_recibe,
+        usuario=u, tipo='venta', moneda='ARS', monto=ars_recibe, operacion=op,
         descripcion=f'Venta de {moneda}. ARS acreditado.',
         saldo_antes=ars_antes, saldo_despues=ars_despues
     )
@@ -242,12 +245,13 @@ def swap(usuario, direccion, amount, *, fee_bps):
     u.save(update_fields=[CAMPO_SALDO[origen], CAMPO_SALDO[destino]])
 
     desc = f'Swap {origen}→{destino} al rate {SWAP_RATE}, fee {fee_bps} bps'
+    op = uuid.uuid4()
     registrar_movimiento(
-        usuario=u, tipo='venta', moneda=origen, monto=-amount, descripcion=desc,
+        usuario=u, tipo='venta', moneda=origen, monto=-amount, descripcion=desc, operacion=op,
         saldo_antes=org_antes, saldo_despues=org_despues
     )
     mov_dest = registrar_movimiento(
-        usuario=u, tipo='compra', moneda=destino, monto=neto, descripcion=desc,
+        usuario=u, tipo='compra', moneda=destino, monto=neto, descripcion=desc, operacion=op,
         saldo_antes=dst_antes, saldo_despues=dst_despues
     )
 

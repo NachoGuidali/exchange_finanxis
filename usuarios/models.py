@@ -368,6 +368,8 @@ class Movimiento(models.Model):
     )
     fecha = models.DateTimeField(auto_now_add=True)
     descripcion = models.TextField(blank=True, null=True)
+    # Agrupa las dos patas de una compra, venta o swap (ARS que sale y USDT que entra, etc.)
+    operacion = models.UUIDField(null=True, blank=True, db_index=True)
 
     def __str__(self):
         return f"{self.usuario.username} - {self.tipo} - {self.moneda} {self.monto}"

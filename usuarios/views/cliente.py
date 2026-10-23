@@ -23,6 +23,7 @@ from ..models import (
     RetiroARS,
     RetiroCrypto,
 )
+from ..services import presentacion
 from ..utils import cotizacion_vigente, kyc_required
 
 
@@ -68,7 +69,7 @@ def dashboard(request):
     if not cot_usdt: cot_usdt = type('X', (), {'compra':0,'venta':0})()
     if not cot_usd:  cot_usd  = type('X', (), {'compra':0,'venta':0})()
 
-    movimientos = Movimiento.objects.filter(usuario=request.user).order_by('-fecha')[:10]
+    actividades = presentacion.agrupar(Movimiento.objects.filter(usuario=request.user).order_by('-id')[:20])[:8]
 
     # KPIs normalizados a ARS con PRECIO COMPRA.
     # Salen de depósitos aprobados y retiros enviados (no de Movimiento, que
@@ -150,7 +151,7 @@ def dashboard(request):
     notificaciones_no_leidas = Notificacion.objects.filter(usuario=request.user, leida=False)
 
     return render(request, 'usuarios/dashboard.html', {
-        'movimientos': movimientos,
+        'actividades': actividades,
         'cot_usdt': cot_usdt,
         'cot_usd': cot_usd,
         # Bloque saldos usa request.user directamente (como pediste)
@@ -176,110 +177,80 @@ def dashboard(request):
     })
 
 
-def _filtrar_movimientos(request, base_qs):
+def _filtrar_actividades(request):
     """
-    Aplica filtros a partir de request.GET y devuelve el queryset filtrado
-    + diccionario de valores para re-poblar el form.
+    Filtros de la pantalla de movimientos. Fechas y búsqueda van a la base; tipo y moneda
+    se aplican sobre las actividades ya agrupadas (un swap involucra dos monedas).
     """
     params = {
         'desde': request.GET.get('desde', ''),
         'hasta': request.GET.get('hasta', ''),
-        'tipo': request.GET.get('tipo', ''),          # ejemplo: 'compra', 'venta', 'swap', 'deposito', 'retiro'
-        'moneda': request.GET.get('moneda', ''),      # 'ARS', 'USDT', 'USD'
-        'q': request.GET.get('q', ''),                # texto libre en descripción/código
-        'min': request.GET.get('min', ''),            # monto mínimo
-        'max': request.GET.get('max', ''),            # monto máximo
-        'orden': request.GET.get('orden', '-fecha'),  # orden por fecha default descendente
-        'por_pagina': int(request.GET.get('por_pagina', '20') or 20),
+        'tipo': request.GET.get('tipo', ''),
+        'moneda': request.GET.get('moneda', ''),
+        'q': request.GET.get('q', '').strip(),
     }
-
-    qs = base_qs
-
-    if params['desde']:
-        d = parse_date(params['desde'])
-        if d:
-            qs = qs.filter(fecha__date__gte=d)
-
-    if params['hasta']:
-        h = parse_date(params['hasta'])
-        if h:
-            qs = qs.filter(fecha__date__lte=h)
-
-    if params['tipo']:
-        qs = qs.filter(tipo=params['tipo'])
-
-    if params['moneda']:
-        qs = qs.filter(moneda=params['moneda'])
-
+    qs = Movimiento.objects.filter(usuario=request.user)
+    d = parse_date(params['desde']) if params['desde'] else None
+    h = parse_date(params['hasta']) if params['hasta'] else None
+    if d:
+        qs = qs.filter(fecha__date__gte=d)
+    if h:
+        qs = qs.filter(fecha__date__lte=h)
     if params['q']:
-        qs = qs.filter(
-            models.Q(descripcion__icontains=params['q']) |
-            models.Q(codigo__icontains=params['q'])
-        )
+        qs = qs.filter(models.Q(descripcion__icontains=params['q']) | models.Q(codigo__icontains=params['q']))
 
-    # Filtros por monto
-    if params['min']:
-        try:
-            qs = qs.filter(monto__gte=Decimal(params['min']))
-        except Exception:
-            pass
-    if params['max']:
-        try:
-            qs = qs.filter(monto__lte=Decimal(params['max']))
-        except Exception:
-            pass
-
-    # Orden
-    allowed_orders = {'fecha', '-fecha', 'monto', '-monto'}
-    if params['orden'] not in allowed_orders:
-        params['orden'] = '-fecha'
-    qs = qs.order_by(params['orden'])
-
-    return qs, params
+    actividades = presentacion.agrupar(qs)
+    if params['tipo'] in dict(presentacion.TIPOS):
+        actividades = [a for a in actividades if a.tipo == params['tipo']]
+    if params['moneda'] in ('ARS', 'USD', 'USDT'):
+        actividades = [a for a in actividades if params['moneda'] in a.monedas]
+    params['activos'] = any(params[k] for k in ('desde', 'hasta', 'tipo', 'moneda', 'q'))
+    return actividades, params
 
 
 @login_required
 def mis_movimientos(request):
-    base = Movimiento.objects.filter(usuario=request.user)
-    qs, params = _filtrar_movimientos(request, base)
+    actividades, params = _filtrar_actividades(request)
 
-    totales = (
-        qs.values('moneda').order_by().annotate(total=models.Sum('monto'))
-    )
+    netos = {}
+    if params['activos']:
+        for a in actividades:
+            for m in a.movimientos:
+                netos[m.moneda] = netos.get(m.moneda, Decimal('0')) + m.monto
 
-    paginator = Paginator(qs, params['por_pagina'])
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    page_obj = Paginator(actividades, 30).get_page(request.GET.get('page'))
+    filtros = request.GET.copy()
+    filtros.pop('page', None)
 
     return render(request, 'usuarios/mis_movimientos.html', {
         'page_obj': page_obj,
         'params': params,
-        'totales': totales,
-        'por_pagina_opts': [20, 50, 100, 200],  # ← aquí
+        'tipos': presentacion.TIPOS,
+        'netos': [(m, netos[m]) for m in ('ARS', 'USDT', 'USD') if m in netos],
+        'query_filtros': filtros.urlencode(),
     })
 
 
 @login_required
 def exportar_movimientos(request):
-    base = Movimiento.objects.filter(usuario=request.user)
-    qs, params = _filtrar_movimientos(request, base)
+    actividades, _ = _filtrar_actividades(request)
+    movimientos = sorted((m for a in actividades for m in a.movimientos), key=lambda m: m.fecha, reverse=True)
 
-    # CSV
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="movimientos.csv"'
     writer = csv.writer(response)
-    writer.writerow(['Fecha', 'Tipo', 'Moneda', 'Monto', 'Saldo antes', 'Saldo después', 'Descripción', 'ID'])
-
-    for m in qs.iterator():
+    writer.writerow(['Fecha', 'Tipo', 'Moneda', 'Monto', 'Saldo antes', 'Saldo después', 'Descripción', 'ID', 'Operación'])
+    for m in movimientos:
         writer.writerow([
-            m.fecha.isoformat(sep=' ', timespec='seconds'),
+            localtime(m.fecha).strftime('%Y-%m-%d %H:%M:%S'),
             m.get_tipo_display(),
             m.moneda,
             f"{m.monto:.2f}",
-            f"{m.saldo_antes:.2f}",
-            f"{m.saldo_despues:.2f}",
+            f"{m.saldo_antes:.2f}" if m.saldo_antes is not None else '',
+            f"{m.saldo_despues:.2f}" if m.saldo_despues is not None else '',
             m.descripcion or '',
-            m.codigo or ''
+            m.codigo,
+            m.operacion or '',
         ])
     return response
 

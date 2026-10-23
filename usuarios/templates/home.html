@@ -8,11 +8,11 @@
 <!-- Hero: titular + pizarra -->
 <section class="franja" id="cotizacion">
   <div class="container grid items-center gap-12 py-14 lg:grid-cols-12 lg:gap-16 lg:py-24">
-    <div class="lg:col-span-6">
+    <div class="lg:col-span-6 aparece">
       <h1 class="text-[2.5rem] font-extrabold leading-[1.05] sm:text-6xl lg:text-[4.25rem]">
         Tus pesos, en dólares digitales.
       </h1>
-      <p class="mt-6 max-w-xl text-lg leading-relaxed text-white/70">
+      <p class="mt-6 max-w-xl text-lg leading-relaxed texto-suave">
         Comprá y vendé USDT y dólares con pesos. Ves el precio final antes de confirmar
         y te queda el comprobante de cada operación.
       </p>
@@ -20,12 +20,12 @@
         <a href="{% url 'registro' %}" class="btn btn-lg btn-primario">Crear cuenta gratis</a>
         <a href="{% url 'login' %}" class="btn btn-lg btn-claro">Ya tengo cuenta</a>
       </div>
-      <p class="mt-8 text-sm text-white/45">Proveedor de Servicios de Activos Virtuales inscripto en la CNV (registro N°13).</p>
+      <p class="mt-8 text-sm texto-suave">Proveedor de Servicios de Activos Virtuales inscripto en la CNV (registro N°13).</p>
     </div>
 
-    <div class="lg:col-span-6">
+    <div class="lg:col-span-6 aparece" style="--d:.15s">
       {% include "includes/pizarra.html" with cot_usdt=cot_usdt cot_usd=cot_usd vigente=cotizacion_vigente %}
-      <p class="mt-3 text-sm text-white/45">“Comprás a” es lo que pagás por cada unidad; “Vendés a”, lo que recibís.</p>
+      <p class="mt-3 text-sm texto-suave">“Comprás a” es lo que pagás por cada unidad; “Vendés a”, lo que recibís.</p>
     </div>
   </div>
 </section>
