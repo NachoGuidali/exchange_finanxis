@@ -1,5 +1,5 @@
 """
-Actualización de cotizaciones: USDT (Binance P2P, con Binance spot de respaldo) y USD oficial
+Actualización de cotizaciones: USDT (Binance P2P, con Binance spot y el dólar cripto de DolarAPI de respaldo) y USD oficial
 (DolarAPI), con el spread de ExchangeConfig aplicado. Lo usan el comando
 `actualizar_cotizacion`, la task de Celery y, en modo demo, la vista de operar.
 """
@@ -67,8 +67,19 @@ def _ref_usd_oficial():
     return Q6((Decimal(str(oficial['compra'])) + Decimal(str(oficial['venta']))) / 2), 'DolarAPI oficial'
 
 
+def _ref_usdt_dolar_cripto():
+    # último respaldo: el "dólar cripto" de DolarAPI sigue al USDT/ARS de los exchanges locales.
+    # Útil donde Binance no responde (p. ej. servidores en EE.UU. o detrás de un proxy).
+    r = requests.get("https://dolarapi.com/v1/dolares/cripto", headers=HEADERS, timeout=10)
+    r.raise_for_status()
+    d = r.json()
+    if not d.get('compra') or not d.get('venta'):
+        raise FuenteNoDisponible("DolarAPI no devolvió el dólar cripto")
+    return Q6((Decimal(str(d['compra'])) + Decimal(str(d['venta']))) / 2), 'DolarAPI cripto'
+
+
 FUENTES = {
-    'USDT': (_ref_usdt_p2p, _ref_usdt_spot),
+    'USDT': (_ref_usdt_p2p, _ref_usdt_spot, _ref_usdt_dolar_cripto),
     'USD': (_ref_usd_oficial,),
 }
 

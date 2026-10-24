@@ -783,6 +783,22 @@ class DemoYCotizacionesTests(BaseTest):
             cot, fuente = cotizaciones.actualizar("USDT")
         self.assertEqual((fuente, cot.ref_venta), ("Binance spot", Decimal("1601")))
 
+    def test_respaldo_dolar_cripto_si_binance_no_responde(self):
+        from unittest import mock
+
+        import requests
+
+        from .services import cotizaciones
+
+        def get(url, **kw):
+            if "binance" in url:
+                raise requests.HTTPError("451 Client Error")
+            return _respuesta({"compra": 1640, "venta": 1650})
+        with mock.patch("usuarios.services.cotizaciones.requests.post", side_effect=requests.ConnectionError("bloqueado")), \
+             mock.patch("usuarios.services.cotizaciones.requests.get", side_effect=get):
+            cot, fuente = cotizaciones.actualizar("USDT")
+        self.assertEqual((fuente, cot.ref_venta), ("DolarAPI cripto", Decimal("1645")))
+
     @override_settings(COTIZACION_ACTUALIZAR_AL_VUELO=True)
     def test_operar_actualiza_cotizacion_vencida(self):
         from unittest import mock
@@ -934,3 +950,58 @@ class PanelPendientesTests(BaseTest):
         self.assertRedirects(resp, reverse("parametros_exchange"), fetch_redirect_response=False)
         from .models import ExchangeConfig
         self.assertEqual(ExchangeConfig.objects.get().spread_bps_usdt, 150)
+
+
+class AdminMovimientosTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+        self.client.force_login(self.admin)
+        self.ana = crear_usuario("ana")
+        self.beto = crear_usuario("beto")
+        mov = lambda u, tipo, moneda, monto: Movimiento.objects.create(  # noqa: E731
+            usuario=u, tipo=tipo, moneda=moneda, monto=Decimal(monto), saldo_antes=0, saldo_despues=0)
+        self.dep_grande = mov(self.ana, "deposito", "ARS", "500000")
+        self.compra_ars = mov(self.ana, "compra", "ARS", "-200000")
+        self.compra_usdt = mov(self.ana, "compra", "USDT", "120")
+        self.dep_beto = mov(self.beto, "deposito", "ARS", "1000")
+        viejo = timezone.now() - timedelta(days=40)
+        Movimiento.objects.filter(pk=self.dep_beto.pk).update(fecha=viejo)
+
+    def listado(self, **filtros):
+        resp = self.client.get(reverse("admin_movimientos"), filtros)
+        self.assertEqual(resp.status_code, 200)
+        return resp, set(resp.context["page_obj"].object_list)
+
+    def test_filtros(self):
+        _, todos = self.listado()
+        self.assertEqual(len(todos), 4)
+        self.assertEqual(self.listado(usuario="ana")[1], {self.dep_grande, self.compra_ars, self.compra_usdt})
+        self.assertEqual(self.listado(u=self.beto.pk)[1], {self.dep_beto})
+        self.assertEqual(self.listado(moneda="USDT")[1], {self.compra_usdt})
+        self.assertEqual(self.listado(tipo="compra", sentido="salida")[1], {self.compra_ars})
+        # el monto se compara sin signo
+        self.assertEqual(self.listado(min="150000")[1], {self.dep_grande, self.compra_ars})
+        self.assertEqual(self.listado(min="100", max="300000")[1], {self.compra_ars, self.compra_usdt, self.dep_beto})
+        hace_una_semana = (timezone.localdate() - timedelta(days=7)).isoformat()
+        self.assertNotIn(self.dep_beto, self.listado(desde=hace_una_semana)[1])
+
+    def test_totales_por_moneda(self):
+        resp, _ = self.listado(usuario="ana", moneda="ARS")
+        (t,) = resp.context["totales"]
+        self.assertEqual((t["entradas"], t["salidas"], t["neto"]),
+                         (Decimal("500000"), Decimal("200000"), Decimal("300000")))
+
+    def test_csv_respeta_filtros(self):
+        resp = self.client.get(reverse("exportar_movimientos_admin"), {"usuario": "ana", "moneda": "ARS"})
+        filas = resp.content.decode("utf-8-sig").strip().splitlines()
+        self.assertEqual(len(filas), 3)  # encabezado + 2
+        self.assertIn("Usuario", filas[0])
+        self.assertTrue(all(",ana," in f for f in filas[1:]))
+
+    def test_solo_staff(self):
+        self.client.force_login(self.ana)
+        self.assertEqual(self.client.get(reverse("admin_movimientos")).status_code, 302)
+        self.assertEqual(self.client.get(reverse("exportar_movimientos_admin")).status_code, 302)
