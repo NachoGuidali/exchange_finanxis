@@ -176,10 +176,8 @@
     <div class="num mt-1 text-2xl font-bold text-gray-900">{{ resumen_hoy.usuarios_nuevos }}</div>
   </div>
   <div class="rounded-2xl bg-gray-100 px-5 py-4">
-    <div class="flex items-center justify-between text-sm text-gray-500">Movimientos de todos los clientes
-      <a href="{% url 'exportar_movimientos_admin' %}" class="font-semibold text-gray-900 underline decoration-gray-300 underline-offset-2">CSV</a>
-    </div>
-    <div class="mt-1 text-sm text-gray-600">Exportá el listado completo para conciliar.</div>
+    <div class="text-sm text-gray-500">Movimientos de todos los clientes</div>
+    <a href="{% url 'admin_movimientos' %}" class="mt-1 inline-block text-sm font-semibold text-gray-900 underline decoration-gray-300 underline-offset-2">Buscar, filtrar y exportar</a>
   </div>
 </section>
 

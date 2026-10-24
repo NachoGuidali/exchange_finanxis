@@ -1,0 +1,161 @@
+{% extends "usuarios/admin_base.html" %}
+{% load finanxis %}
+{% block title %}Movimientos — Administración Finanxis{% endblock %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-4 aparece">
+  <div>
+    <h1 class="text-3xl font-extrabold text-gray-900">Movimientos</h1>
+    <p class="mt-1 text-gray-600">Todos los asientos de saldo de los clientes. Cada compra, venta o swap tiene dos: lo que sale y lo que entra.</p>
+  </div>
+  <a href="{% url 'exportar_movimientos_admin' %}{% if query_filtros %}?{{ query_filtros }}{% endif %}" class="btn btn-sm btn-secundario">
+    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Descargar CSV{% if params.activos %} filtrado{% endif %}
+  </a>
+</div>
+
+<!-- Filtros -->
+<form method="get" class="card mt-6 p-4 sm:p-5 aparece" style="--d:.06s" aria-label="Filtros">
+  <div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Período">
+    {% for p in periodos %}
+      <a href="?{{ p.query }}" class="chip" aria-current="{% if p.activo %}true{% else %}false{% endif %}">{{ p.nombre }}</a>
+    {% endfor %}
+  </div>
+
+  <details id="mas-filtros" class="group" {% if params.activos %}open{% endif %}>
+  <summary class="mt-3 inline-flex cursor-pointer list-none items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-gray-900 md:hidden">
+    Más filtros
+    <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </summary>
+  <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <label><span class="etiqueta">Desde</span><input type="date" name="desde" value="{{ params.desde }}" class="campo"></label>
+    <label><span class="etiqueta">Hasta</span><input type="date" name="hasta" value="{{ params.hasta }}" class="campo"></label>
+    <label class="sm:col-span-2">
+      <span class="etiqueta">Usuario</span>
+      {% if params.filtrado_usuario %}
+        <input type="hidden" name="u" value="{{ params.filtrado_usuario.pk }}">
+        <span class="campo flex items-center justify-between gap-3">
+          <span class="truncate font-semibold text-gray-900">{{ params.filtrado_usuario.get_full_name|default:params.filtrado_usuario.username }} <span class="font-normal text-gray-500">{{ params.filtrado_usuario.username }}</span></span>
+          <a href="?{{ query_sin_usuario }}" class="shrink-0 text-sm font-semibold text-gray-600 hover:text-gray-900">Quitar</a>
+        </span>
+      {% else %}
+        <input type="search" name="usuario" value="{{ params.usuario }}" placeholder="Usuario, nombre, email o DNI" class="campo">
+      {% endif %}
+    </label>
+    <label>
+      <span class="etiqueta">Moneda</span>
+      <select name="moneda" class="campo">
+        <option value="">Todas</option>
+        {% for valor, nombre in monedas %}<option value="{{ valor }}" {% if params.moneda == valor %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="etiqueta">Tipo</span>
+      <select name="tipo" class="campo">
+        <option value="">Todos</option>
+        {% for valor, nombre in tipos %}<option value="{{ valor }}" {% if params.tipo == valor %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>
+      <span class="etiqueta">Sentido</span>
+      <select name="sentido" class="campo">
+        <option value="">Entradas y salidas</option>
+        <option value="entrada" {% if params.sentido == 'entrada' %}selected{% endif %}>Solo entradas</option>
+        <option value="salida" {% if params.sentido == 'salida' %}selected{% endif %}>Solo salidas</option>
+      </select>
+    </label>
+    <div class="grid grid-cols-2 gap-3">
+      <label><span class="etiqueta">Monto desde</span><input type="number" name="min" value="{{ params.min }}" min="0" step="0.01" inputmode="decimal" class="campo num" placeholder="0"></label>
+      <label><span class="etiqueta">Hasta</span><input type="number" name="max" value="{{ params.max }}" min="0" step="0.01" inputmode="decimal" class="campo num" placeholder="Sin tope"></label>
+    </div>
+    <label class="sm:col-span-2 lg:col-span-4">
+      <span class="etiqueta">Descripción o código</span>
+      <input type="search" name="q" value="{{ params.q }}" placeholder="Alias, hash, código del movimiento o de la operación" class="campo">
+    </label>
+  </div>
+  <p class="mt-2 text-sm text-gray-500">El monto se compara sin signo: "desde 100000" trae entradas y salidas de $ 100.000 o más.</p>
+  </details>
+
+  <div class="mt-4 flex items-center gap-4">
+    <button type="submit" class="btn btn-sm btn-primario">Aplicar filtros</button>
+    {% if params.activos %}<a href="{% url 'admin_movimientos' %}" class="text-sm font-semibold text-gray-600 hover:text-gray-900">Limpiar</a>{% endif %}
+  </div>
+</form>
+
+<!-- Totales del filtro -->
+<section class="mt-6 aparece" style="--d:.1s" aria-label="Totales">
+  <p class="text-sm text-gray-600"><span class="num font-semibold text-gray-900">{{ cantidad|money:0 }}</span> movimiento{{ cantidad|pluralize }}{% if params.activos %} con estos filtros{% endif %}</p>
+  {% if totales %}
+  <div class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    {% for t in totales %}
+      <dl class="rounded-2xl bg-gray-100 px-5 py-4">
+        <dt class="text-sm font-semibold text-gray-900">{% if t.moneda == 'ARS' %}Pesos{% elif t.moneda == 'USD' %}Dólares{% else %}{{ t.moneda }}{% endif %} <span class="font-normal text-gray-500">· {{ t.n }}</span></dt>
+        <div class="mt-2 flex justify-between gap-3 text-sm"><span class="text-gray-500">Entradas</span><span class="num positivo">+{{ t.entradas|money }}</span></div>
+        <div class="flex justify-between gap-3 text-sm"><span class="text-gray-500">Salidas</span><span class="num text-gray-900">−{{ t.salidas|money }}</span></div>
+        <div class="mt-1 flex justify-between gap-3 border-t border-gray-200 pt-1 font-bold"><span class="text-gray-700">Neto</span><span class="num {% if t.neto > 0 %}positivo{% else %}text-gray-900{% endif %}">{% if t.neto > 0 %}+{% elif t.neto < 0 %}−{% endif %}{{ t.neto|absoluto|money }}</span></div>
+      </dl>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+<!-- Listado -->
+<section class="card mt-6 overflow-hidden p-0 aparece" style="--d:.14s" aria-label="Listado de movimientos">
+  {% if page_obj.object_list %}
+  <table class="w-full text-sm">
+    <thead class="hidden border-b border-gray-200 bg-gray-50 text-left text-gray-600 md:table-header-group">
+      <tr>
+        <th class="px-4 py-3 font-semibold">Fecha</th>
+        <th class="px-4 py-3 font-semibold">Usuario</th>
+        <th class="px-4 py-3 font-semibold">Tipo y detalle</th>
+        <th class="px-4 py-3 text-right font-semibold">Monto</th>
+        <th class="hidden px-4 py-3 text-right font-semibold lg:table-cell">Saldo después</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-200">
+      {% for m in page_obj %}
+      <tr class="align-top hover:bg-gray-50">
+        <td class="hidden whitespace-nowrap px-4 py-3 text-gray-600 md:table-cell">
+          <span class="num">{{ m.fecha|date:"d/m/Y" }}</span><br><span class="num text-gray-500">{{ m.fecha|date:"H:i:s" }}</span>
+        </td>
+        <td class="px-4 py-3">
+          <a href="?{% if query_sin_usuario %}{{ query_sin_usuario }}&amp;{% endif %}u={{ m.usuario_id }}" class="font-semibold text-gray-900 hover:underline" title="Ver solo los movimientos de este usuario">{{ m.usuario.get_full_name|default:m.usuario.username }}</a>
+          <div class="text-gray-500"><a href="{% url 'admin_usuario_perfil' m.usuario_id %}" class="hover:underline">{{ m.usuario.username }}</a>{% if m.usuario.doc_nro %}<span class="hidden lg:inline"> · DNI {{ m.usuario.doc_nro }}</span>{% endif %}</div>
+          <div class="mt-1 text-gray-500 md:hidden"><span class="num">{{ m.fecha|date:"d/m/Y H:i" }}</span> · {{ m.get_tipo_display }}</div>
+        </td>
+        <td class="hidden max-w-sm px-4 py-3 md:table-cell">
+          <span class="font-semibold text-gray-900">{{ m.get_tipo_display }}</span>
+          {% if m.admin_responsable %}<span class="text-gray-500"> · por {{ m.admin_responsable.username }}</span>{% endif %}
+          {% if m.descripcion %}<div class="mt-0.5 line-clamp-2 text-gray-600" title="{{ m.descripcion }}">{{ m.descripcion }}</div>{% endif %}
+          <code class="mt-1 block truncate text-xs text-gray-400" title="Código del movimiento">{{ m.codigo }}</code>
+        </td>
+        <td class="whitespace-nowrap px-4 py-3 text-right">
+          <span class="num font-bold {% if m.monto > 0 %}positivo{% else %}text-gray-900{% endif %}">{% if m.monto > 0 %}+{% elif m.monto < 0 %}−{% endif %}{% if m.moneda == 'ARS' %}$ {% endif %}{{ m.monto|absoluto|money }}</span>{% if m.moneda != 'ARS' %} <span class="text-xs font-semibold text-gray-500">{{ m.moneda }}</span>{% endif %}
+          <div class="num text-gray-500 lg:hidden">Saldo {{ m.saldo_despues|money }}</div>
+        </td>
+        <td class="num hidden whitespace-nowrap px-4 py-3 text-right text-gray-600 lg:table-cell">{{ m.saldo_despues|money }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <div class="py-14 text-center">
+      <p class="font-semibold text-gray-900">{% if params.activos %}No hay movimientos con esos filtros{% else %}Todavía no hay movimientos{% endif %}</p>
+      {% if params.activos %}<a href="{% url 'admin_movimientos' %}" class="btn btn-sm btn-secundario mt-4">Ver todos</a>{% endif %}
+    </div>
+  {% endif %}
+</section>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-6 flex items-center justify-between gap-4 text-sm" aria-label="Páginas">
+  {% if page_obj.has_previous %}<a href="?{% if query_filtros %}{{ query_filtros }}&amp;{% endif %}page={{ page_obj.previous_page_number }}" class="btn btn-sm btn-secundario">Anteriores</a>{% else %}<span></span>{% endif %}
+  <span class="text-gray-600">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+  {% if page_obj.has_next %}<a href="?{% if query_filtros %}{{ query_filtros }}&amp;{% endif %}page={{ page_obj.next_page_number }}" class="btn btn-sm btn-secundario">Siguientes</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+
+<script>
+  // En pantallas grandes los filtros siempre a la vista; en celular se pliegan
+  if (window.matchMedia('(min-width: 768px)').matches) document.getElementById('mas-filtros').open = true;
+</script>
+{% endblock %}

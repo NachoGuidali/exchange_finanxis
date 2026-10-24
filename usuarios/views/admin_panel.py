@@ -1,6 +1,6 @@
 """Panel de administración: KYC, aprobación de depósitos/retiros y contabilidad."""
 import csv
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from urllib.parse import urlencode
 
@@ -22,6 +22,7 @@ from usuarios.services.auditoria import auditar
 from usuarios.services.comun import OperacionError
 
 from ..forms import ExchangeConfigForm
+from ..utils import parse_monto
 from ..models import (
     AlertaCompliance,
     ApunteExchange,
@@ -154,47 +155,134 @@ def panel_depositos_usdt(request):
     return render(request, 'usuarios/panel_depositos_usdt.html', {'depositos': depositos})
 
 
+def _filtrar_movimientos_admin(request):
+    """
+    Filtros de la pantalla de movimientos del admin, compartidos con el CSV.
+    Montos: sobre el valor absoluto, así "desde 100.000" trae entradas y salidas de ese tamaño.
+    """
+    p = {k: request.GET.get(k, '').strip() for k in
+         ('desde', 'hasta', 'usuario', 'u', 'moneda', 'tipo', 'sentido', 'min', 'max', 'q')}
+    qs = Movimiento.objects.select_related('usuario', 'admin_responsable')
+
+    d, h = _parse_iso_date(p['desde']), _parse_iso_date(p['hasta'])
+    if d:
+        qs = qs.filter(fecha__date__gte=d)
+    if h:
+        qs = qs.filter(fecha__date__lte=h)
+
+    filtrado_usuario = None
+    if p['u'].isdigit():
+        filtrado_usuario = Usuario.objects.filter(pk=p['u']).first()
+        qs = qs.filter(usuario_id=p['u'])
+    elif p['usuario']:
+        t = p['usuario']
+        qs = qs.filter(Q(usuario__username__icontains=t) | Q(usuario__email__icontains=t) |
+                       Q(usuario__first_name__icontains=t) | Q(usuario__last_name__icontains=t) |
+                       Q(usuario__doc_nro__icontains=t))
+
+    if p['moneda'] in dict(Movimiento.MONEDA_CHOICES):
+        qs = qs.filter(moneda=p['moneda'])
+    if p['tipo'] in dict(Movimiento.TIPO_CHOICES):
+        qs = qs.filter(tipo=p['tipo'])
+    if p['sentido'] == 'entrada':
+        qs = qs.filter(monto__gt=0)
+    elif p['sentido'] == 'salida':
+        qs = qs.filter(monto__lt=0)
+
+    minimo, maximo = parse_monto(p['min']), parse_monto(p['max'])
+    if minimo is not None:
+        qs = qs.filter(Q(monto__gte=minimo) | Q(monto__lte=-minimo))
+    if maximo is not None:
+        qs = qs.filter(monto__lte=maximo, monto__gte=-maximo)
+
+    if p['q']:
+        qs = qs.filter(Q(descripcion__icontains=p['q']) | Q(codigo__icontains=p['q']) |
+                       Q(operacion__icontains=p['q']))
+
+    p['activos'] = any(p[k] for k in ('desde', 'hasta', 'usuario', 'u', 'moneda', 'tipo', 'sentido', 'min', 'max', 'q'))
+    p['filtrado_usuario'] = filtrado_usuario
+    return qs.order_by('-fecha', '-id'), p
+
+
+@login_required
+@user_passes_test(es_admin)
+def admin_movimientos(request):
+    qs, params = _filtrar_movimientos_admin(request)
+
+    totales = []
+    for t in qs.order_by().values('moneda').annotate(
+            n=Count('id'),
+            entradas=Sum('monto', filter=Q(monto__gt=0)),
+            salidas=Sum('monto', filter=Q(monto__lt=0)),
+            neto=Sum('monto')):
+        totales.append({**t, 'entradas': t['entradas'] or Decimal('0'), 'salidas': -(t['salidas'] or Decimal('0'))})
+    orden = {'ARS': 0, 'USDT': 1, 'USD': 2}
+    totales.sort(key=lambda t: orden.get(t['moneda'], 9))
+
+    page_obj = Paginator(qs, 50).get_page(request.GET.get('page'))
+    filtros = request.GET.copy()
+    filtros.pop('page', None)
+
+    sin_usuario = filtros.copy()
+    for k in ('u', 'usuario'):
+        sin_usuario.pop(k, None)
+
+    # atajos de período que conservan el resto de los filtros
+    hoy = timezone.localdate()
+    inicio_mes = hoy.replace(day=1)
+    fin_mes_anterior = inicio_mes - timedelta(days=1)
+    periodos = []
+    for nombre, d, h in (('Hoy', hoy, hoy), ('Últimos 7 días', hoy - timedelta(days=6), hoy),
+                         ('Este mes', inicio_mes, hoy),
+                         ('Mes anterior', fin_mes_anterior.replace(day=1), fin_mes_anterior)):
+        q = filtros.copy()
+        q['desde'], q['hasta'] = d.isoformat(), h.isoformat()
+        periodos.append({'nombre': nombre, 'query': q.urlencode(),
+                         'activo': params['desde'] == d.isoformat() and params['hasta'] == h.isoformat()})
+
+    return render(request, 'usuarios/admin_movimientos.html', {
+        'periodos': periodos,
+        'page_obj': page_obj,
+        'params': params,
+        'totales': totales,
+        'cantidad': sum(t['n'] for t in totales),
+        'tipos': Movimiento.TIPO_CHOICES,
+        'monedas': Movimiento.MONEDA_CHOICES,
+        'query_filtros': filtros.urlencode(),
+        'query_sin_usuario': sin_usuario.urlencode(),
+    })
+
+
 @login_required
 @user_passes_test(es_admin)
 def exportar_movimientos_admin(request):
-    movimientos = Movimiento.objects.all()
+    qs, params = _filtrar_movimientos_admin(request)
 
-    # Filtros
-    fecha_desde = request.GET.get('desde')
-    fecha_hasta = request.GET.get('hasta')
-    moneda = request.GET.get('moneda')
-    tipo = request.GET.get('tipo')
-
-    if fecha_desde:
-        movimientos = movimientos.filter(fecha__gte=fecha_desde)
-    if fecha_hasta:
-        movimientos = movimientos.filter(fecha__lte=fecha_hasta)
-    if moneda:
-        movimientos = movimientos.filter(moneda=moneda)
-    if tipo:
-        movimientos = movimientos.filter(tipo=tipo)
-
-    movimientos = movimientos.order_by('-fecha')
-
-    # CSV
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="movimientos_todos.csv"'
+    response = HttpResponse(content_type='text/csv; charset=utf-8')
+    nombre = f"movimientos_{timezone.localdate():%Y%m%d}.csv"
+    response['Content-Disposition'] = f'attachment; filename="{nombre}"'
+    response.write('\ufeff')  # BOM: Excel abre bien los acentos
     writer = csv.writer(response)
-    writer.writerow(['ID','Usuario', 'Fecha', 'Tipo', 'Moneda', 'Monto', 'Saldo antes', 'Saldo después', 'Descripción'])
-
-    for m in movimientos:
+    writer.writerow(['Fecha', 'Usuario', 'Nombre', 'DNI', 'Email', 'Tipo', 'Moneda', 'Monto',
+                     'Saldo antes', 'Saldo después', 'Descripción', 'Admin', 'ID', 'Operación'])
+    for m in qs.iterator(chunk_size=2000):
+        u = m.usuario
         writer.writerow([
-            m.codigo,
-            m.usuario.username,
-            localtime(m.fecha).strftime('%Y-%m-%d %H:%M'),
-            m.tipo,
+            localtime(m.fecha).strftime('%Y-%m-%d %H:%M:%S'),
+            u.username,
+            u.get_full_name(),
+            u.doc_nro or '',
+            u.email,
+            m.get_tipo_display(),
             m.moneda,
-            m.monto,
-            m.saldo_antes,
-            m.saldo_despues,
-            m.descripcion
+            f"{m.monto:.2f}",
+            f"{m.saldo_antes:.2f}" if m.saldo_antes is not None else '',
+            f"{m.saldo_despues:.2f}" if m.saldo_despues is not None else '',
+            m.descripcion or '',
+            m.admin_responsable.username if m.admin_responsable else '',
+            m.codigo,
+            m.operacion or '',
         ])
-
     return response
 
 
