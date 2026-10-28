@@ -23,7 +23,7 @@ from usuarios.models import (
     RetiroCrypto,
     Usuario,
 )
-from usuarios.services import compliance
+from usuarios.services import avisos, compliance
 from usuarios.services.auditoria import auditar
 from usuarios.services.boletos import emitir_boleto
 from usuarios.services.comun import (
@@ -40,7 +40,15 @@ from usuarios.services.ledger import (
     cuenta_usuario,
     registrar_asiento,
 )
-from usuarios.utils import crear_notificacion, registrar_movimiento
+from usuarios.templatetags.finanxis import formato_ar as fmt_ar
+from usuarios.templatetags.finanxis import money
+from usuarios.utils import registrar_movimiento
+
+
+def _monto_fmt(moneda, monto):
+    if moneda == 'USDT':
+        return f"{money(monto)} USDT"
+    return f"{'US$' if moneda == 'USD' else '$'} {money(monto)}"
 
 
 def _bloquear(modelo, pk):
@@ -82,7 +90,9 @@ def _aprobar_deposito(modelo, deposito_id, moneda, admin, *, tipo_bol, detalle, 
         tasa=f"Red: {onchain['red']}" if onchain and onchain.get('red') else '—',
     )
     emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov, onchain=onchain)
-    crear_notificacion(u, f"Tu depósito de {fmt} fue aprobado.")
+    avisos.cliente(u, f"Acreditamos tu depósito de {fmt_ar(fmt)}.", asunto="Depósito acreditado",
+                   detalle="Ya lo tenés disponible en tu saldo. El comprobante está en Comprobantes.",
+                   url=avisos.url_absoluta('comprobantes'), boton="Ver comprobante")
     compliance.evaluar(u, descripcion=f'Depósito {moneda}', referencia=f'{modelo.__name__}:{dep.pk}',
                        monto_ars=compliance.valor_ars(moneda, dep.monto))
     auditar(admin, 'deposito_aprobado', dep, moneda=moneda, monto=dep.monto, usuario=u.pk)
@@ -141,7 +151,13 @@ def rechazar_deposito(modelo, deposito_id, admin):
         usuario=dep.usuario, tipo='ajuste', moneda=moneda, monto=0, admin=admin,
         descripcion=f'Depósito {moneda} rechazado por admin. Monto solicitado: {dep.monto}{extra}'
     )
-    crear_notificacion(dep.usuario, f"Tu depósito de {dep.monto} {moneda} fue rechazado.")
+    simbolo = {'ARS': '$ ', 'USD': 'US$ '}.get(moneda, '')
+    sufijo = ' USDT' if moneda == 'USDT' else ''
+    avisos.cliente(dep.usuario, f"No pudimos acreditar tu depósito de {simbolo}{money(dep.monto)}{sufijo}.",
+                   asunto="Depósito rechazado",
+                   detalle="Revisá que el comprobante sea legible y coincida con el monto informado, o escribinos "
+                           "a Soporte y lo vemos juntos.",
+                   url=avisos.url_absoluta('soporte'), boton="Escribir a Soporte")
     auditar(admin, 'deposito_rechazado', dep, moneda=moneda, monto=dep.monto)
     return dep
 
@@ -167,6 +183,12 @@ def _reservar_retiro(usuario, moneda, monto, descripcion, crear_documento):
     ], referencia=f'{type(retiro).__name__}:{retiro.pk}')
     compliance.evaluar_retiro(u, descripcion=f'Retiro {moneda}', monto_ars=monto_ars,
                               referencia=f'{type(retiro).__name__}:{retiro.pk}')
+    monto_fmt = _monto_fmt(moneda, monto)
+    avisos.cliente(u, f"Recibimos tu pedido de retiro de {monto_fmt}.", asunto="Pedido de retiro recibido",
+                   detalle="El monto quedó reservado de tu saldo. Te avisamos cuando lo aprobemos y lo enviemos.")
+    avisos.equipo('retiros', f"Nuevo retiro: {monto_fmt}",
+                  f"Cliente: {avisos.cliente_desc(u)}\nMonto: {monto_fmt}\nDestino: {descripcion}",
+                  url=avisos.url_absoluta('panel_admin') + '?tipo=' + ('retiro_crypto' if moneda == 'USDT' else 'retiro_ars'))
     return retiro
 
 
@@ -210,7 +232,6 @@ def solicitar_retiro_crypto(usuario, moneda, monto, wallet, red=''):
         lambda u: RetiroCrypto.objects.create(usuario=u, moneda=moneda, monto=monto, red=red,
                                               direccion_wallet=wallet, estado='pendiente'),
     )
-    crear_notificacion(usuario, f"Tu retiro de {monto} {moneda} está pendiente de aprobación.")
     return retiro
 
 
@@ -222,6 +243,8 @@ def aprobar_retiro_ars(retiro_id, admin=None):
     retiro.estado = 'aprobado'
     retiro.save()
     auditar(admin, 'retiro_aprobado', retiro, moneda=retiro.moneda, monto=retiro.monto)
+    avisos.cliente(retiro.usuario, f"Aprobamos tu retiro de {_monto_fmt(retiro.moneda, retiro.monto)}.",
+                   asunto="Retiro aprobado", detalle="Lo transferimos en horario bancario y te avisamos al enviarlo.")
     return retiro
 
 
@@ -242,7 +265,9 @@ def _enviar_retiro(retiro, moneda, admin, *, descripcion, tipo_bol, tasa, onchai
     snapshot = snapshot_boleto(u, titulo=f'Retiro {moneda} enviado', debitado=fmt, origen=fmt,
                                destino=fmt, tasa=tasa)
     emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov, onchain=onchain)
-    crear_notificacion(u, f"Tu retiro de {fmt} fue enviado.")
+    avisos.cliente(u, f"Enviamos tu retiro de {fmt_ar(fmt)}.", asunto="Retiro enviado",
+                   detalle=f"{fmt_ar(tasa)}. El comprobante está en Comprobantes.",
+                   url=avisos.url_absoluta('comprobantes'), boton="Ver comprobante")
     auditar(admin, 'retiro_enviado', retiro, moneda=moneda, monto=retiro.monto,
             destino=getattr(retiro, 'direccion_wallet', '') or getattr(retiro, 'alias', ''),
             txid=(onchain or {}).get('txid', ''))
@@ -302,7 +327,9 @@ def _rechazar_retiro(retiro, moneda, admin):
         (cuenta_sistema(CuentaContable.RETIROS_PENDIENTES), moneda, -retiro.monto),
         (cuenta_usuario(u), moneda, retiro.monto),
     ], referencia=f'{type(retiro).__name__}:{retiro.pk}', creado_por=admin)
-    crear_notificacion(u, f"Tu retiro de {retiro.monto} {moneda} fue rechazado. Se recreditó el saldo.")
+    avisos.cliente(u, f"Rechazamos tu retiro de {_monto_fmt(moneda, retiro.monto)}. El monto volvió a tu saldo.",
+                   asunto="Retiro rechazado", detalle="Si tenés dudas, escribinos a Soporte.",
+                   url=avisos.url_absoluta('soporte'), boton="Escribir a Soporte")
     auditar(admin, 'retiro_rechazado', retiro, moneda=moneda, monto=retiro.monto)
     return retiro
 

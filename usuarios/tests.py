@@ -12,7 +12,7 @@ from django.utils import timezone
 
 from .forms import DepositoARSForm
 from .models import (
-    ApunteExchange, BoletoOperacion, Cotizacion, CuentaExchange, DepositoARS,
+    ApunteExchange, BoletoOperacion, Cotizacion, CuentaExchange, DepositoARS, ExchangeConfig,
     AlertaCompliance, Movimiento, Notificacion, RegistroAuditoria, RetiroARS, RetiroCrypto, SupportTicket, Usuario,
 )
 from .utils import parse_monto
@@ -1332,10 +1332,11 @@ class SoporteTests(BaseTest):
 
     def abrir(self):
         self.client.force_login(self.cli)
-        return self.client.post(reverse("soporte"), {
-            "asunto": "No me llegó el retiro", "categoria": "pagos", "prioridad": "alta",
-            "mensaje": "Pedí un retiro ayer", "email": "cli@test.local",
-        })
+        with self.captureOnCommitCallbacks(execute=True):
+            return self.client.post(reverse("soporte"), {
+                "asunto": "No me llegó el retiro", "categoria": "pagos", "prioridad": "alta",
+                "mensaje": "Pedí un retiro ayer", "email": "cli@test.local",
+            })
 
     def test_cliente_abre_ticket_y_avisa_al_equipo(self):
         from django.core import mail
@@ -1354,7 +1355,8 @@ class SoporteTests(BaseTest):
 
         self.client.force_login(self.admin)
         self.assertContains(self.client.get(reverse("admin_tickets")), "No me llegó el retiro")
-        self.client.post(reverse("admin_ticket", args=[t.pk]), {"mensaje": "Ya salió, revisá en 1 hora"})
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("admin_ticket", args=[t.pk]), {"mensaje": "Ya salió, revisá en 1 hora"})
         t.refresh_from_db()
         self.assertEqual(t.estado, "respondido")
         self.assertEqual(mail.outbox[-1].to, ["cli@test.local"])
@@ -1447,3 +1449,74 @@ class DeclaracionJuradaTests(BaseTest):
         self.client.post(reverse("cambiar_estado_verificacion", args=[self.u.pk]), {"estado": "aprobado"})
         self.u.refresh_from_db()
         self.assertEqual(self.u.estado_verificacion, "aprobado")
+
+
+
+@override_settings(BOLETOS_TOLERAR_ERROR_PDF=True)
+class AvisosEmailTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        from django.core import mail
+        self.outbox = mail.outbox
+        crear_cotizaciones()
+        self.cli = crear_usuario(saldo_ars="500000")
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+        cfg = ExchangeConfig.current()
+        cfg.avisos_depositos = "caja@finanxis.test"
+        cfg.avisos_retiros = "tesoreria@finanxis.test, jefe@finanxis.test"
+        cfg.avisos_compliance = "oficial@finanxis.test"
+        cfg.save()
+
+    def para(self, asunto_contiene):
+        return [m.to for m in self.outbox if asunto_contiene in m.subject]
+
+    def test_retiro_avisa_al_equipo_y_al_cliente(self):
+        self.client.force_login(self.cli)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("solicitar_retiro"), {"monto": "1000", "alias": "mi.alias"})
+        self.assertEqual(self.para("Nuevo retiro"), [["tesoreria@finanxis.test", "jefe@finanxis.test"]])
+        self.assertEqual(self.para("Pedido de retiro recibido"), [[self.cli.email]])
+        r = RetiroARS.objects.get()
+        self.client.force_login(self.admin)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("aprobar_retiro", args=[r.pk]))
+        self.assertEqual(self.para("Retiro aprobado"), [[self.cli.email]])
+        html = [m for m in self.outbox if "Retiro aprobado" in m.subject][0].alternatives[0][0]
+        self.assertIn("$ 1.000,00", html)
+
+    def test_deposito_y_operacion_avisan_al_cliente(self):
+        dep = DepositoARS.objects.create(usuario=self.cli, monto=Decimal("1500"), comprobante="c.png")
+        self.client.force_login(self.admin)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("aprobar_deposito", args=[dep.pk]))
+        self.assertEqual(self.para("Depósito acreditado"), [[self.cli.email]])
+        self.client.force_login(self.cli)
+        with self.captureOnCommitCallbacks(execute=True):
+            operar(self.client, "compra", "USDT", "10200")
+        self.assertEqual(self.para("Operación realizada"), [[self.cli.email]])
+
+    def test_sin_destinatarios_no_se_manda_y_alerta_va_a_compliance(self):
+        cfg = ExchangeConfig.current()
+        cfg.avisos_retiros = ""
+        cfg.save()
+        self.client.force_login(self.cli)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("solicitar_retiro"), {"monto": "1000", "alias": "mi.alias"})
+            AlertaCompliance.objects.create(usuario=self.cli, tipo="umbral", detalle="prueba", monto_ars=Decimal("6000000"))
+        self.assertEqual(self.para("Nuevo retiro"), [])
+        self.assertEqual(self.para("Alerta de compliance"), [["oficial@finanxis.test"]])
+
+    def test_parametros_validan_emails_y_prueba(self):
+        self.client.force_login(self.admin)
+        datos = {f: getattr(ExchangeConfig.current(), f) for f in (
+            "spread_bps_usdt", "spread_bps_usd", "swap_fee_bps", "umbral_alerta_ars",
+            "limite_mensual_operado_ars", "limite_diario_retiro_ars")}
+        resp = self.client.post(reverse("guardar_config_exchange"), {**datos, "avisos_retiros": "no-es-un-email"})
+        self.assertContains(resp, "Email inválido: no-es-un-email")
+        self.client.post(reverse("guardar_config_exchange"), {**datos, "avisos_retiros": "A@x.com; b@x.com\na@x.com"})
+        self.assertEqual(ExchangeConfig.current().avisos_retiros, "a@x.com, b@x.com")
+        self.client.post(reverse("probar_email"))
+        self.assertEqual(self.para("Prueba de email"), [[self.admin.email]])
+        self.assertContains(self.client.get(reverse("parametros_exchange")), "Desde dónde salen los emails")

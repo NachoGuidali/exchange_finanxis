@@ -65,10 +65,39 @@
       </div>
     </section>
 
+    <section class="card p-5 sm:p-7" id="avisos">
+      <h2 class="text-lg font-bold text-gray-900">Avisos por email al equipo</h2>
+      <p class="mt-1 text-sm text-gray-600">A quién le llega cada aviso. Podés poner varias direcciones separadas por coma. Si un campo queda vacío, ese aviso no se manda por email (igual aparece en el panel).</p>
+      <div class="mt-5 grid gap-5 sm:grid-cols-2">
+        {% for campo in avisos_campos %}
+        <label class="block">
+          <span class="etiqueta">{{ campo.label }}</span>
+          {{ campo }}
+          <span class="mt-1 block text-sm text-gray-500">{{ campo.help_text }}</span>
+          {% for e in campo.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        {% endfor %}
+      </div>
+      <p class="mt-5 text-sm text-gray-600">Al cliente le llegan por email: depósito recibido, acreditado o rechazado; pedido de retiro recibido, aprobado, enviado o rechazado; cada compra, venta o swap con su comprobante; identidad aprobada o rechazada; y las respuestas de soporte.</p>
+    </section>
+
     <div class="flex justify-end">
       <button class="btn btn-lg btn-primario">Guardar parámetros</button>
     </div>
   </form>
+
+  <section class="card mt-6 p-5 sm:p-7 aparece" style="--d:.12s" aria-labelledby="t-remitente">
+    <h2 id="t-remitente" class="text-lg font-bold text-gray-900">Desde dónde salen los emails</h2>
+    <dl class="mt-4 space-y-2 text-sm">
+      <div class="flex flex-wrap justify-between gap-2"><dt class="text-gray-500">Remitente</dt><dd class="font-semibold text-gray-900">{{ remitente }}</dd></div>
+      <div class="flex flex-wrap justify-between gap-2"><dt class="text-gray-500">Servidor de correo</dt><dd class="text-right text-gray-900">{{ servidor_email }}</dd></div>
+    </dl>
+    <p class="mt-3 text-sm text-gray-600">Se configuran en el servidor (<code>DEFAULT_FROM_EMAIL</code> y <code>EMAIL_*</code> del archivo .env), porque el remitente tiene que estar autorizado por el proveedor de correo.</p>
+    <form method="post" action="{% url 'probar_email' %}" class="mt-4">
+      {% csrf_token %}
+      <button class="btn btn-sm btn-secundario">Enviarme un email de prueba ({{ request.user.email }})</button>
+    </form>
+  </section>
 </div>
 
 <script>

@@ -141,3 +141,18 @@ from django.contrib.auth.signals import user_logged_in  # noqa: E402
 def auditar_login(sender, request, user, **kwargs):
     from usuarios.services.auditoria import auditar
     auditar(user, 'login', user, staff=user.is_staff)
+
+
+# -------- Aviso al equipo de cada alerta de compliance nueva --------
+from usuarios.models import AlertaCompliance  # noqa: E402
+
+
+@receiver(post_save, sender=AlertaCompliance)
+def avisar_alerta_compliance(sender, instance, created, **kwargs):
+    if not created:
+        return
+    from usuarios.services import avisos
+    monto = f"\nMonto: $ {instance.monto_ars:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if instance.monto_ars else ""
+    avisos.equipo('compliance', f"Alerta de compliance: {instance.get_tipo_display()}",
+                  f"Cliente: {avisos.cliente_desc(instance.usuario)}\n{instance.detalle}{monto}",
+                  url=avisos.url_absoluta('compliance_alertas'), boton="Revisar alerta")

@@ -119,6 +119,7 @@ urlpatterns = [
     ),
     # path('admin-dashboard/config/', exchange_config_view, name='exchange_config'),
     path('admin-dashboard/parametros/', views.parametros_exchange, name='parametros_exchange'),
+    path('admin-dashboard/parametros/probar-email/', views.probar_email, name='probar_email'),
     path('admin-dashboard/movimientos/', views.admin_movimientos, name='admin_movimientos'),
     path('admin-dashboard/cotizaciones/', views.admin_cotizaciones, name='admin_cotizaciones'),
     path('admin-dashboard/soporte/', views.admin_tickets, name='admin_tickets'),

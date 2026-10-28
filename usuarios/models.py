@@ -69,6 +69,13 @@ class ExchangeConfig(models.Model):
         help_text="Monto máximo de retiros (ARS + cripto valuado) por usuario en 24 h."
     )
 
+    # Avisos por email al equipo: direcciones separadas por coma o en renglones distintos
+    avisos_depositos   = models.TextField(blank=True, help_text="Depósitos informados por los clientes.")
+    avisos_retiros     = models.TextField(blank=True, help_text="Retiros pedidos por los clientes.")
+    avisos_identidades = models.TextField(blank=True, help_text="Clientes listos para verificar identidad.")
+    avisos_compliance  = models.TextField(blank=True, help_text="Alertas de compliance.")
+    avisos_soporte     = models.TextField(blank=True, help_text="Consultas de soporte (si está vacío, SOPORTE_TO).")
+
     updated_at = models.DateTimeField(default=timezone.now)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,

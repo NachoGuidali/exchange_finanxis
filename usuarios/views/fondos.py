@@ -9,7 +9,7 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 
-from usuarios.services import compliance, fondos
+from usuarios.services import avisos, compliance, fondos
 from usuarios.services.comun import OperacionError
 
 from ..forms import DepositoARSForm, DepositoUSDTForm
@@ -46,6 +46,14 @@ def _deposito_transferencia(request, moneda):
                 saldo_antes=saldo_actual,
                 saldo_despues=saldo_actual
             )
+            monto_fmt = f"{deposito.simbolo} {money(deposito.monto)}"
+            avisos.cliente(request.user, f"Recibimos tu depósito de {monto_fmt}. Lo estamos revisando.",
+                           asunto="Recibimos tu depósito",
+                           detalle="Te avisamos apenas esté acreditado en tu saldo.")
+            avisos.equipo('depositos', f"Nuevo depósito en {NOMBRE_MONEDA[moneda]}: {monto_fmt}",
+                          f"Cliente: {avisos.cliente_desc(request.user)}\nMonto: {monto_fmt}\n"
+                          "Revisá el comprobante y acreditalo o rechazalo.",
+                          url=avisos.url_absoluta('panel_admin') + '?tipo=deposito_ars')
             messages.success(request, 'Recibimos tu comprobante. Te avisamos cuando se acredite.')
             return redirect('dashboard')
     else:
@@ -96,6 +104,13 @@ def depositar_usdt(request):
                 saldo_despues=request.user.saldo_usdt
             )
             transaction.on_commit(lambda: _programar_verificacion(dep.pk))
+            avisos.cliente(request.user, f"Recibimos tu depósito de {money(dep.monto)} USDT. Lo estamos verificando en la red.",
+                           asunto="Recibimos tu depósito de USDT",
+                           detalle="Te avisamos apenas esté acreditado en tu saldo.")
+            avisos.equipo('depositos', f"Nuevo depósito USDT: {money(dep.monto)} USDT",
+                          f"Cliente: {avisos.cliente_desc(request.user)}\nMonto: {money(dep.monto)} USDT\n"
+                          f"Red: {dep.red}\nTXID: {dep.txid}",
+                          url=avisos.url_absoluta('panel_admin') + '?tipo=deposito_usdt')
             messages.success(request, 'Recibimos tu depósito. Verificamos la transacción en la red y te avisamos.')
             return redirect('dashboard')
     else:

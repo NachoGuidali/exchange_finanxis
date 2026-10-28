@@ -18,11 +18,11 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import localtime
 from django.views.decorators.http import require_POST
 
-from usuarios.services import cotizaciones, fondos, onchain, soporte
+from usuarios.services import avisos, cotizaciones, fondos, onchain, soporte
 from usuarios.services.auditoria import auditar
 from usuarios.services.comun import OperacionError
 
-from ..forms import ExchangeConfigForm
+from ..forms import CAMPOS_AVISOS, ExchangeConfigForm
 from ..utils import cotizacion_vigente, parse_monto
 from ..models import (
     AlertaCompliance,
@@ -91,10 +91,31 @@ def panel_admin(request):
 @login_required
 @user_passes_test(es_admin)
 def parametros_exchange(request):
+    return _render_parametros(request)
+
+
+def _render_parametros(request, form=None):
     cfg = ExchangeConfig.current()
+    form = form or ExchangeConfigForm(instance=cfg)
     return render(request, 'usuarios/parametros_exchange.html', {
-        'cfg': cfg, 'cfg_form': ExchangeConfigForm(instance=cfg),
+        'cfg': cfg, 'cfg_form': form,
+        'avisos_campos': [form[c] for c in CAMPOS_AVISOS],
+        'remitente': settings.DEFAULT_FROM_EMAIL,
+        'servidor_email': avisos.estado_servidor(),
     })
+
+
+@login_required
+@user_passes_test(es_admin)
+@require_POST
+def probar_email(request):
+    try:
+        avisos.probar_envio(request.user.email)
+    except Exception as e:
+        messages.error(request, f"No se pudo enviar el email de prueba: {e}")
+    else:
+        messages.success(request, f"Enviamos un email de prueba a {request.user.email}.")
+    return redirect(reverse('parametros_exchange') + '#avisos')
 
 
 DURACIONES_MANUAL = [('30', '30 minutos'), ('60', '1 hora'), ('240', '4 horas'), ('1440', '24 horas'),
@@ -259,6 +280,14 @@ def cambiar_estado_verificacion(request, user_id):
                 usuario.is_active = True
             usuario.save()
             auditar(request.user, 'kyc_cambio_estado', usuario, anterior=anterior, nuevo=nuevo_estado)
+            if nuevo_estado != anterior and nuevo_estado == 'aprobado':
+                avisos.cliente(usuario, "Verificamos tu identidad: ya podés ingresar dinero y operar.",
+                               asunto="Tu cuenta está habilitada", url=avisos.url_absoluta('agregar_saldo'),
+                               boton="Ingresar dinero")
+            elif nuevo_estado != anterior and nuevo_estado == 'rechazado':
+                avisos.cliente(usuario, "No pudimos verificar tu identidad.", asunto="Verificación de identidad",
+                               detalle="Escribinos a Soporte y te decimos qué falta para habilitar tu cuenta.",
+                               url=avisos.url_absoluta('soporte'), boton="Escribir a Soporte")
             messages.success(request, f"{usuario.get_full_name() or usuario.username}: verificación {usuario.get_estado_verificacion_display().lower()}.")
     siguiente = request.POST.get('next', '')
     if siguiente and url_has_allowed_host_and_scheme(siguiente, allowed_hosts={request.get_host()},
@@ -761,7 +790,8 @@ def guardar_config_exchange(request):
         cache.delete("exchange_config_current")
         messages.success(request, "Parámetros guardados.")
     else:
-        messages.error(request, "Revisá los valores ingresados.")
+        messages.error(request, "Revisá los valores marcados.")
+        return _render_parametros(request, form)
     return redirect('parametros_exchange')
 
 

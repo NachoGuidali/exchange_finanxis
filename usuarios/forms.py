@@ -1,3 +1,6 @@
+import re
+
+from django.core.validators import validate_email
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from .models import Usuario, DepositoARS, DepositoUSDT
@@ -10,12 +13,22 @@ from .models import DeclaracionJurada, Pais, Provincia, Localidad, SupportTicket
 from django.contrib.auth.forms import AuthenticationForm
 from .models import ExchangeConfig
 
+CAMPOS_AVISOS = ("avisos_depositos", "avisos_retiros", "avisos_identidades", "avisos_compliance", "avisos_soporte")
+
+
 class ExchangeConfigForm(forms.ModelForm):
     class Meta:
         model = ExchangeConfig
         fields = ("spread_bps_usdt","spread_bps_usd","swap_fee_bps",
-                  "umbral_alerta_ars","limite_mensual_operado_ars","limite_diario_retiro_ars")
+                  "umbral_alerta_ars","limite_mensual_operado_ars","limite_diario_retiro_ars") + CAMPOS_AVISOS
+        labels = {
+            "avisos_depositos": "Depósitos", "avisos_retiros": "Retiros", "avisos_identidades": "Identidades",
+            "avisos_compliance": "Compliance", "avisos_soporte": "Soporte",
+        }
         widgets = {
+            **{c: forms.Textarea(attrs={"rows": 2, "class": "campo h-auto py-2.5",
+                                        "placeholder": "operaciones@finanxis.com, otra@finanxis.com"})
+               for c in CAMPOS_AVISOS},
             "spread_bps_usdt": forms.NumberInput(attrs={"min":0, "step":1, "class": "campo num", "data-bps": ""}),
             "spread_bps_usd":  forms.NumberInput(attrs={"min":0, "step":1, "class": "campo num", "data-bps": ""}),
             "swap_fee_bps":    forms.NumberInput(attrs={"min":0, "step":1, "class": "campo num", "data-bps": ""}),
@@ -23,6 +36,35 @@ class ExchangeConfigForm(forms.ModelForm):
             "limite_mensual_operado_ars": forms.NumberInput(attrs={"min":0, "step":"0.01", "class": "campo num", "data-pesos": ""}),
             "limite_diario_retiro_ars":   forms.NumberInput(attrs={"min":0, "step":"0.01", "class": "campo num", "data-pesos": ""}),
         }
+
+    def _clean_emails(self, campo):
+        """Normaliza la lista de emails (coma, punto y coma o renglones) y valida cada uno."""
+        texto = self.cleaned_data.get(campo) or ""
+        emails = [e.strip() for e in re.split(r"[,;\s]+", texto) if e.strip()]
+        invalidos = []
+        for e in emails:
+            try:
+                validate_email(e)
+            except forms.ValidationError:
+                invalidos.append(e)
+        if invalidos:
+            raise forms.ValidationError(f"Email inválido: {', '.join(invalidos)}")
+        return ", ".join(dict.fromkeys(e.lower() for e in emails))
+
+    def clean_avisos_depositos(self):
+        return self._clean_emails("avisos_depositos")
+
+    def clean_avisos_retiros(self):
+        return self._clean_emails("avisos_retiros")
+
+    def clean_avisos_identidades(self):
+        return self._clean_emails("avisos_identidades")
+
+    def clean_avisos_compliance(self):
+        return self._clean_emails("avisos_compliance")
+
+    def clean_avisos_soporte(self):
+        return self._clean_emails("avisos_soporte")
 
 
 DOC_TIPOS = (('DNI','DNI'), ('PAS','Pasaporte'), ('CE','Cédula/CE'))

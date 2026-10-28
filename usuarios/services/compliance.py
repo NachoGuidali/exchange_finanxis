@@ -152,6 +152,12 @@ def registrar_declaracion(usuario, datos, *, version):
     ddjj = DeclaracionJurada.objects.create(usuario=usuario, version=version, ip=ip_actual(), **datos)
     auditar(usuario, 'declaracion_jurada', ddjj, pep=ddjj.es_pep, sujeto_obligado=ddjj.es_sujeto_obligado,
             origen=ddjj.origen_fondos)
+    if usuario.estado_verificacion == 'pendiente' and usuario.declaraciones.count() == 1:
+        from usuarios.services import avisos
+        avisos.equipo('identidades', f"Identidad para verificar: {avisos.cliente_desc(usuario)}",
+                      f"Completó la declaración jurada{' y se declaró PEP' if ddjj.es_pep else ''}. "
+                      "Revisá las fotos del DNI y aprobá o rechazá su identidad.",
+                      url=avisos.url_absoluta('admin_usuario_perfil', usuario.pk), boton="Ver cliente")
     if ddjj.es_pep:
         AlertaCompliance.objects.create(
             usuario=usuario, tipo='pep', referencia=f'DeclaracionJurada:{ddjj.pk}',

@@ -16,7 +16,7 @@ from usuarios.services.accounting import (
     registrar_spread_compra,
     registrar_spread_venta,
 )
-from usuarios.services import compliance
+from usuarios.services import avisos, compliance
 from usuarios.services.boletos import emitir_boleto
 from usuarios.services.comun import (
     OperacionError,
@@ -32,10 +32,16 @@ from usuarios.services.ledger import (
     cuenta_usuario,
     registrar_asiento,
 )
+from usuarios.templatetags.finanxis import money
 from usuarios.utils import registrar_movimiento
 
 MONEDAS = ('USDT', 'USD')
 SWAP_RATE = Decimal('1.00')  # paridad USD/USDT
+
+
+def _avisar_operacion(u, mensaje, detalle, boleto):
+    url = avisos.url_absoluta('ver_comprobante', boleto.numero) if boleto else None
+    avisos.cliente(u, mensaje, asunto="Operación realizada", detalle=detalle, url=url, boton="Ver comprobante")
 
 
 def _bloquear_usuario(usuario):
@@ -158,7 +164,9 @@ def comprar(usuario, moneda, monto_ars, *, precio, precio_ref, cotizacion_id):
         tasa=f"{q2(precio)} ARS / {moneda}", destino=fmt_ccy(recibido, moneda),
     )
     tipo_bol = 'compra_ars_usdt' if moneda == 'USDT' else 'compra_ars_usd'
-    emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov_ccy)
+    boleto = emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov_ccy)
+    _avisar_operacion(u, f"Compraste {money(recibido)} {moneda} a $ {money(precio)}.",
+                      f"Pagaste $ {money(monto_ars)}.", boleto)
     return mov_ccy
 
 
@@ -212,7 +220,9 @@ def vender(usuario, moneda, monto_ccy, *, precio, precio_ref, cotizacion_id):
         tasa=f"{q2(precio)} ARS / {moneda}", destino=fmt_money(ars_recibe),
     )
     tipo_bol = 'venta_usdt_ars' if moneda == 'USDT' else 'venta_usd_ars'
-    emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov_ars)
+    boleto = emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov_ars)
+    _avisar_operacion(u, f"Vendiste {money(monto_ccy)} {moneda} a $ {money(precio)}.",
+                      f"Recibiste $ {money(ars_recibe)} en tu saldo.", boleto)
     return mov_ars
 
 
@@ -274,5 +284,7 @@ def swap(usuario, direccion, amount, *, fee_bps):
         tasa=f"{SWAP_RATE} USDT / USD — fee {fee_bps} bps", destino=fmt_ccy(neto, destino),
         comision=f"{fee} {destino}" if fee > 0 else None,
     )
-    emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov_dest)
+    boleto = emitir_boleto(u, tipo_bol, gen_numero_boleto(), snapshot, movimiento=mov_dest)
+    _avisar_operacion(u, f"Convertiste {money(amount)} {origen} a {money(neto)} {destino}.",
+                      f"Comisión: {money(fee)} {destino}.", boleto)
     return mov_dest
