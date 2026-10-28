@@ -249,6 +249,12 @@ class Usuario(AbstractUser):
     # Límite propio de volumen mensual (ARS); vacío = usa el general de ExchangeConfig
     limite_mensual_ars = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
 
+    # Rol en el panel de administración (solo staff). Ver usuarios/permisos.py
+    rol_staff = models.CharField(max_length=16, blank=True, choices=[
+        ('superadmin', 'Superadmin'), ('operador', 'Operador'),
+        ('compliance', 'Compliance'), ('contabilidad', 'Contabilidad'),
+    ])
+
     @property
     def declaracion_vigente(self):
         """La última declaración jurada UIF del usuario, o None si nunca la completó."""

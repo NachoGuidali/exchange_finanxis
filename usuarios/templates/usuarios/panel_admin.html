@@ -24,10 +24,13 @@
     <div class="text-sm text-gray-500">Todos</div>
     <div class="num mt-1 text-3xl font-extrabold {% if p.total %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.total }}</div>
   </a>
+  {% if 'identidad' in puede %}
   <a href="?tipo=kyc" class="card card-link p-4 {% if filtro == 'kyc' %}ring-2 ring-gray-900{% endif %}">
     <div class="text-sm text-gray-500">Identidades</div>
     <div class="num mt-1 text-3xl font-extrabold {% if p.kyc %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.kyc }}</div>
   </a>
+  {% endif %}
+  {% if 'fondos' in puede %}
   <a href="?tipo=deposito_ars" class="card card-link p-4 {% if filtro == 'deposito_ars' %}ring-2 ring-gray-900{% endif %}">
     <div class="text-sm text-gray-500">Transferencias</div>
     <div class="num mt-1 text-3xl font-extrabold {% if p.depositos_ars %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.depositos_ars }}</div>
@@ -40,10 +43,13 @@
     <div class="text-sm text-gray-500">Retiros</div>
     <div class="num mt-1 text-3xl font-extrabold {% if p.retiros %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.retiros }}</div>
   </a>
+  {% endif %}
+  {% if 'compliance' in puede %}
   <a href="?tipo=alerta" class="card card-link p-4 {% if filtro == 'alerta' %}ring-2 ring-gray-900{% endif %}">
     <div class="text-sm text-gray-500">Alertas</div>
     <div class="num mt-1 text-3xl font-extrabold {% if p.alertas %}text-primary{% else %}text-gray-400{% endif %}">{{ p.alertas }}</div>
   </a>
+  {% endif %}
   {% endwith %}
 </div>
 

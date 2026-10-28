@@ -12,14 +12,20 @@ def pendientes_admin(request):
         return {}
     from .models import AlertaCompliance, DepositoARS, DepositoUSDT, RetiroARS, RetiroCrypto, SupportTicket, Usuario
 
-    p = {
-        "kyc": Usuario.objects.filter(estado_verificacion="pendiente").count(),
-        "depositos_ars": DepositoARS.objects.filter(estado="pendiente").count(),
-        "depositos_usdt": DepositoUSDT.objects.filter(estado="pendiente").count(),
-        "retiros": (RetiroARS.objects.filter(estado__in=("pendiente", "aprobado")).count()
-                    + RetiroCrypto.objects.filter(estado="pendiente").count()),
-        "alertas": AlertaCompliance.objects.filter(estado="abierta").count(),
-    }
+    from .permisos import permisos_de, rol_de
+
+    puede = permisos_de(user)
+    p = {"kyc": 0, "depositos_ars": 0, "depositos_usdt": 0, "retiros": 0, "alertas": 0}
+    # cada rol cuenta solo lo que puede resolver
+    if "identidad" in puede:
+        p["kyc"] = Usuario.objects.filter(estado_verificacion="pendiente").count()
+    if "fondos" in puede:
+        p["depositos_ars"] = DepositoARS.objects.filter(estado="pendiente").count()
+        p["depositos_usdt"] = DepositoUSDT.objects.filter(estado="pendiente").count()
+        p["retiros"] = (RetiroARS.objects.filter(estado__in=("pendiente", "aprobado")).count()
+                        + RetiroCrypto.objects.filter(estado="pendiente").count())
+    if "compliance" in puede:
+        p["alertas"] = AlertaCompliance.objects.filter(estado="abierta").count()
     p["total"] = sum(p.values())
     # los tickets se cuentan aparte: no son decisiones sobre dinero o identidad
     p["tickets"] = SupportTicket.objects.filter(estado="abierto").count()
@@ -34,4 +40,4 @@ def pendientes_admin(request):
         estado_cot = "vencida"
     else:
         estado_cot = ""
-    return {"pendientes": p, "estado_cotizacion": estado_cot}
+    return {"pendientes": p, "estado_cotizacion": estado_cot, "puede": puede, "rol_staff": rol_de(user)}

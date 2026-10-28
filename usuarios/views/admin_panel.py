@@ -6,7 +6,6 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
 from django.db.models.functions import Abs, TruncDate
@@ -23,6 +22,7 @@ from usuarios.services.auditoria import auditar
 from usuarios.services.comun import OperacionError
 
 from ..forms import CAMPOS_AVISOS, ExchangeConfigForm
+from ..permisos import ROLES, pendientes_visibles, requiere
 from ..utils import cotizacion_vigente, monto_csv, parse_monto
 from ..models import (
     AlertaCompliance,
@@ -42,16 +42,7 @@ from ..models import (
 )
 
 
-def es_admin(user):
-    return user.is_superuser or user.is_staff
-
-
-def staff_required(u):
-    return u.is_staff or u.is_superuser
-
-
-@login_required
-@user_passes_test(es_admin)
+@requiere('panel')
 def panel_admin(request):
     """Pendientes: todo lo que espera una decisión del operador, del más viejo al más nuevo."""
     q = (request.GET.get('q') or '').strip()
@@ -71,10 +62,11 @@ def panel_admin(request):
         cola.append({'tipo': 'retiro_crypto', 'fecha': r.fecha_solicitud, 'usuario': r.usuario, 'obj': r})
     for al in AlertaCompliance.objects.filter(estado='abierta').select_related('usuario'):
         cola.append({'tipo': 'alerta', 'fecha': al.fecha, 'usuario': al.usuario, 'obj': al})
-    cola.sort(key=lambda x: x['fecha'])
+    # cada rol ve solo lo que puede resolver
+    tipos = pendientes_visibles(request.user)
+    cola = sorted((c for c in cola if c['tipo'] in tipos), key=lambda x: x['fecha'])
 
     filtro = request.GET.get('tipo', '')
-    tipos = {'kyc', 'deposito_ars', 'deposito_usdt', 'retiro_ars', 'retiro_crypto', 'alerta'}
     if filtro in tipos:
         cola = [c for c in cola if c['tipo'] == filtro]
 
@@ -88,8 +80,7 @@ def panel_admin(request):
     })
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('parametros')
 def parametros_exchange(request):
     return _render_parametros(request)
 
@@ -105,8 +96,7 @@ def _render_parametros(request, form=None):
     })
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('parametros')
 @require_POST
 def probar_email(request):
     try:
@@ -124,8 +114,7 @@ DURACIONES_MANUAL = [('30', '30 minutos'), ('60', '1 hora'), ('240', '4 horas'),
 NOMBRE_MONEDA = {'USDT': 'USDT', 'USD': 'Dólar'}
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('cotizaciones')
 def admin_cotizaciones(request):
     cfg = ExchangeConfig.current()
     monedas = []
@@ -149,8 +138,7 @@ def admin_cotizaciones(request):
     })
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('cotizaciones')
 @require_POST
 def actualizar_cotizaciones_admin(request):
     for moneda in cotizaciones.FUENTES:
@@ -167,8 +155,7 @@ def actualizar_cotizaciones_admin(request):
     return redirect('admin_cotizaciones')
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('cotizaciones')
 @require_POST
 def fijar_precio_manual(request):
     moneda = request.POST.get('moneda')
@@ -192,8 +179,7 @@ def fijar_precio_manual(request):
     return redirect('admin_cotizaciones')
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('cotizaciones')
 @require_POST
 def quitar_precio_manual(request):
     moneda = request.POST.get('moneda')
@@ -214,8 +200,7 @@ def quitar_precio_manual(request):
     return redirect('admin_cotizaciones')
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('panel')
 def admin_tickets(request):
     estado = request.GET.get('estado', 'abierto')
     q = request.GET.get('q', '').strip()
@@ -238,8 +223,7 @@ def admin_tickets(request):
     })
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('panel')
 def admin_ticket(request, pk):
     ticket = get_object_or_404(SupportTicket.objects.select_related('usuario'), pk=pk)
     if request.method == 'POST':
@@ -263,8 +247,51 @@ def admin_ticket(request, pk):
     })
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('equipo')
+def admin_equipo(request):
+    """Quién del equipo entra al panel y con qué rol. Solo superadmin."""
+    roles = dict(ROLES)
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        ident = (request.POST.get('usuario') or '').strip()
+        u = Usuario.objects.filter(Q(username__iexact=ident) | Q(email__iexact=ident)).first()
+        rol = request.POST.get('rol', '')
+        if u is None:
+            messages.error(request, f"No encontramos un usuario con «{ident}».")
+        elif u.is_superuser:
+            messages.error(request, "Los superusuarios de Django siempre son superadmin: no se cambian desde acá.")
+        elif u == request.user:
+            messages.error(request, "No podés cambiar tu propio rol.")
+        elif accion == 'quitar':
+            anterior = u.rol_staff
+            u.is_staff, u.rol_staff = False, ''
+            u.save(update_fields=['is_staff', 'rol_staff'])
+            auditar(request.user, 'equipo_quitado', u, rol_anterior=anterior)
+            messages.success(request, f"{u.username} ya no tiene acceso al panel.")
+        elif rol in roles:
+            anterior = u.rol_staff if u.is_staff else ''
+            u.is_staff, u.rol_staff = True, rol
+            u.save(update_fields=['is_staff', 'rol_staff'])
+            auditar(request.user, 'equipo_rol', u, anterior=anterior, nuevo=rol)
+            messages.success(request, f"{u.username}: {roles[rol].lower()}.")
+        else:
+            messages.error(request, "Elegí un rol.")
+        return redirect('admin_equipo')
+
+    equipo = Usuario.objects.filter(Q(is_staff=True) | Q(is_superuser=True)).order_by('-is_superuser', 'rol_staff', 'username')
+    return render(request, 'usuarios/admin_equipo.html', {
+        'equipo': equipo,
+        'roles': ROLES,
+        'permisos_por_rol': [
+            ('Operador', 'Transferencias, depósitos USDT, retiros y cotizaciones.'),
+            ('Compliance', 'Identidades (KYC), alertas de compliance y auditoría.'),
+            ('Contabilidad', 'Contabilidad y auditoría.'),
+            ('Superadmin', 'Todo, más Parámetros y Equipo.'),
+        ],
+    })
+
+
+@requiere('identidad')
 def cambiar_estado_verificacion(request, user_id):
     usuario = get_object_or_404(Usuario, id=user_id)
 
@@ -296,16 +323,14 @@ def cambiar_estado_verificacion(request, user_id):
     return redirect('panel_admin')
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 def panel_depositos(request):
     depositos = DepositoARS.objects.all().order_by('-fecha')
     return render(request, 'usuarios/panel_depositos.html', {'depositos':depositos})
 
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 def panel_retiros(request):
     retiros_ars = RetiroARS.objects.filter(estado='pendiente').order_by('-fecha_solicitud')
     retiros_crypto = RetiroCrypto.objects.filter(estado='pendiente').order_by('-fecha_solicitud')
@@ -318,8 +343,7 @@ def panel_retiros(request):
     })
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 def panel_depositos_usdt(request):
     depositos = DepositoUSDT.objects.all().order_by('-fecha')
     return render(request, 'usuarios/panel_depositos_usdt.html', {'depositos': depositos})
@@ -397,8 +421,7 @@ def _atajos_periodo(filtros, params, con_todo=False):
     return periodos
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('panel')
 def admin_movimientos(request):
     qs, params = _filtrar_movimientos_admin(request)
 
@@ -445,8 +468,7 @@ def admin_movimientos(request):
     })
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('panel')
 def exportar_movimientos_admin(request):
     qs, params = _filtrar_movimientos_admin(request)
 
@@ -479,8 +501,7 @@ def exportar_movimientos_admin(request):
 
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('panel')
 def admin_usuario_perfil(request, user_id):
     usuario = get_object_or_404(Usuario, id=user_id)
     movimientos = Movimiento.objects.filter(usuario=usuario).order_by("-fecha")[:200]
@@ -500,8 +521,7 @@ def admin_usuario_perfil(request, user_id):
     })
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('panel')
 def admin_usuarios_list(request):
     qs = Usuario.objects.all().order_by('-date_joined')
 
@@ -669,8 +689,7 @@ def _serie_flujos(d1, d2):
     }
 
 
-@login_required
-@user_passes_test(staff_required)
+@requiere('contabilidad')
 def exchange_dashboard(request):
     qs, params = _qs_exchange_from_request(request)
     filtros = request.GET.copy()
@@ -700,8 +719,7 @@ def exchange_dashboard(request):
     return render(request, "usuarios/exchange_dashboard.html", ctx)
 
 
-@login_required
-@user_passes_test(staff_required)
+@requiere('contabilidad')
 def exchange_export_csv(request):
     qs, params = _qs_exchange_from_request(request)
 
@@ -737,8 +755,7 @@ def exchange_export_csv(request):
     return resp
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('parametros')
 @require_POST
 def guardar_config_exchange(request):
     cfg = ExchangeConfig.current()
@@ -777,24 +794,21 @@ def _accion_admin(request, accion, destino, exito=None):
     return redirect(destino)
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def aprobar_deposito(request, deposito_id):
     return _accion_admin(request, lambda: fondos.aprobar_deposito_ars(deposito_id, request.user),
                          'panel_depositos', "Depósito aprobado.")
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def rechazar_deposito(request, deposito_id):
     return _accion_admin(request, lambda: fondos.rechazar_deposito(DepositoARS, deposito_id, request.user),
                          'panel_depositos', "Depósito rechazado.")
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def aprobar_deposito_usdt(request, deposito_id):
     forzar = request.POST.get('forzar') == '1'
@@ -802,8 +816,7 @@ def aprobar_deposito_usdt(request, deposito_id):
                          'panel_depositos_usdt', "Depósito USDT aprobado.")
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def reverificar_deposito_usdt(request, deposito_id):
     dep = get_object_or_404(DepositoUSDT, pk=deposito_id, estado='pendiente')
@@ -815,8 +828,7 @@ def reverificar_deposito_usdt(request, deposito_id):
 
 # ---------------- Compliance ----------------
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('compliance')
 def compliance_alertas(request):
     estado = request.GET.get('estado', 'abierta')
     qs = AlertaCompliance.objects.select_related('usuario', 'revisada_por')
@@ -829,8 +841,7 @@ def compliance_alertas(request):
     })
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('compliance')
 @require_POST
 def resolver_alerta(request, alerta_id):
     alerta = get_object_or_404(AlertaCompliance, pk=alerta_id, estado='abierta')
@@ -849,8 +860,7 @@ def resolver_alerta(request, alerta_id):
     return redirect('compliance_alertas')
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('auditoria')
 def auditoria(request):
     qs = RegistroAuditoria.objects.select_related('actor')
     q = (request.GET.get('q') or '').strip()
@@ -860,23 +870,20 @@ def auditoria(request):
     return render(request, 'usuarios/auditoria.html', {'page_obj': page, 'q': q})
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def rechazar_deposito_usdt(request, deposito_id):
     return _accion_admin(request, lambda: fondos.rechazar_deposito(DepositoUSDT, deposito_id, request.user),
                          'panel_depositos_usdt', "Depósito USDT rechazado.")
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def aprobar_retiro(request, id):
     return _accion_admin(request, lambda: fondos.aprobar_retiro_ars(id), 'panel_admin', "Retiro aprobado.")
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def enviar_retiro(request, id):
     return _accion_admin(request, lambda: fondos.enviar_retiro_ars(
@@ -884,16 +891,14 @@ def enviar_retiro(request, id):
                          'panel_admin', "Retiro marcado como enviado.")
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def rechazar_retiro_ars(request, id):
     return _accion_admin(request, lambda: fondos.rechazar_retiro_ars(id, request.user, request.POST.get('motivo')),
                          'panel_retiros', "Retiro rechazado y saldo recreditado.")
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def aprobar_retiro_cripto(request, id):
     return _accion_admin(
@@ -904,8 +909,7 @@ def aprobar_retiro_cripto(request, id):
     )
 
 
-@login_required
-@user_passes_test(es_admin)
+@requiere('fondos')
 @require_POST
 def rechazar_retiro_cripto(request, id):
     return _accion_admin(request, lambda: fondos.rechazar_retiro_crypto(id, request.user, request.POST.get('motivo')),

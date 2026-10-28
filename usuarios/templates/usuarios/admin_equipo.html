@@ -1,0 +1,65 @@
+{% extends "usuarios/admin_base.html" %}
+{% block title %}Equipo — Administración Finanxis{% endblock %}
+
+{% block admin_content %}
+<div class="aparece">
+  <h1 class="text-3xl font-extrabold text-gray-900">Equipo</h1>
+  <p class="mt-1 text-gray-600">Quién entra al panel y qué puede hacer. Cada cambio queda en Auditoría.</p>
+</div>
+
+<div class="mt-6 grid gap-6 xl:grid-cols-3">
+  <section class="card overflow-hidden p-0 xl:col-span-2 aparece" style="--d:.04s" aria-label="Miembros del equipo">
+    <ul class="divide-y divide-gray-200">
+      {% for m in equipo %}
+      <li class="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
+          <p class="truncate font-semibold text-gray-900">{{ m.get_full_name|default:m.username }}</p>
+          <p class="truncate text-sm text-gray-500">{{ m.username }} · {{ m.email }}</p>
+        </div>
+        {% if m.is_superuser %}
+          <span class="etiqueta-estado bg-gray-100 text-gray-700">Superadmin (superusuario)</span>
+        {% elif m == request.user %}
+          <span class="etiqueta-estado bg-gray-100 text-gray-700">{{ m.get_rol_staff_display|default:"Sin rol" }} (vos)</span>
+        {% else %}
+          <div class="flex flex-wrap items-center gap-2">
+            <form method="post" class="flex items-center gap-2">
+              {% csrf_token %}<input type="hidden" name="usuario" value="{{ m.username }}"><input type="hidden" name="accion" value="rol">
+              <select name="rol" class="campo h-9 w-40 py-1 text-sm" onchange="this.form.requestSubmit()" aria-label="Rol de {{ m.username }}">
+                {% if not m.rol_staff %}<option value="">Sin rol</option>{% endif %}
+                {% for v, n in roles %}<option value="{{ v }}" {% if m.rol_staff == v %}selected{% endif %}>{{ n }}</option>{% endfor %}
+              </select>
+            </form>
+            <form method="post" onsubmit="return confirm('¿Quitarle el acceso al panel a {{ m.username|escapejs }}?')">
+              {% csrf_token %}<input type="hidden" name="usuario" value="{{ m.username }}"><input type="hidden" name="accion" value="quitar">
+              <button class="btn btn-sm btn-secundario">Quitar acceso</button>
+            </form>
+          </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <aside class="space-y-4 aparece" style="--d:.08s">
+    <section class="card p-5">
+      <h2 class="font-bold text-gray-900">Sumar a alguien</h2>
+      <p class="mt-1 text-sm text-gray-600">Tiene que tener una cuenta creada en Finanxis.</p>
+      <form method="post" class="mt-4 space-y-3">
+        {% csrf_token %}<input type="hidden" name="accion" value="rol">
+        <label class="block"><span class="etiqueta">Usuario o email</span><input name="usuario" required class="campo"></label>
+        <label class="block"><span class="etiqueta">Rol</span>
+          <select name="rol" class="campo">{% for v, n in roles %}<option value="{{ v }}" {% if v == 'operador' %}selected{% endif %}>{{ n }}</option>{% endfor %}</select>
+        </label>
+        <button class="btn btn-primario w-full">Dar acceso</button>
+      </form>
+    </section>
+    <section class="card p-5">
+      <h2 class="font-bold text-gray-900">Qué hace cada rol</h2>
+      <dl class="mt-3 space-y-2 text-sm">
+        {% for nombre, desc in permisos_por_rol %}<div><dt class="font-semibold text-gray-900">{{ nombre }}</dt><dd class="text-gray-600">{{ desc }}</dd></div>{% endfor %}
+      </dl>
+      <p class="mt-3 text-sm text-gray-500">Todos ven Pendientes (solo lo suyo), Usuarios, Movimientos y Soporte.</p>
+    </section>
+  </aside>
+</div>
+{% endblock %}

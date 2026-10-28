@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Sin permiso — Finanxis{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-xl">
+  <section class="card p-6 sm:p-8 aparece">
+    <h1 class="text-2xl font-extrabold text-gray-900">{% if sin_rol %}Todavía no tenés un rol asignado{% else %}Esta sección no es de tu rol{% endif %}</h1>
+    <p class="mt-2 text-gray-600">{% if sin_rol %}Pedile a un superadmin que te asigne un rol en Administración → Equipo.{% else %}Si necesitás acceso, pedíselo a un superadmin.{% endif %}</p>
+    {% if not sin_rol %}<a href="{% url 'panel_admin' %}" class="btn btn-secundario mt-6">Volver a Pendientes</a>{% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -130,7 +130,7 @@ class RetiroCryptoTests(BaseTest):
     def test_rechazo_recredita_en_la_misma_moneda(self):
         u = crear_usuario(saldo_usdt="100")
         admin = crear_usuario("admin")
-        admin.is_staff = True
+        admin.is_staff, admin.rol_staff = True, "superadmin"
         admin.save()
         self.client.force_login(u)
         self.client.post(self.url, {"moneda": "USDT", "monto": "30", "direccion_wallet": "T1", "red": "TRC20"})
@@ -160,7 +160,7 @@ class RetiroARSTests(BaseTest):
         crear_cotizaciones()
         u = crear_usuario(saldo_usd="500", saldo_ars="1000")
         admin = crear_usuario("admin")
-        admin.is_staff = True
+        admin.is_staff, admin.rol_staff = True, "superadmin"
         admin.save()
         self.client.force_login(u)
         self.client.post(self.url, {"moneda": "USD", "monto": "200", "cbu": "0" * 22, "banco": "B"})
@@ -268,7 +268,7 @@ class DepositoTests(BaseTest):
 
     def test_rechazar_deposito_solo_post(self):
         admin = crear_usuario("admin")
-        admin.is_staff = True
+        admin.is_staff, admin.rol_staff = True, "superadmin"
         admin.save()
         dep = DepositoARS.objects.create(usuario=admin, monto=10, comprobante="comprobantes/x.png")
         self.client.force_login(admin)
@@ -332,7 +332,7 @@ class MediaPrivadaTests(BaseTest):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp["Content-Security-Policy"], "sandbox")
         admin = crear_usuario("admin")
-        admin.is_staff = True
+        admin.is_staff, admin.rol_staff = True, "superadmin"
         admin.save()
         self.client.force_login(admin)
         self.assertEqual(self.client.get(self.url).status_code, 200)
@@ -397,7 +397,7 @@ class LibroMayorTests(BaseTest):
         from django.core.management import call_command
         self.call_command = call_command
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
 
     def assertConciliado(self):
@@ -591,7 +591,7 @@ class ComplianceTests(BaseTest):
         cfg.limite_diario_retiro_ars = Decimal("200000")
         cfg.save()
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
 
     def alertas(self, tipo):
@@ -764,7 +764,7 @@ class DepositoUSDTAprobacionTests(BaseTest):
         self.dep = DepositoUSDT.objects.create(usuario=self.u, monto=Decimal("50"), red="TRC20",
                                                txid="ab" * 32, comprobante="c.png")
         self.staff = crear_usuario("staff")
-        self.staff.is_staff = True
+        self.staff.is_staff, self.staff.rol_staff = True, "superadmin"
         self.staff.save()
         self.superu = crear_usuario("root")
         self.superu.is_staff = self.superu.is_superuser = True
@@ -808,7 +808,7 @@ class AuditoriaTests(BaseTest):
         self.assertTrue(RegistroAuditoria.objects.filter(accion="login").exists())
 
         admin = crear_usuario("admin")
-        admin.is_staff = True
+        admin.is_staff, admin.rol_staff = True, "superadmin"
         admin.save()
         objetivo = crear_usuario("nuevo", aprobado=False)
         crear_declaracion(objetivo)
@@ -969,7 +969,7 @@ class PanelPendientesTests(BaseTest):
     def setUp(self):
         super().setUp()
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
         self.client.force_login(self.admin)
         self.cliente = crear_usuario()
@@ -1020,7 +1020,7 @@ class AdminMovimientosTests(BaseTest):
     def setUp(self):
         super().setUp()
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
         self.client.force_login(self.admin)
         self.ana = crear_usuario("ana")
@@ -1075,7 +1075,7 @@ class AdminCotizacionesTests(BaseTest):
     def setUp(self):
         super().setUp()
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
         self.client.force_login(self.admin)
         crear_cotizaciones(edad=timedelta(hours=1))
@@ -1179,7 +1179,7 @@ class ContabilidadResumenTests(BaseTest):
     def setUp(self):
         super().setUp()
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
         self.client.force_login(self.admin)
         crear_cotizaciones()
@@ -1242,7 +1242,7 @@ class ComprobantesTests(BaseTest):
 
     def test_admin_lo_ve_en_el_perfil_y_en_movimientos(self):
         admin = crear_usuario("admin")
-        admin.is_staff = True
+        admin.is_staff, admin.rol_staff = True, "superadmin"
         admin.save()
         self.client.force_login(admin)
         url = reverse("ver_comprobante", args=[self.b.numero])
@@ -1274,7 +1274,7 @@ class DepositoDolaresTests(BaseTest):
         crear_cotizaciones()
         self.cli = crear_usuario()
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
 
     def informar(self, monto="250"):
@@ -1327,7 +1327,7 @@ class SoporteTests(BaseTest):
         super().setUp()
         self.cli = crear_usuario()
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
 
     def abrir(self):
@@ -1439,7 +1439,7 @@ class DeclaracionJuradaTests(BaseTest):
 
     def test_admin_no_aprueba_kyc_sin_declaracion(self):
         admin = crear_usuario("admin")
-        admin.is_staff = True
+        admin.is_staff, admin.rol_staff = True, "superadmin"
         admin.save()
         self.client.force_login(admin)
         self.client.post(reverse("cambiar_estado_verificacion", args=[self.u.pk]), {"estado": "aprobado"})
@@ -1461,7 +1461,7 @@ class AvisosEmailTests(BaseTest):
         crear_cotizaciones()
         self.cli = crear_usuario(saldo_ars="500000")
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
         cfg = ExchangeConfig.current()
         cfg.avisos_depositos = "caja@finanxis.test"
@@ -1528,7 +1528,7 @@ class TitularidadRetiroTests(BaseTest):
         super().setUp()
         self.cli = crear_usuario(saldo_ars="10000")
         self.admin = crear_usuario("admin")
-        self.admin.is_staff = True
+        self.admin.is_staff, self.admin.rol_staff = True, "superadmin"
         self.admin.save()
         self.client.force_login(self.cli)
         self.client.post(reverse("solicitar_retiro"), {"monto": "4000", "alias": "otra.persona"})
@@ -1559,3 +1559,65 @@ class TitularidadRetiroTests(BaseTest):
         self.assertEqual(self.cli.saldo_ars, Decimal("10000"))
         self.assertIn("La cuenta no está a nombre del cliente", mail.outbox[-1].body)
         self.assertTrue(RegistroAuditoria.objects.filter(accion="retiro_rechazado", detalle__motivo__icontains="nombre").exists())
+
+
+
+class RolesTests(BaseTest):
+    def staff(self, username, rol):
+        u = crear_usuario(username)
+        u.is_staff, u.rol_staff = True, rol
+        u.save()
+        return u
+
+    def setUp(self):
+        super().setUp()
+        self.cli = crear_usuario()
+        self.nuevo = crear_usuario("nuevo", aprobado=False)
+        crear_declaracion(self.nuevo)
+        self.dep = DepositoARS.objects.create(usuario=self.cli, monto=Decimal("1500"), comprobante="c.png")
+
+    def test_operador(self):
+        self.client.force_login(self.staff("op", "operador"))
+        cola = self.client.get(reverse("panel_admin")).context["cola"]
+        self.assertEqual({c["tipo"] for c in cola}, {"deposito_ars"})
+        self.assertEqual(self.client.get(reverse("panel_depositos")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("admin_cotizaciones")).status_code, 200)
+        for nombre in ("parametros_exchange", "exchange_dashboard", "compliance_alertas", "admin_equipo"):
+            self.assertEqual(self.client.get(reverse(nombre)).status_code, 403, nombre)
+        self.client.post(reverse("cambiar_estado_verificacion", args=[self.nuevo.pk]), {"estado": "aprobado"})
+        self.nuevo.refresh_from_db()
+        self.assertEqual(self.nuevo.estado_verificacion, "pendiente")
+
+    def test_compliance(self):
+        self.client.force_login(self.staff("oc", "compliance"))
+        cola = self.client.get(reverse("panel_admin")).context["cola"]
+        self.assertEqual({c["tipo"] for c in cola}, {"kyc"})
+        self.client.post(reverse("aprobar_deposito", args=[self.dep.pk]))
+        self.dep.refresh_from_db()
+        self.assertEqual(self.dep.estado, "pendiente")
+        self.client.post(reverse("cambiar_estado_verificacion", args=[self.nuevo.pk]), {"estado": "aprobado"})
+        self.nuevo.refresh_from_db()
+        self.assertEqual(self.nuevo.estado_verificacion, "aprobado")
+        self.assertEqual(self.client.get(reverse("auditoria")).status_code, 200)
+
+    def test_contabilidad_y_staff_sin_rol(self):
+        self.client.force_login(self.staff("cont", "contabilidad"))
+        self.assertEqual(self.client.get(reverse("exchange_dashboard")).status_code, 200)
+        self.assertEqual(self.client.get(reverse("panel_retiros")).status_code, 403)
+        self.client.force_login(self.staff("sinrol", ""))
+        self.assertContains(self.client.get(reverse("panel_admin")), "Todavía no tenés un rol", status_code=403)
+
+    def test_equipo_solo_superadmin(self):
+        jefe = self.staff("jefe", "superadmin")
+        self.client.force_login(jefe)
+        self.client.post(reverse("admin_equipo"), {"accion": "rol", "usuario": "cliente", "rol": "operador"})
+        self.cli.refresh_from_db()
+        self.assertEqual((self.cli.is_staff, self.cli.rol_staff), (True, "operador"))
+        self.assertTrue(RegistroAuditoria.objects.filter(accion="equipo_rol").exists())
+        self.client.post(reverse("admin_equipo"), {"accion": "quitar", "usuario": "cliente"})
+        self.cli.refresh_from_db()
+        self.assertEqual((self.cli.is_staff, self.cli.rol_staff), (False, ""))
+        # no se cambia el propio rol
+        self.client.post(reverse("admin_equipo"), {"accion": "quitar", "usuario": "jefe"})
+        jefe.refresh_from_db()
+        self.assertTrue(jefe.is_staff)

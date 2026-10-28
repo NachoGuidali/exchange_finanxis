@@ -119,6 +119,7 @@ urlpatterns = [
     path('admin-dashboard/movimientos/', views.admin_movimientos, name='admin_movimientos'),
     path('admin-dashboard/cotizaciones/', views.admin_cotizaciones, name='admin_cotizaciones'),
     path('admin-dashboard/soporte/', views.admin_tickets, name='admin_tickets'),
+    path('admin-dashboard/equipo/', views.admin_equipo, name='admin_equipo'),
     path('admin-dashboard/soporte/<int:pk>/', views.admin_ticket, name='admin_ticket'),
     path('admin-dashboard/cotizaciones/actualizar/', views.actualizar_cotizaciones_admin, name='actualizar_cotizaciones_admin'),
     path('admin-dashboard/cotizaciones/manual/', views.fijar_precio_manual, name='fijar_precio_manual'),

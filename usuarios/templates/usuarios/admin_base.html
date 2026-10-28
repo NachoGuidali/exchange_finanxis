@@ -6,7 +6,7 @@
 {% with ruta=request.resolver_match.url_name %}
 <div class="lg:grid lg:grid-cols-[14.5rem_minmax(0,1fr)] lg:gap-10">
   <nav class="admin-nav" aria-label="Administración">
-    <div class="mb-3 hidden px-3 text-sm font-semibold text-gray-500 lg:block">Administración</div>
+    <div class="mb-3 hidden px-3 text-sm font-semibold text-gray-500 lg:block">Administración{% if rol_staff %} <span class="font-normal">· {{ rol_staff|capfirst }}</span>{% endif %}</div>
     <ul class="admin-nav-lista">
       <li><a href="{% url 'panel_admin' %}" {% if ruta == 'panel_admin' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v10H15l-1.5 3h-3L9 15H4z" stroke-linejoin="round"/></svg>
@@ -14,6 +14,7 @@
       <li><a href="{% url 'admin_usuarios_list' %}" {% if ruta == 'admin_usuarios_list' or ruta == 'admin_usuario_perfil' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5" stroke-linecap="round"/></svg>
         Usuarios{% if pendientes.kyc %}<span class="contador">{{ pendientes.kyc }}</span>{% endif %}</a></li>
+      {% if 'fondos' in puede %}
       <li><a href="{% url 'panel_depositos' %}" {% if ruta == 'panel_depositos' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v12m0 0-4.5-4.5M12 16l4.5-4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Transferencias{% if pendientes.depositos_ars %}<span class="contador">{{ pendientes.depositos_ars }}</span>{% endif %}</a></li>
@@ -23,28 +24,44 @@
       <li><a href="{% url 'panel_retiros' %}" {% if ruta == 'panel_retiros' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Retiros{% if pendientes.retiros %}<span class="contador">{{ pendientes.retiros }}</span>{% endif %}</a></li>
+      {% endif %}
+      {% if 'compliance' in puede %}
       <li><a href="{% url 'compliance_alertas' %}" {% if ruta == 'compliance_alertas' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3 4 6v6c0 4.5 3.4 8 8 9 4.6-1 8-4.5 8-9V6z" stroke-linejoin="round"/><path d="M12 8v4.5M12 15.5v.5" stroke-linecap="round"/></svg>
         Compliance{% if pendientes.alertas %}<span class="contador urgente">{{ pendientes.alertas }}</span>{% endif %}</a></li>
+      {% endif %}
       <li><a href="{% url 'admin_tickets' %}" {% if ruta == 'admin_tickets' or ruta == 'admin_ticket' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" stroke-linejoin="round"/><path d="M8 9.5h8M8 12.5h5" stroke-linecap="round"/></svg>
         Soporte{% if pendientes.tickets %}<span class="contador">{{ pendientes.tickets }}</span>{% endif %}</a></li>
+      {% if 'cotizaciones' in puede %}
       <li><a href="{% url 'admin_cotizaciones' %}" {% if ruta == 'admin_cotizaciones' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8M15 8h5v5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Cotizaciones{% if estado_cotizacion == 'manual' %}<span class="contador">Manual</span>{% elif estado_cotizacion == 'vencida' %}<span class="contador urgente">!</span>{% endif %}</a></li>
+      {% endif %}
       <li><a href="{% url 'admin_movimientos' %}" {% if ruta == 'admin_movimientos' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round"/></svg>
         Movimientos</a></li>
       <li class="admin-nav-separador" aria-hidden="true"></li>
+      {% if 'contabilidad' in puede %}
       <li><a href="{% url 'exchange_dashboard' %}" {% if ruta == 'exchange_dashboard' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round"/></svg>
         Contabilidad</a></li>
+      {% endif %}
+      {% if 'auditoria' in puede %}
       <li><a href="{% url 'auditoria' %}" {% if ruta == 'auditoria' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h4" stroke-linejoin="round"/></svg>
         Auditoría</a></li>
+      {% endif %}
+      {% if 'parametros' in puede %}
       <li><a href="{% url 'parametros_exchange' %}" {% if ruta == 'parametros_exchange' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke-linecap="round"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
         Parámetros</a></li>
+      {% endif %}
+      {% if 'equipo' in puede %}
+      <li><a href="{% url 'admin_equipo' %}" {% if ruta == 'admin_equipo' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0" stroke-linecap="round"/><path d="m17.5 4 1.2 1.2L21 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Equipo</a></li>
+      {% endif %}
     </ul>
   </nav>
 
