@@ -245,6 +245,28 @@ WALLETS_EMPRESA = {
     'BEP20': config("WALLET_BEP20", default=""),
     'SOL': config("WALLET_SOL", default=""),
 }
+# Cuentas bancarias de la empresa para depósitos por transferencia (pesos y dólares)
+def _cuenta_bancaria(moneda):
+    return {campo: config(f"CUENTA_{moneda}_{campo.upper()}", default="")
+            for campo in ("banco", "titular", "cuit", "cbu", "alias")}
+
+
+CUENTAS_DEPOSITO = {'ARS': _cuenta_bancaria('ARS'), 'USD': _cuenta_bancaria('USD')}
+
+# Demo: datos de ejemplo para poder mostrar todos los ingresos sin cargar cuentas reales
+if DEMO_MODE:
+    _ejemplo = {
+        'ARS': {'banco': 'Banco de ejemplo', 'titular': 'Finanxis (demo)', 'cuit': '30-00000000-0',
+                'cbu': '0000000000000000000001', 'alias': 'finanxis.demo.pesos'},
+        'USD': {'banco': 'Banco de ejemplo', 'titular': 'Finanxis (demo)', 'cuit': '30-00000000-0',
+                'cbu': '0000000000000000000002', 'alias': 'finanxis.demo.dolares'},
+    }
+    for _m, _datos in _ejemplo.items():
+        if not CUENTAS_DEPOSITO[_m]['cbu'] and not CUENTAS_DEPOSITO[_m]['alias']:
+            CUENTAS_DEPOSITO[_m] = _datos
+    if not any(WALLETS_EMPRESA.values()):
+        WALLETS_EMPRESA['TRC20'] = 'TDemoFinanxisWalletNoEnviarFondos0001'
+
 TRONGRID_URL = config("TRONGRID_URL", default="https://api.trongrid.io")
 TRONGRID_API_KEY = config("TRONGRID_API_KEY", default="")
 RPC_URLS = {

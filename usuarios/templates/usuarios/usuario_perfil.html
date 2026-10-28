@@ -64,7 +64,7 @@
           <h3 class="font-semibold mb-2">Depósitos</h3>
           <ul class="text-sm divide-y divide-gray-200">
             {% for d in depositos %}
-            <li class="py-2 flex justify-between"><span>$ {{ d.monto|money }} — {{ d.estado }}</span><span class="text-gray-500">{{ d.fecha }}</span></li>
+            <li class="py-2 flex justify-between"><span>{{ d.simbolo }} {{ d.monto|money }} — {{ d.estado }}</span><span class="text-gray-500">{{ d.fecha }}</span></li>
             {% empty %}<li class="py-2 text-gray-500">Sin depósitos.</li>{% endfor %}
           </ul>
         </div>

@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Ingresar {{ nombre_moneda }} — Finanxis{% endblock %}
+{% block meta_description %}Transferí {{ nombre_moneda }} a la cuenta de Finanxis y subí el comprobante para acreditarlo.{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-4xl">
+  <div class="aparece">
+    <h1 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">Ingresar dinero</h1>
+    <p class="mt-1 text-gray-600">Elegí qué querés ingresar.</p>
+  </div>
+  <div class="mt-5 max-w-md aparece" style="--d:.04s">{% include "includes/ingresar_monedas.html" with moneda=moneda %}</div>
+
+  {% if not habilitado %}
+    <p class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900 aparece" style="--d:.08s">
+      Los ingresos en {{ nombre_moneda }} por transferencia no están habilitados en este momento. Escribinos a soporte si necesitás ingresar {{ nombre_moneda }}.
+    </p>
+  {% else %}
+  <div class="mt-6 grid gap-6 lg:grid-cols-12">
+    <!-- Datos de la cuenta -->
+    <section class="card p-5 sm:p-6 lg:col-span-6 aparece" style="--d:.08s" aria-labelledby="t-cuenta">
+      <h2 id="t-cuenta" class="text-lg font-bold text-gray-900">1. Transferí a esta cuenta en {{ nombre_moneda }}</h2>
+      <dl class="mt-4 space-y-3 text-sm">
+        {% if cuenta.alias %}
+        <div class="rounded-2xl bg-gray-100 px-4 py-3">
+          <dt class="text-gray-500">Alias</dt>
+          <dd class="mt-0.5 flex items-center justify-between gap-3">
+            <span class="break-all text-base font-semibold text-gray-900">{{ cuenta.alias }}</span>
+            <button type="button" class="btn btn-sm btn-secundario shrink-0" data-copiar="{{ cuenta.alias }}">Copiar</button>
+          </dd>
+        </div>
+        {% endif %}
+        {% if cuenta.cbu %}
+        <div class="rounded-2xl bg-gray-100 px-4 py-3">
+          <dt class="text-gray-500">CBU</dt>
+          <dd class="mt-0.5 flex items-center justify-between gap-3">
+            <span class="num break-all text-base font-semibold text-gray-900">{{ cuenta.cbu }}</span>
+            <button type="button" class="btn btn-sm btn-secundario shrink-0" data-copiar="{{ cuenta.cbu }}">Copiar</button>
+          </dd>
+        </div>
+        {% endif %}
+        <div class="space-y-1.5 px-1 pt-1">
+          {% if cuenta.titular %}<div class="flex justify-between gap-4"><dt class="text-gray-500">Titular</dt><dd class="text-right text-gray-900">{{ cuenta.titular }}</dd></div>{% endif %}
+          {% if cuenta.cuit %}<div class="flex justify-between gap-4"><dt class="text-gray-500">CUIT</dt><dd class="num text-gray-900">{{ cuenta.cuit }}</dd></div>{% endif %}
+          {% if cuenta.banco %}<div class="flex justify-between gap-4"><dt class="text-gray-500">Banco</dt><dd class="text-right text-gray-900">{{ cuenta.banco }}</dd></div>{% endif %}
+        </div>
+      </dl>
+      <ul class="mt-5 space-y-2 border-t border-gray-200 pt-4 text-sm text-gray-600">
+        <li>Transferí desde una cuenta {% if moneda == 'USD' %}en dólares {% endif %}a tu nombre: si el titular no coincide, la acreditación puede demorarse.</li>
+        {% if moneda == 'USD' %}<li>Solo transferencias en dólares. Si transferís pesos a esta cuenta, el banco puede rechazarla.</li>{% endif %}
+        <li>Acreditamos en horario bancario, en general en menos de una hora.</li>
+      </ul>
+    </section>
+
+    <!-- Formulario -->
+    <section class="card p-5 sm:p-6 lg:col-span-6 aparece" style="--d:.12s" aria-labelledby="t-form">
+      <h2 id="t-form" class="text-lg font-bold text-gray-900">2. Informá la transferencia</h2>
+      <p class="mt-1 text-sm text-gray-600">Subí el comprobante: tiene que verse el monto, la fecha y la cuenta de origen.</p>
+      <form method="post" enctype="multipart/form-data" class="mt-5 space-y-5" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}<div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ form.non_field_errors }}</div>{% endif %}
+        <label class="block">
+          <span class="etiqueta">Monto que transferiste</span>
+          <span class="relative block">
+            <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-gray-500">{{ simbolo }}</span>
+            <input type="number" name="monto" step="0.01" min="0.01" inputmode="decimal" required value="{{ form.monto.value|default_if_none:'' }}"
+                   class="campo campo-monto {% if moneda == 'USD' %}pl-16{% else %}pl-10{% endif %}" placeholder="0,00">
+          </span>
+          {% for e in form.monto.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Comprobante</span>
+          <input type="file" name="comprobante" accept="image/*" required class="campo-archivo" id="comprobante">
+          <span class="mt-1 block text-sm text-gray-500">Foto o captura, hasta 5 MB.</span>
+          {% for e in form.comprobante.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <img id="vista-previa" alt="Vista previa del comprobante" class="hidden max-h-64 rounded-xl border border-gray-200">
+        <button type="submit" class="btn btn-lg btn-primario w-full">Enviar comprobante</button>
+      </form>
+    </section>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}{{ block.super }}
+<script>
+  document.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(b.dataset.copiar); const t = b.textContent; b.textContent = 'Copiado'; setTimeout(() => b.textContent = t, 1400); } catch (_) {}
+  }));
+  (function () {
+    const input = document.getElementById('comprobante'), img = document.getElementById('vista-previa');
+    if (!input) return;
+    input.addEventListener('change', () => {
+      const f = input.files && input.files[0];
+      if (!f || !f.type.startsWith('image/')) { img.classList.add('hidden'); return; }
+      img.src = URL.createObjectURL(f); img.classList.remove('hidden');
+    });
+  })();
+</script>
+{% endblock %}

@@ -82,8 +82,8 @@ def deposito_ars_creado_o_aprobado(sender, instance: DepositoARS, created, **kwa
     if (created and getattr(instance, 'estado', None) == 'aprobado') \
        or (getattr(instance, 'estado', None) == 'aprobado'):
         _marcar_entrada(
-            importe=instance.monto, moneda='ARS', instance=instance,
-            detalle=f"Depósito ARS aprobado #{instance.id}"
+            importe=instance.monto, moneda=instance.moneda, instance=instance,
+            detalle=f"Depósito {instance.moneda} aprobado #{instance.id}"
         )
 
 @receiver(post_save, sender=DepositoUSDT)

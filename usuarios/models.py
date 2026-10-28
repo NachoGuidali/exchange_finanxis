@@ -287,14 +287,22 @@ class DepositoARS(models.Model):
         ('rechazado', 'Rechazado'),
     ]    
 
+    MONEDAS = [('ARS', 'Pesos'), ('USD', 'Dólares')]
+
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    # depósito por transferencia bancaria: en pesos o en dólares
+    moneda = models.CharField(max_length=4, choices=MONEDAS, default='ARS')
     monto = models.DecimalField(max_digits=20, decimal_places=2)
     comprobante = models.ImageField(upload_to=subir_comprobante)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='pendiente')
     fecha = models.DateTimeField(auto_now_add=True)
 
+    @property
+    def simbolo(self):
+        return 'US$' if self.moneda == 'USD' else '$'
+
     def __str__(self):
-        return f"{self.usuario.username} - ${self.monto} - {self.estado}"
+        return f"{self.usuario.username} - {self.simbolo}{self.monto} - {self.estado}"
     
     
 class DepositoUSDT(models.Model):
@@ -463,6 +471,7 @@ class BoletoOperacion(models.Model):
         ('swap_usdt_usd',   'Swap USDT→USD'),
         ('deposito_ars',    'Depósito ARS'),
         ('deposito_usdt',   'Depósito USDT'),
+        ('deposito_usd',    'Depósito USD'),
         ('retiro_ars',      'Retiro ARS'),
         ('retiro_usdt',     'Retiro USDT'),
         ('retiro_usd',      'Retiro USD'),

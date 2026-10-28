@@ -29,7 +29,7 @@
     <div class="num mt-1 text-3xl font-extrabold {% if p.kyc %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.kyc }}</div>
   </a>
   <a href="?tipo=deposito_ars" class="card card-link p-4 {% if filtro == 'deposito_ars' %}ring-2 ring-gray-900{% endif %}">
-    <div class="text-sm text-gray-500">Depósitos en pesos</div>
+    <div class="text-sm text-gray-500">Transferencias</div>
     <div class="num mt-1 text-3xl font-extrabold {% if p.depositos_ars %}text-gray-900{% else %}text-gray-400{% endif %}">{{ p.depositos_ars }}</div>
   </a>
   <a href="?tipo=deposito_usdt" class="card card-link p-4 {% if filtro == 'deposito_usdt' %}ring-2 ring-gray-900{% endif %}">
@@ -55,7 +55,7 @@
       <div class="min-w-0">
         <div class="flex flex-wrap items-center gap-2 text-sm">
           {% if item.tipo == 'kyc' %}<span class="tipo-pendiente bg-sky-50 text-sky-800">Identidad</span>
-          {% elif item.tipo == 'deposito_ars' %}<span class="tipo-pendiente bg-emerald-50 text-emerald-800">Depósito en pesos</span>
+          {% elif item.tipo == 'deposito_ars' %}<span class="tipo-pendiente bg-emerald-50 text-emerald-800">Depósito en {% if o.moneda == 'USD' %}dólares{% else %}pesos{% endif %}</span>
           {% elif item.tipo == 'deposito_usdt' %}<span class="tipo-pendiente bg-emerald-50 text-emerald-800">Depósito USDT</span>
           {% elif item.tipo == 'retiro_ars' %}<span class="tipo-pendiente bg-amber-50 text-amber-800">{% if o.estado == 'aprobado' %}Retiro aprobado, falta enviar{% else %}Retiro en pesos{% endif %}</span>
           {% elif item.tipo == 'retiro_crypto' %}<span class="tipo-pendiente bg-amber-50 text-amber-800">Retiro {{ o.moneda }}</span>
@@ -64,7 +64,9 @@
         </div>
 
         <div class="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          {% if item.tipo == 'deposito_ars' or item.tipo == 'retiro_ars' %}
+          {% if item.tipo == 'deposito_ars' %}
+            <span class="num text-xl font-bold text-gray-900">{{ o.simbolo }} {{ o.monto|money }}</span>
+          {% elif item.tipo == 'retiro_ars' %}
             <span class="num text-xl font-bold text-gray-900">$ {{ o.monto|money }}</span>
           {% elif item.tipo == 'deposito_usdt' %}
             <span class="num text-xl font-bold text-gray-900">{{ o.monto|money }} <span class="text-sm text-gray-500">USDT</span></span>
@@ -79,7 +81,7 @@
 
         <p class="mt-1 text-sm text-gray-600">
           {% if item.tipo == 'kyc' %}Se registró el {{ u.date_joined|date:"d/m/Y" }}. Revisá las fotos del DNI antes de aprobar.
-          {% elif item.tipo == 'deposito_ars' %}Transferencia informada con comprobante.
+          {% elif item.tipo == 'deposito_ars' %}Transferencia {% if o.moneda == 'USD' %}en dólares {% endif %}informada con comprobante.
           {% elif item.tipo == 'deposito_usdt' %}Red {{ o.red }}. Verificación en la blockchain: <b class="{% if o.verificacion_estado == 'verificado' %}positivo{% elif o.verificacion_estado == 'no_coincide' %}text-rose-700{% endif %}">{{ o.get_verificacion_estado_display|lower }}</b>.
           {% elif item.tipo == 'retiro_ars' %}A {{ o.alias }}{% if o.banco %} ({{ o.banco }}){% endif %}{% if o.cbu %}, CBU {{ o.cbu }}{% endif %}.
           {% elif item.tipo == 'retiro_crypto' %}A <code class="break-all text-xs">{{ o.direccion_wallet }}</code>
@@ -101,11 +103,11 @@
 
         {% elif item.tipo == 'deposito_ars' %}
           {% if o.comprobante %}<a href="{{ o.comprobante.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-secundario">Ver comprobante</a>{% endif %}
-          <form method="post" action="{% url 'rechazar_deposito' o.pk %}" data-confirmar="¿Rechazar el depósito de $ {{ o.monto|money }} de {{ u.username }}?">
+          <form method="post" action="{% url 'rechazar_deposito' o.pk %}" data-confirmar="¿Rechazar el depósito de {{ o.simbolo }} {{ o.monto|money }} de {{ u.username }}?">
             {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
             <button class="btn btn-sm btn-secundario">Rechazar</button>
           </form>
-          <form method="post" action="{% url 'aprobar_deposito' o.pk %}" data-confirmar="¿Confirmás que recibiste $ {{ o.monto|money }} de {{ u.username }}?">
+          <form method="post" action="{% url 'aprobar_deposito' o.pk %}" data-confirmar="¿Confirmás que recibiste {{ o.simbolo }} {{ o.monto|money }} de {{ u.username }}?">
             {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
             <button class="btn btn-sm btn-primario">Acreditar</button>
           </form>

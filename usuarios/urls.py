@@ -35,6 +35,7 @@ urlpatterns = [
     path('admin-dashboard/retiro-cripto/rechazar/<int:id>/', rechazar_retiro_cripto, name='rechazar_retiro_cripto'),
     path('admin-dashboard/retiros/', panel_retiros, name='panel_retiros'),
     path('depositar-usdt/', depositar_usdt, name='depositar_usdt'),
+    path('depositar-dolares/', views.depositar_usd, name='depositar_usd'),
     path('admin-dashboard/depositos-usdt/', panel_depositos_usdt, name='panel_depositos_usdt'),
     path('admin-dashboard/depositos-usdt/<int:deposito_id>/aprobar/', aprobar_deposito_usdt, name='aprobar_deposito_usdt'),
     path('admin-dashboard/depositos-usdt/<int:deposito_id>/rechazar/', rechazar_deposito_usdt, name='rechazar_deposito_usdt'),

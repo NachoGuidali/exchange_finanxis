@@ -89,8 +89,11 @@ def _aprobar_deposito(modelo, deposito_id, moneda, admin, *, tipo_bol, detalle, 
 
 @transaction.atomic
 def aprobar_deposito_ars(deposito_id, admin):
-    return _aprobar_deposito(DepositoARS, deposito_id, 'ARS', admin,
-                             tipo_bol='deposito_ars', detalle='Depósito aprobado por admin')
+    """Depósito por transferencia bancaria, en pesos o en dólares."""
+    moneda = DepositoARS.objects.values_list('moneda', flat=True).get(pk=deposito_id)
+    return _aprobar_deposito(DepositoARS, deposito_id, moneda, admin,
+                             tipo_bol='deposito_usd' if moneda == 'USD' else 'deposito_ars',
+                             detalle='Depósito aprobado por admin')
 
 
 @transaction.atomic
@@ -130,7 +133,7 @@ def rechazar_deposito(modelo, deposito_id, admin):
     dep.estado = 'rechazado'
     dep.save()
 
-    moneda = 'USDT' if modelo is DepositoUSDT else 'ARS'
+    moneda = 'USDT' if modelo is DepositoUSDT else dep.moneda
     extra = f' (txid: {dep.txid})' if moneda == 'USDT' else ''
     registrar_movimiento(
         usuario=dep.usuario, tipo='ajuste', moneda=moneda, monto=0, admin=admin,

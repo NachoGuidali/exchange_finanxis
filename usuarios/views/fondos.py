@@ -17,43 +17,58 @@ from ..utils import kyc_required, parse_monto, registrar_movimiento
 logger = logging.getLogger(__name__)
 
 
-@login_required
-@kyc_required
-def agregar_saldo(request):
+NOMBRE_MONEDA = {'ARS': 'pesos', 'USD': 'dólares'}
+CAMPO_SALDO = {'ARS': 'saldo_ars', 'USD': 'saldo_usd'}
+
+
+def _deposito_transferencia(request, moneda):
+    """Depósito por transferencia bancaria (pesos o dólares): el cliente sube el comprobante."""
+    cuenta = settings.CUENTAS_DEPOSITO.get(moneda) or {}
     if request.method == 'POST':
         form = DepositoARSForm(request.POST, request.FILES)
         if form.is_valid():
             deposito = form.save(commit=False)
             deposito.usuario = request.user
+            deposito.moneda = moneda
             deposito.estado = 'pendiente'
             deposito.save()
 
             # Movimiento informativo (no cambia saldos): el monto real se registra al aprobar
-            saldo_actual = request.user.saldo_ars
+            saldo_actual = getattr(request.user, CAMPO_SALDO[moneda])
             registrar_movimiento(
                 usuario=request.user,
                 tipo='deposito',
-                moneda='ARS',
+                moneda=moneda,
                 monto=0,
-                descripcion=f'Solicitud de depósito ARS enviada (monto: ${deposito.monto}). En revisión.',
+                descripcion=f'Solicitud de depósito {moneda} enviada (monto: {deposito.simbolo} {deposito.monto}). En revisión.',
                 saldo_antes=saldo_actual,
                 saldo_despues=saldo_actual
             )
-            messages.success(request, 'Solicitud enviada. En breve será verificada')
+            messages.success(request, 'Recibimos tu comprobante. Te avisamos cuando se acredite.')
             return redirect('dashboard')
     else:
         form = DepositoARSForm()
 
-    datos_bancarios = {
-        'alias' : 'alias.usuario',
-        'cbu' : '0000003100000001234567',
-        'banco' : 'banco',
-    }        
-
-    return render(request, 'usuarios/agregar_saldo.html', {
+    return render(request, 'usuarios/depositar_transferencia.html', {
         'form': form,
-        'datos_bancarios' : datos_bancarios
+        'moneda': moneda,
+        'nombre_moneda': NOMBRE_MONEDA[moneda],
+        'simbolo': 'US$' if moneda == 'USD' else '$',
+        'cuenta': cuenta,
+        'habilitado': bool(cuenta.get('cbu') or cuenta.get('alias')),
     })
+
+
+@login_required
+@kyc_required
+def agregar_saldo(request):
+    return _deposito_transferencia(request, 'ARS')
+
+
+@login_required
+@kyc_required
+def depositar_usd(request):
+    return _deposito_transferencia(request, 'USD')
 
 
 @login_required
@@ -79,13 +94,16 @@ def depositar_usdt(request):
                 saldo_despues=request.user.saldo_usdt
             )
             transaction.on_commit(lambda: _programar_verificacion(dep.pk))
-            messages.success(request, 'Solicitud enviada. Verificamos la transacción en la red y te avisamos.')
+            messages.success(request, 'Recibimos tu depósito. Verificamos la transacción en la red y te avisamos.')
             return redirect('dashboard')
     else:
         form = DepositoUSDTForm()
 
     wallets = [(red, w) for red, w in settings.WALLETS_EMPRESA.items() if w]
-    return render(request, 'usuarios/depositar_usdt.html', {'form': form, 'wallets': wallets})
+    # solo se puede elegir una red que tenga billetera cargada
+    redes = {red for red, _ in wallets}
+    form.fields['red'].choices = [(v, n) for v, n in form.fields['red'].choices if v in redes]
+    return render(request, 'usuarios/depositar_usdt.html', {'form': form, 'wallets': wallets, 'moneda': 'USDT'})
 
 
 def _programar_verificacion(deposito_id):

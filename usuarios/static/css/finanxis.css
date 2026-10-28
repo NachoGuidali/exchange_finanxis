@@ -251,3 +251,8 @@ html.theme-dark :is(.text-sky-700, .text-sky-800, .text-sky-900, .text-blue-700,
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Segmento con links (ingresar: pesos / dólares / USDT) */
+.segmento a { position: relative; display: grid; place-items: center; height: 2.5rem; border-radius: 999px; font-weight: 600; font-size: .9375rem; color: rgb(var(--g-600)); transition: color .2s; }
+.segmento a:hover { color: rgb(var(--g-900)); }
+.segmento a[aria-current="page"] { color: rgb(var(--g-900)); }

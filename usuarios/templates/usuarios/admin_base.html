@@ -16,7 +16,7 @@
         Usuarios{% if pendientes.kyc %}<span class="contador">{{ pendientes.kyc }}</span>{% endif %}</a></li>
       <li><a href="{% url 'panel_depositos' %}" {% if ruta == 'panel_depositos' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v12m0 0-4.5-4.5M12 16l4.5-4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Depósitos en pesos{% if pendientes.depositos_ars %}<span class="contador">{{ pendientes.depositos_ars }}</span>{% endif %}</a></li>
+        Transferencias{% if pendientes.depositos_ars %}<span class="contador">{{ pendientes.depositos_ars }}</span>{% endif %}</a></li>
       <li><a href="{% url 'panel_depositos_usdt' %}" {% if ruta == 'panel_depositos_usdt' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 8.5h7M12 8.5v8M8 12.5c1 .6 2.4 1 4 1s3-.4 4-1" stroke-linecap="round"/></svg>
         Depósitos USDT{% if pendientes.depositos_usdt %}<span class="contador">{{ pendientes.depositos_usdt }}</span>{% endif %}</a></li>

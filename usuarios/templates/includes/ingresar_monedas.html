@@ -1,0 +1,7 @@
+{# Selector de moneda de las pantallas de ingreso. Uso: {% include "includes/ingresar_monedas.html" with moneda="ARS" %} #}
+<nav class="segmento" style="--n:3; --i:{% if moneda == 'USD' %}1{% elif moneda == 'USDT' %}2{% else %}0{% endif %}" aria-label="Moneda a ingresar">
+  <span class="segmento-pill" aria-hidden="true"></span>
+  <a href="{% url 'agregar_saldo' %}" {% if moneda == 'ARS' %}aria-current="page"{% endif %}>Pesos</a>
+  <a href="{% url 'depositar_usd' %}" {% if moneda == 'USD' %}aria-current="page"{% endif %}>Dólares</a>
+  <a href="{% url 'depositar_usdt' %}" {% if moneda == 'USDT' %}aria-current="page"{% endif %}>USDT</a>
+</nav>

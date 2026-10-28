@@ -1196,3 +1196,69 @@ class ComprobantesTests(BaseTest):
         filas = list(resp.context["page_obj"])
         self.assertEqual(len(filas), 2)
         self.assertTrue(all(m.boleto == self.b for m in filas))
+
+
+def _png(nombre="c.png"):
+    import io
+
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (4, 4), "white").save(buf, format="PNG")
+    return SimpleUploadedFile(nombre, buf.getvalue(), content_type="image/png")
+
+
+@override_settings(BOLETOS_TOLERAR_ERROR_PDF=True, CUENTAS_DEPOSITO={
+    "ARS": {"banco": "B", "titular": "T", "cuit": "1", "cbu": "111", "alias": "pesos.alias"},
+    "USD": {"banco": "B", "titular": "T", "cuit": "1", "cbu": "222", "alias": "dolares.alias"},
+})
+class DepositoDolaresTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        crear_cotizaciones()
+        self.cli = crear_usuario()
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+
+    def informar(self, monto="250"):
+        self.client.force_login(self.cli)
+        return self.client.post(reverse("depositar_usd"), {"monto": monto, "comprobante": _png()})
+
+    def test_pantalla_muestra_la_cuenta_en_dolares(self):
+        self.client.force_login(self.cli)
+        resp = self.client.get(reverse("depositar_usd"))
+        self.assertContains(resp, "dolares.alias")
+        self.assertNotContains(resp, "pesos.alias")
+        self.assertContains(self.client.get(reverse("agregar_saldo")), "pesos.alias")
+
+    def test_deposito_en_dolares_se_acredita_en_dolares(self):
+        from unittest import mock
+        self.assertRedirects(self.informar(), reverse("dashboard"), fetch_redirect_response=False)
+        dep = DepositoARS.objects.get(usuario=self.cli)
+        self.assertEqual((dep.moneda, dep.monto, dep.estado), ("USD", Decimal("250"), "pendiente"))
+
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse("panel_admin")), "Depósito en dólares")
+        with mock.patch("usuarios.services.boletos._get_weasyprint_HTML", side_effect=OSError("sin pango")), \
+             self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("aprobar_deposito", args=[dep.pk]))
+        self.cli.refresh_from_db()
+        self.assertEqual((self.cli.saldo_usd, self.cli.saldo_ars), (Decimal("250"), Decimal("0")))
+        self.assertEqual(BoletoOperacion.objects.get(usuario=self.cli).tipo, "deposito_usd")
+        self.assertTrue(ApunteExchange.objects.filter(categoria="entrada", moneda="USD").exists())
+
+    def test_rechazo_en_dolares(self):
+        self.informar()
+        dep = DepositoARS.objects.get(usuario=self.cli)
+        self.client.force_login(self.admin)
+        self.client.post(reverse("rechazar_deposito", args=[dep.pk]))
+        dep.refresh_from_db()
+        self.assertEqual(dep.estado, "rechazado")
+        self.assertTrue(Movimiento.objects.filter(usuario=self.cli, tipo="ajuste", moneda="USD").exists())
+
+    def test_usdt_solo_ofrece_redes_con_billetera(self):
+        self.client.force_login(self.cli)
+        with self.settings(WALLETS_EMPRESA={"TRC20": "Twallet", "ERC20": "", "BEP20": "", "SOL": ""}):
+            resp = self.client.get(reverse("depositar_usdt"))
+        self.assertContains(resp, "Twallet")
+        self.assertEqual([v for v, _ in resp.context["form"].fields["red"].choices], ["TRC20"])

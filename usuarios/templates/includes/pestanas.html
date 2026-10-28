@@ -4,7 +4,7 @@
     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" stroke-linejoin="round"/></svg>
     Inicio
   </a>
-  <a href="{% url 'agregar_saldo' %}" {% if ruta == 'agregar_saldo' or ruta == 'depositar_usdt' %}aria-current="page"{% endif %}>
+  <a href="{% url 'agregar_saldo' %}" {% if ruta == 'agregar_saldo' or ruta == 'depositar_usd' or ruta == 'depositar_usdt' %}aria-current="page"{% endif %}>
     <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 4v12m0 0-4.5-4.5M12 16l4.5-4.5M4 20h16" stroke-linecap="round" stroke-linejoin="round"/></svg>
     Ingresar
   </a>
