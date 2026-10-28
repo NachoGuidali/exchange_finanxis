@@ -62,6 +62,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0" stroke-linecap="round"/><path d="m17.5 4 1.2 1.2L21 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
         Equipo</a></li>
       {% endif %}
+      {% if 'salud' in puede %}
+      <li><a href="{% url 'salud_sitio' %}" {% if ruta == 'salud_sitio' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12h4l2.5-6 5 12 2.5-6h4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Salud del sitio{% if errores_24h %}<span class="contador urgente">{{ errores_24h }}</span>{% endif %}</a></li>
+      {% endif %}
     </ul>
   </nav>
 

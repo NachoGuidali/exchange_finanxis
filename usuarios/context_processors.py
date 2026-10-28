@@ -40,4 +40,14 @@ def pendientes_admin(request):
         estado_cot = "vencida"
     else:
         estado_cot = ""
-    return {"pendientes": p, "estado_cotizacion": estado_cot, "puede": puede, "rol_staff": rol_de(user)}
+    errores = 0
+    if "salud" in puede:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .models import ErrorRegistrado
+        errores = ErrorRegistrado.objects.filter(fecha__gte=timezone.now() - timedelta(hours=24),
+                                                 nivel__in=("ERROR", "CRITICAL")).count()
+    return {"pendientes": p, "estado_cotizacion": estado_cot, "puede": puede, "rol_staff": rol_de(user),
+            "errores_24h": errores}

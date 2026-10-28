@@ -247,6 +247,27 @@ def admin_ticket(request, pk):
     })
 
 
+@requiere('salud')
+def salud_sitio(request):
+    from usuarios.services import salud
+    salud.limpiar_errores_viejos()
+    grupos = [
+        ('Infraestructura', salud.infraestructura()),
+        ('Procesos', salud.procesos()),
+        ('Configuración de producción', salud.configuracion()),
+    ]
+    todos = [c for _, cs in grupos for c in cs]
+    errores = salud.errores_recientes()
+    return render(request, 'usuarios/salud_sitio.html', {
+        'grupos': grupos,
+        'n_error': sum(c['estado'] == 'error' for c in todos),
+        'n_aviso': sum(c['estado'] == 'aviso' for c in todos),
+        'errores': errores[:50],
+        'n_errores_24h': errores.filter(nivel__in=('ERROR', 'CRITICAL')).count(),
+        'n_avisos_24h': errores.filter(nivel='WARNING').count(),
+    })
+
+
 @requiere('equipo')
 def admin_equipo(request):
     """Quién del equipo entra al panel y con qué rol. Solo superadmin."""

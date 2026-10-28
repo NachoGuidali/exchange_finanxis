@@ -810,6 +810,20 @@ class AlertaCompliance(models.Model):
         return f"{self.get_tipo_display()} — {self.usuario} — {self.estado}"
 
 
+class ErrorRegistrado(models.Model):
+    """Errores y avisos del servidor guardados para verlos en "Salud del sitio" (ver usuarios/registro_errores.py)."""
+    fecha   = models.DateTimeField(default=timezone.now, db_index=True)
+    nivel   = models.CharField(max_length=10)
+    origen  = models.CharField(max_length=100)
+    mensaje = models.CharField(max_length=500)
+    ruta    = models.CharField(max_length=255, blank=True)
+    usuario_id = models.IntegerField(null=True, blank=True)
+    detalle = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+
+
 class DeclaracionJurada(models.Model):
     """
     Declaraciones juradas que la normativa UIF le exige a un PSAV respecto de cada cliente:

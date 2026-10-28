@@ -305,8 +305,12 @@ LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {'simple': {'format': '{asctime} {levelname} {name}: {message}', 'style': '{'}},
-    'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'simple'}},
-    'root': {'handlers': ['console'], 'level': config('LOG_LEVEL', default='INFO')},
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'simple'},
+        # errores visibles en Administración → Salud del sitio
+        'panel': {'class': 'usuarios.registro_errores.GuardarErrores', 'level': 'WARNING'},
+    },
+    'root': {'handlers': ['console', 'panel'], 'level': config('LOG_LEVEL', default='INFO')},
     'loggers': {
         'axes': {'level': 'WARNING'},
         # fontTools (usado por WeasyPrint) fija niveles DEBUG en sus sub-loggers

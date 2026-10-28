@@ -1645,3 +1645,36 @@ class LimitesTests(BaseTest):
             self.client.get(reverse("geo_paises"))
         resp = self.client.get(reverse("geo_paises"))
         self.assertEqual((resp.status_code, resp["Content-Type"]), (429, "application/json"))
+
+
+@override_settings(COTIZACION_ACTUALIZAR_AL_VUELO=True)
+class SaludSitioTests(BaseTest):
+    def test_pantalla_y_permisos(self):
+        crear_cotizaciones()
+        jefe = crear_usuario("jefe")
+        jefe.is_staff, jefe.rol_staff = True, "superadmin"
+        jefe.save()
+        self.client.force_login(jefe)
+        resp = self.client.get(reverse("salud_sitio"))
+        self.assertEqual(resp.status_code, 200)
+        titulos = {c["titulo"] for _, cs in resp.context["grupos"] for c in cs}
+        self.assertTrue({"Base de datos", "Cache", "Conciliación de saldos", "Envío de emails"} <= titulos)
+        op = crear_usuario("op")
+        op.is_staff, op.rol_staff = True, "operador"
+        op.save()
+        self.client.force_login(op)
+        self.assertEqual(self.client.get(reverse("salud_sitio")).status_code, 403)
+
+    def test_errores_quedan_registrados(self):
+        import logging
+
+        from .models import ErrorRegistrado
+        logging.getLogger("usuarios.services.avisos").warning("No se pudo enviar el email de prueba")
+        logging.getLogger("django.request").info("esto no se guarda")
+        try:
+            1 / 0
+        except ZeroDivisionError:
+            logging.getLogger("django.request").exception("Error interno")
+        niveles = list(ErrorRegistrado.objects.order_by("id").values_list("nivel", flat=True))
+        self.assertEqual(niveles, ["WARNING", "ERROR"])
+        self.assertIn("ZeroDivisionError", ErrorRegistrado.objects.get(nivel="ERROR").detalle)

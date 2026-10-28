@@ -27,6 +27,7 @@ PERMISOS = {
     'contabilidad': {'contabilidad'},
     'parametros': set(),                                    # solo superadmin
     'equipo': set(),                                        # solo superadmin
+    'salud': set(),                                         # solo superadmin
 }
 
 # qué parte de la cola de pendientes ve cada permiso
