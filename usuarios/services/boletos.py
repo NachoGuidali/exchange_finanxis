@@ -20,7 +20,7 @@ def _get_weasyprint_HTML():
     from weasyprint import HTML
     return HTML
 
-def _qr_b64(text: str) -> str:
+def qr_base64(text: str) -> str:
     qr = qrcode.QRCode(box_size=3, border=2)
     qr.add_data(text); qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
@@ -66,7 +66,7 @@ def emitir_boleto(usuario, tipo: str, numero: str, snapshot: dict, movimiento=No
         "onchain": onchain_ctx,
         "url_verificacion": ver_url,
         "verificacion_code": f"{numero[:4]}-{numero[-4:]}",
-        "qr_base64": _qr_b64(ver_url),
+        "qr_base64": qr_base64(ver_url),
         "pdf_sha256": "",  # lo seteo luego
     }
 
@@ -82,11 +82,12 @@ def emitir_boleto(usuario, tipo: str, numero: str, snapshot: dict, movimiento=No
         html_final = render_to_string("boletos/boleto_base.html", ctx)
         pdf_bytes = HTML(string=html_final, base_url=base_url).write_pdf()
     except (ImportError, OSError) as e:
-        # WeasyPrint sin librerías de sistema (Pango). En producción esto debe fallar la operación.
+        # WeasyPrint sin librerías de sistema (Pango). En producción esto debe fallar la operación;
+        # en la demo el comprobante se guarda igual (se ve en pantalla y se descarga como imagen).
         if not getattr(settings, "BOLETOS_TOLERAR_ERROR_PDF", False):
             raise
         logger.warning("Boleto %s sin PDF (WeasyPrint no disponible): %s", numero, e)
-        return None
+        pdf_bytes, sha_hex = None, ""
 
     # 4) Persistencia acorde a tu modelo
     boleto = BoletoOperacion.objects.create(
@@ -102,7 +103,8 @@ def emitir_boleto(usuario, tipo: str, numero: str, snapshot: dict, movimiento=No
         wallet_destino=onchain_ctx["destino"],
         txid=onchain_ctx["txid"],
     )
-    boleto.pdf.save(f"{numero}.pdf", ContentFile(pdf_bytes), save=True)
+    if pdf_bytes:
+        boleto.pdf.save(f"{numero}.pdf", ContentFile(pdf_bytes), save=True)
     return boleto
 
 

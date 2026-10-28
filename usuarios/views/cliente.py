@@ -9,7 +9,9 @@ from django.db import models
 from django.db.models import Sum
 from django.db.models.functions import TruncDate
 from django.http import FileResponse, HttpResponse
-from django.shortcuts import get_object_or_404, render
+from django.contrib import messages
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils.dateparse import parse_date
 from django.utils.timezone import localdate, localtime
 
@@ -24,6 +26,7 @@ from ..models import (
     RetiroCrypto,
 )
 from ..services import presentacion
+from ..services.boletos import qr_base64
 from ..utils import cotizacion_vigente, kyc_required
 
 
@@ -282,14 +285,46 @@ def exportar_movimientos_usuario(request):
 
 @login_required
 def comprobantes(request):
-    boletas = BoletoOperacion.objects.filter(usuario=request.user).order_by('-fecha_emision')
-    return render(request, "usuarios/comprobantes.html", {"boletas": boletas})
+    boletas = (BoletoOperacion.objects.filter(usuario=request.user, anulado=False)
+               .order_by('-fecha_emision'))
+    page_obj = Paginator(boletas, 30).get_page(request.GET.get('page'))
+    return render(request, "usuarios/comprobantes.html", {"page_obj": page_obj})
+
+
+def _boleto_visible(request, numero):
+    """El cliente ve solo sus comprobantes; el staff, los de todos."""
+    qs = BoletoOperacion.objects.select_related('usuario', 'movimiento')
+    if not request.user.is_staff:
+        qs = qs.filter(usuario=request.user)
+    return get_object_or_404(qs, numero=numero)
+
+
+# tipo de boleto → cómo se nombran los montos en pantalla
+CLASE_BOLETO = {'compra': 'operacion', 'venta': 'operacion', 'swap': 'operacion',
+                'deposito': 'deposito', 'retiro': 'retiro'}
+
+
+@login_required
+def ver_comprobante(request, numero):
+    b = _boleto_visible(request, numero)
+    s = b.snapshot or {}
+    ver_url = request.build_absolute_uri(reverse('verificar_boleto', args=[b.numero]))
+    tasa = s.get('tasa_fmt')
+    return render(request, "usuarios/comprobante.html", {
+        "b": b,
+        "s": s,
+        "clase": CLASE_BOLETO.get(b.tipo.split('_')[0], 'operacion'),
+        "tasa": tasa if tasa and tasa != '—' else '',
+        "ver_url": ver_url,
+        "qr_base64": qr_base64(ver_url),
+        "es_admin": request.user.is_staff,
+    })
 
 
 @login_required
 def descargar_boleto(request, numero):
-    qs = BoletoOperacion.objects.all()
-    if not request.user.is_staff:
-        qs = qs.filter(usuario=request.user)
-    b = get_object_or_404(qs, numero=numero)
+    b = _boleto_visible(request, numero)
+    if not b.pdf:
+        messages.info(request, "Este comprobante no tiene PDF. Podés descargarlo como imagen.")
+        return redirect('ver_comprobante', numero=b.numero)
     return FileResponse(b.pdf.open("rb"), as_attachment=True, filename=f"{b.numero}.pdf")

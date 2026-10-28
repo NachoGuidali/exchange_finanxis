@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% load static finanxis %}
+{% block title %}Comprobante {{ b.numero }} — Finanxis{% endblock %}
+
+{% block content %}
+<style>
+  /* El comprobante tiene colores fijos: la imagen descargada sale igual en modo claro u oscuro */
+  .recibo { background: #fff; color: #18181b; border-radius: 1.25rem; box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 12px 32px rgba(0,0,0,.08); }
+  .recibo .suave { color: #71717a; }
+  .recibo .linea { border-color: #e4e4e7; }
+  .recibo .caja { background: #f4f4f5; }
+  .recibo .marca { color: #FF1129; }
+  .recibo .ok { background: #ecfdf5; color: #047857; }
+  .recibo .anulado { background: #fff1f2; color: #be123c; }
+  .recibo dt { color: #71717a; }
+  .recibo dd { color: #18181b; text-align: right; }
+  .recibo code { color: #3f3f46; }
+</style>
+
+<div class="mx-auto max-w-xl">
+  <div class="mb-4 flex items-center justify-between gap-3 aparece">
+    <a href="{% if es_admin and b.usuario != request.user %}{% url 'admin_usuario_perfil' b.usuario_id %}#boletos{% else %}{% url 'comprobantes' %}{% endif %}" class="text-sm font-semibold text-gray-600 hover:text-gray-900">← Comprobantes</a>
+    {% if es_admin and b.usuario != request.user %}<span class="text-sm text-gray-500">Vista de administrador</span>{% endif %}
+  </div>
+
+  <article id="recibo" class="recibo p-6 sm:p-8 aparece" style="--d:.05s" aria-label="Comprobante {{ b.numero }}">
+    <header class="flex items-start justify-between gap-4">
+      <div class="flex items-center gap-2.5">
+        <img src="{% static 'img/logo-emblema.png' %}" alt="" width="28" height="36" class="h-9 w-auto">
+        <div>
+          <div class="fx-display text-lg font-extrabold leading-none">Finanxis</div>
+          <div class="suave mt-1 text-xs">Comprobante de operación</div>
+        </div>
+      </div>
+      <span class="{% if b.anulado %}anulado{% else %}ok{% endif %} shrink-0 rounded-full px-3 text-xs font-semibold" style="display:inline-block;height:1.75rem;line-height:1.75rem">{% if b.anulado %}Anulado{% else %}{{ s.estado|default:"Completo" }}{% endif %}</span>
+    </header>
+
+    <div class="mt-7 text-center">
+      <p class="suave text-sm">{{ s.titulo|default:b.get_tipo_display }}</p>
+      <p class="num mt-1 text-3xl font-extrabold sm:text-4xl">{{ s.monto_destino_fmt|formato_ar }}</p>
+      <p class="suave mt-2 text-sm">
+        {% if clase == 'operacion' %}Recibiste{% elif clase == 'deposito' %}Acreditado en tu cuenta{% else %}Enviado{% endif %}
+        · {{ b.fecha_emision|date:"d/m/Y H:i:s" }}
+      </p>
+    </div>
+
+    <dl class="linea mt-7 space-y-2.5 border-t pt-5 text-sm">
+      {% if clase == 'operacion' %}
+        <div class="flex justify-between gap-4"><dt>Pagaste</dt><dd class="num font-semibold">{{ s.monto_debitado_fmt|formato_ar }}</dd></div>
+        {% if tasa %}<div class="flex justify-between gap-4"><dt>Cotización</dt><dd class="num">{{ tasa|formato_ar }}</dd></div>{% endif %}
+        {% if s.comision_total_fmt %}<div class="flex justify-between gap-4"><dt>Comisión</dt><dd class="num">{{ s.comision_total_fmt|formato_ar }}</dd></div>{% endif %}
+        <div class="flex justify-between gap-4"><dt>Recibiste</dt><dd class="num font-semibold">{{ s.monto_destino_fmt|formato_ar }}</dd></div>
+      {% else %}
+        <div class="flex justify-between gap-4"><dt>Monto</dt><dd class="num font-semibold">{{ s.monto_destino_fmt|formato_ar }}</dd></div>
+        {% if tasa %}<div class="flex justify-between gap-4"><dt>{% if clase == 'retiro' %}Destino{% else %}Detalle{% endif %}</dt><dd class="break-all">{{ tasa|formato_ar }}</dd></div>{% endif %}
+      {% endif %}
+      {% if b.red %}<div class="flex justify-between gap-4"><dt>Red</dt><dd>{{ b.red }}</dd></div>{% endif %}
+      {% if b.wallet_origen %}<div class="flex justify-between gap-4"><dt>Billetera de origen</dt><dd><code class="break-all text-xs">{{ b.wallet_origen }}</code></dd></div>{% endif %}
+      {% if b.wallet_destino %}<div class="flex justify-between gap-4"><dt>Billetera de destino</dt><dd><code class="break-all text-xs">{{ b.wallet_destino }}</code></dd></div>{% endif %}
+      {% if b.txid %}<div class="flex justify-between gap-4"><dt>Hash de la transacción</dt><dd><code class="break-all text-xs">{{ b.txid }}</code></dd></div>{% endif %}
+    </dl>
+
+    <dl class="linea mt-5 space-y-2.5 border-t pt-5 text-sm">
+      <div class="flex justify-between gap-4"><dt>Cliente</dt><dd class="font-semibold">{{ s.cliente.nombre|default:b.usuario.get_full_name }}</dd></div>
+      {% if s.cliente.doc_nro %}<div class="flex justify-between gap-4"><dt>Documento</dt><dd>{{ s.cliente.doc_tipo|default:"DNI" }} {{ s.cliente.doc_nro }}</dd></div>{% endif %}
+      {% if s.cliente.email %}<div class="flex justify-between gap-4"><dt>Email</dt><dd class="break-all">{{ s.cliente.email }}</dd></div>{% endif %}
+      <div class="flex justify-between gap-4"><dt>N.º de comprobante</dt><dd class="num font-semibold">{{ b.numero }}</dd></div>
+      {% if b.movimiento %}<div class="flex justify-between gap-4"><dt>Código de movimiento</dt><dd><code class="break-all text-xs">{{ b.movimiento.codigo }}</code></dd></div>{% endif %}
+    </dl>
+
+    <div class="caja mt-6 flex items-center gap-4 rounded-2xl p-4">
+      <div class="shrink-0 bg-white p-1.5" style="border-radius:10px"><img src="data:image/png;base64,{{ qr_base64 }}" alt="Código QR para verificar el comprobante" width="84" height="84" style="width:84px;height:84px;display:block"></div>
+      <div class="min-w-0 text-xs leading-relaxed">
+        <p class="font-semibold">Verificá este comprobante</p>
+        <p class="suave">Escaneá el código o entrá a <span class="break-all">{{ ver_url }}</span></p>
+        <p class="suave mt-1">Código de verificación: <span class="num font-semibold" style="color:#18181b">{{ b.verificacion_code }}</span></p>
+      </div>
+    </div>
+
+    <footer class="suave mt-5 text-[11px] leading-snug">
+      <p><span class="font-semibold" style="color:#3f3f46">{{ s.psav.nombre|default:"Finanxis" }}</span>{% if s.psav.cuit %}, CUIT {{ s.psav.cuit }}{% endif %}{% if s.psav.domicilio %}, {{ s.psav.domicilio }}{% endif %}.{% if s.psav.contacto %} Atención: {{ s.psav.contacto }}.{% endif %}</p>
+      {% if s.psav.leyenda_psav %}<p class="mt-2">{{ s.psav.leyenda_psav }}</p>{% endif %}
+    </footer>
+  </article>
+
+  <div class="mt-5 flex flex-wrap gap-3 aparece" style="--d:.1s">
+    <button type="button" id="bajar-imagen" class="btn btn-primario">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9" stroke-linejoin="round"/></svg>
+      Descargar imagen
+    </button>
+    <button type="button" id="compartir" class="btn btn-secundario hidden">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Compartir
+    </button>
+    {% if b.pdf %}
+      <a href="{% url 'descargar_boleto' b.numero %}" class="btn btn-secundario">
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5" stroke-linejoin="round"/></svg>
+        Descargar PDF
+      </a>
+    {% endif %}
+  </div>
+  <p id="imagen-error" class="mt-3 hidden text-sm text-rose-700" role="alert">No se pudo generar la imagen. Probá de nuevo o descargá el PDF.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}{{ block.super }}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+(function () {
+  const recibo = document.getElementById('recibo');
+  const nombre = '{{ b.numero|escapejs }}.png';
+  const error = document.getElementById('imagen-error');
+
+  async function generar() {
+    error.classList.add('hidden');
+    // sin la animación de entrada ni sombras, para que la imagen salga limpia
+    const canvas = await html2canvas(recibo, {
+      scale: 2, backgroundColor: '#ffffff', useCORS: true,
+      onclone: (doc) => {
+        const r = doc.getElementById('recibo');
+        Object.assign(r.style, { animation: 'none', boxShadow: 'none', opacity: '1', transform: 'none' });
+        // html2canvas separa los dígitos cuando hay letter-spacing o cifras tabulares
+        r.querySelectorAll('*').forEach((el) => { el.style.letterSpacing = 'normal'; el.style.fontVariantNumeric = 'normal'; });
+      },
+    });
+    return new Promise((ok) => canvas.toBlob(ok, 'image/png'));
+  }
+
+  document.getElementById('bajar-imagen').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    try {
+      const blob = await generar();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = nombre;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } catch (_) {
+      error.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // En el celular: compartir la imagen directo a WhatsApp, mail, etc.
+  const compartir = document.getElementById('compartir');
+  const prueba = new File([''], nombre, { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [prueba] })) {
+    compartir.classList.remove('hidden');
+    compartir.addEventListener('click', async () => {
+      try {
+        const blob = await generar();
+        await navigator.share({ files: [new File([blob], nombre, { type: 'image/png' })], title: 'Comprobante Finanxis' });
+      } catch (err) {
+        if (err && err.name !== 'AbortError') error.classList.remove('hidden');
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

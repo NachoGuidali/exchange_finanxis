@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal, InvalidOperation
 
 from django import template
@@ -66,3 +67,21 @@ def hace(fecha):
         return timesince(fecha, depth=1)
     except (ValueError, TypeError):
         return ""
+
+
+_NUMERO_EN = re.compile(r"\$?\d{1,3}(?:,\d{3})+(?:\.\d+)?|\$?\d+\.\d+|\$\d+")
+
+
+@register.filter
+def formato_ar(texto):
+    """'$1,234.56' → '$ 1.234,56' y '120.50 USDT' → '120,50 USDT' (textos guardados en los boletos)."""
+    if not texto:
+        return texto
+
+    def convertir(m):
+        t = m.group(0)
+        signo = "$ " if t.startswith("$") else ""
+        t = t.lstrip("$").replace(",", "")
+        decimales = len(t.split(".")[1]) if "." in t else 0
+        return signo + money(t, decimales)
+    return _NUMERO_EN.sub(convertir, str(texto))

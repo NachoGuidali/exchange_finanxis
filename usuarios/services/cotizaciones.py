@@ -129,8 +129,8 @@ def fijar_manual(moneda, compra, venta, hasta, admin):
     """Precio cargado por un admin. La referencia contable es el punto medio entre compra y venta."""
     if moneda not in FUENTES:
         raise ValueError("Moneda inválida.")
-    if not (0 < compra < venta):
-        raise ValueError("La compra tiene que ser menor que la venta.")
+    if not (0 < compra <= venta):
+        raise ValueError("La compra no puede ser mayor que la venta.")
     ref = Q6((compra + venta) / 2)
     return Cotizacion.objects.create(
         moneda=moneda, compra=Q2(compra), venta=Q2(venta), ref_compra=ref, ref_venta=ref,

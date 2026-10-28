@@ -122,12 +122,14 @@
           <a href="?{% if query_sin_usuario %}{{ query_sin_usuario }}&amp;{% endif %}u={{ m.usuario_id }}" class="font-semibold text-gray-900 hover:underline" title="Ver solo los movimientos de este usuario">{{ m.usuario.get_full_name|default:m.usuario.username }}</a>
           <div class="text-gray-500"><a href="{% url 'admin_usuario_perfil' m.usuario_id %}" class="hover:underline">{{ m.usuario.username }}</a>{% if m.usuario.doc_nro %}<span class="hidden lg:inline"> · DNI {{ m.usuario.doc_nro }}</span>{% endif %}</div>
           <div class="mt-1 text-gray-500 md:hidden"><span class="num">{{ m.fecha|date:"d/m/Y H:i" }}</span> · {{ m.get_tipo_display }}</div>
+          {% if m.boleto %}<a href="{% url 'ver_comprobante' m.boleto.numero %}" class="mt-1 inline-block text-xs font-semibold text-gray-900 underline decoration-gray-300 underline-offset-2 md:hidden">Ver comprobante</a>{% endif %}
         </td>
         <td class="hidden max-w-sm px-4 py-3 md:table-cell">
           <span class="font-semibold text-gray-900">{{ m.get_tipo_display }}</span>
           {% if m.admin_responsable %}<span class="text-gray-500"> · por {{ m.admin_responsable.username }}</span>{% endif %}
           {% if m.descripcion %}<div class="mt-0.5 line-clamp-2 text-gray-600" title="{{ m.descripcion }}">{{ m.descripcion }}</div>{% endif %}
           <code class="mt-1 block truncate text-xs text-gray-400" title="Código del movimiento">{{ m.codigo }}</code>
+          {% if m.boleto %}<a href="{% url 'ver_comprobante' m.boleto.numero %}" class="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-900">Ver comprobante</a>{% endif %}
         </td>
         <td class="whitespace-nowrap px-4 py-3 text-right">
           <span class="num font-bold {% if m.monto > 0 %}positivo{% else %}text-gray-900{% endif %}">{% if m.monto > 0 %}+{% elif m.monto < 0 %}−{% endif %}{% if m.moneda == 'ARS' %}$ {% endif %}{{ m.monto|absoluto|money }}</span>{% if m.moneda != 'ARS' %} <span class="text-xs font-semibold text-gray-500">{{ m.moneda }}</span>{% endif %}

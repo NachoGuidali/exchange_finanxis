@@ -104,6 +104,7 @@ NOMBRE_MONEDA = {'USDT': 'USDT', 'USD': 'Dólar'}
 @login_required
 @user_passes_test(es_admin)
 def admin_cotizaciones(request):
+    cfg = ExchangeConfig.current()
     monedas = []
     for moneda in cotizaciones.FUENTES:
         cot = cotizaciones.ultima(moneda)
@@ -114,6 +115,7 @@ def admin_cotizaciones(request):
             'cot': cot,
             'vigente': cotizacion_vigente(cot),
             'mercado': mercado,
+            'spread_bps': cfg.spread_bps_usdt if moneda == 'USDT' else cfg.spread_bps_usd,
         })
     historial = Cotizacion.objects.select_related('cargada_por').order_by('-fecha', '-id')[:40]
     return render(request, 'usuarios/admin_cotizaciones.html', {
@@ -182,9 +184,9 @@ def quitar_precio_manual(request):
     # vuelve enseguida al precio de mercado
     try:
         _, fuente = cotizaciones.actualizar(moneda)
-        messages.success(request, f"Precio manual quitado. {NOMBRE_MONEDA[moneda]} vuelve al precio de {fuente}.")
+        messages.success(request, f"{NOMBRE_MONEDA[moneda]} vuelve a la cotización automática ({fuente}).")
     except cotizaciones.FuenteNoDisponible:
-        messages.warning(request, "Precio manual quitado, pero ninguna fuente respondió: compra y venta quedan "
+        messages.warning(request, "Se quitó el precio manual, pero ninguna fuente respondió: compra y venta quedan "
                                   "pausadas hasta la próxima actualización.")
     return redirect('admin_cotizaciones')
 
@@ -338,6 +340,16 @@ def admin_movimientos(request):
     totales.sort(key=lambda t: orden.get(t['moneda'], 9))
 
     page_obj = Paginator(qs, 50).get_page(request.GET.get('page'))
+    # comprobante de cada fila: el boleto cuelga de una pata; la otra pata de la operación lo comparte
+    movs = list(page_obj.object_list)
+    boletos = BoletoOperacion.objects.filter(
+        Q(movimiento__in=movs) | Q(movimiento__operacion__in=[m.operacion for m in movs if m.operacion]),
+        anulado=False).select_related('movimiento')
+    por_mov = {b.movimiento_id: b for b in boletos}
+    por_op = {b.movimiento.operacion: b for b in boletos if b.movimiento and b.movimiento.operacion}
+    for m in movs:
+        m.boleto = por_mov.get(m.pk) or por_op.get(m.operacion)
+    page_obj.object_list = movs
     filtros = request.GET.copy()
     filtros.pop('page', None)
 

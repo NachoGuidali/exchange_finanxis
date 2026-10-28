@@ -45,6 +45,7 @@ urlpatterns = [
     path('admin-dashboard/exchange/export.csv', exchange_export_csv, name='exchange_export_csv'),
     
     path("comprobantes/", comprobantes, name="comprobantes"),
+    path("comprobantes/<str:numero>/", views.ver_comprobante, name="ver_comprobante"),
     path("boletos/<str:numero>/", verificar_boleto, name="verificar_boleto"),
     path("boletos/<str:numero>/descargar/", descargar_boleto, name="descargar_boleto"),
     path('perfil/', perfil, name='perfil'),

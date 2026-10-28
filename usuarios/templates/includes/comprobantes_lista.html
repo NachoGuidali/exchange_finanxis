@@ -1,0 +1,25 @@
+{% load finanxis %}
+{# Lista de comprobantes (cliente y admin). Uso: {% include "includes/comprobantes_lista.html" with boletos=... %} #}
+<ul class="divide-y divide-gray-200">
+  {% for b in boletos %}
+  <li>
+    <a href="{% url 'ver_comprobante' b.numero %}" class="flex items-center gap-3 rounded-xl px-3 py-3.5 transition hover:bg-gray-50">
+      <span class="icono-mov {% if b.tipo|slice:':8' == 'deposito' %}entra{% elif b.tipo|slice:':6' != 'retiro' %}opera{% endif %}" aria-hidden="true">
+        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h4" stroke-linejoin="round"/></svg>
+      </span>
+      <span class="min-w-0 flex-1">
+        <span class="block truncate font-semibold text-gray-900">{{ b.snapshot.titulo|default:b.get_tipo_display }}</span>
+        <span class="num block font-bold text-gray-900 sm:hidden">{{ b.snapshot.monto_destino_fmt|formato_ar }}</span>
+        <span class="block truncate text-sm text-gray-500">{{ b.fecha_emision|date:"d/m/Y H:i" }}<span class="hidden sm:inline"> · {{ b.numero }}</span></span>
+      </span>
+      <span class="num hidden shrink-0 whitespace-nowrap text-right font-bold text-gray-900 sm:inline">{{ b.snapshot.monto_destino_fmt|formato_ar }}</span>
+      <svg class="h-4 w-4 shrink-0 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 6 6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </li>
+  {% empty %}
+  <li class="px-3 py-12 text-center">
+    <p class="font-semibold text-gray-900">Todavía no hay comprobantes</p>
+    <p class="mt-1 text-sm text-gray-500">Se generan con cada operación, depósito acreditado y retiro enviado.</p>
+  </li>
+  {% endfor %}
+</ul>

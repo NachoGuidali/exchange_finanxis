@@ -55,9 +55,9 @@
     {% endif %}
 
     {% if m.cot.manual_activa %}
-      <form method="post" action="{% url 'quitar_precio_manual' %}" class="mt-5" data-confirmar="¿Quitar el precio manual de {{ m.nombre }}? Vuelve al precio de mercado.">
+      <form method="post" action="{% url 'quitar_precio_manual' %}" class="mt-5" data-confirmar="¿Volver a la cotización automática de {{ m.nombre }}? Se toma el precio de mercado ahora.">
         {% csrf_token %}<input type="hidden" name="moneda" value="{{ m.codigo }}">
-        <button class="btn btn-sm btn-secundario">Quitar precio manual</button>
+        <button class="btn btn-sm btn-primario">Volver a cotización automática (API)</button>
       </form>
     {% endif %}
 
@@ -68,8 +68,13 @@
       </summary>
       <p class="mt-2 text-sm text-gray-600">Mientras esté activo, la actualización automática no lo cambia. Queda registrado en Auditoría.</p>
       <form method="post" action="{% url 'fijar_precio_manual' %}" class="mt-4 space-y-4" data-precio-manual
-            data-ref-mercado="{{ m.mercado.ref_venta|default:''|stringformat:'s' }}" data-nombre="{{ m.nombre }}">
+            data-spread="{{ m.spread_bps }}" data-ref-mercado="{{ m.mercado.ref_venta|default:''|stringformat:'s' }}" data-nombre="{{ m.nombre }}">
         {% csrf_token %}<input type="hidden" name="moneda" value="{{ m.codigo }}">
+        <label class="block">
+          <span class="etiqueta">Precio</span>
+          <input type="number" step="0.01" min="0.01" inputmode="decimal" class="campo num" placeholder="Ej.: 1600" data-precio-unico>
+          <span class="mt-1 block text-sm text-gray-500">Arma la compra y la venta con el spread de {{ m.spread_bps|bps_pct }}. Podés ajustarlas abajo; si ponés el mismo valor en las dos, se opera a ese precio sin margen.</span>
+        </label>
         <div class="grid grid-cols-2 gap-3">
           <label><span class="etiqueta">Compra</span><input type="number" name="compra" step="0.01" min="0.01" required inputmode="decimal" class="campo num" value="{{ m.cot.compra|stringformat:'s' }}"></label>
           <label><span class="etiqueta">Venta</span><input type="number" name="venta" step="0.01" min="0.01" required inputmode="decimal" class="campo num" value="{{ m.cot.venta|stringformat:'s' }}"></label>
@@ -139,15 +144,25 @@
     const pinta = () => {
       const c = Number(compra.value), v = Number(venta.value);
       if (!c || !v) { resumen.textContent = ' '; return; }
-      if (c >= v) { resumen.textContent = 'La compra tiene que ser menor que la venta.'; return; }
+      if (c > v) { resumen.textContent = 'La compra no puede ser mayor que la venta.'; return; }
       const medio = (c + v) / 2;
-      let txt = `Margen ${pct((v - c) / 2 / medio * 100)} sobre el punto medio ($ ${medio.toLocaleString('es-AR', { maximumFractionDigits: 2 })}).`;
+      let txt = c === v ? `Mismo precio para comprar y vender: $ ${medio.toLocaleString('es-AR', { maximumFractionDigits: 2 })}, sin margen.`
+                        : `Margen ${pct((v - c) / 2 / medio * 100)} sobre el punto medio ($ ${medio.toLocaleString('es-AR', { maximumFractionDigits: 2 })}).`;
       distancia = ref ? (medio - ref) / ref * 100 : 0;
       if (ref) txt += ` ${Math.abs(distancia) < 0.01 ? 'Igual al' : (distancia > 0 ? pct(distancia) + ' arriba del' : pct(-distancia) + ' abajo del')} último precio de mercado.`;
       resumen.textContent = txt;
     };
     compra.addEventListener('input', pinta);
     venta.addEventListener('input', pinta);
+    // un solo precio → compra y venta con el spread configurado
+    const unico = f.querySelector('[data-precio-unico]'), spread = Number(f.dataset.spread || 0) / 10000;
+    unico.addEventListener('input', () => {
+      const p = Number(unico.value);
+      if (!p) return;
+      compra.value = (p * (1 - spread)).toFixed(2);
+      venta.value = (p * (1 + spread)).toFixed(2);
+      pinta();
+    });
     pinta();
     f.addEventListener('submit', (e) => {
       const aviso = Math.abs(distancia) >= 5 ? `\n\nOjo: está ${pct(Math.abs(distancia))} ${distancia > 0 ? 'arriba' : 'abajo'} del mercado.` : '';

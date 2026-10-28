@@ -827,6 +827,13 @@ class DemoYCotizacionesTests(BaseTest):
             fondos.aprobar_deposito_ars(dep.pk, admin)
         u.refresh_from_db()
         self.assertEqual(u.saldo_ars, Decimal("100"))
+        # el comprobante queda igual, sin PDF: se ve en pantalla y se descarga como imagen
+        b = BoletoOperacion.objects.get(usuario=u)
+        self.assertFalse(b.pdf)
+        self.client.force_login(u)
+        self.assertContains(self.client.get(reverse("ver_comprobante", args=[b.numero])), "$ 100,00")
+        resp = self.client.get(reverse("descargar_boleto", args=[b.numero]))
+        self.assertRedirects(resp, reverse("ver_comprobante", args=[b.numero]), fetch_redirect_response=False)
 
     def test_cargar_demo_solo_en_modo_demo(self):
         from django.core.management import call_command
@@ -1074,6 +1081,13 @@ class AdminCotizacionesTests(BaseTest):
         self.assertEqual(cot.ref_venta, Decimal("1600"))
         self.assertTrue(RegistroAuditoria.objects.filter(accion="cotizacion_manual_quitada").exists())
 
+    def test_mismo_precio_para_compra_y_venta(self):
+        from .services import cotizaciones
+        self.fijar(compra="1600", venta="1600")
+        cot = cotizaciones.ultima("USDT")
+        self.assertTrue(cot.manual_activa)
+        self.assertEqual((cot.compra, cot.venta, cot.margin_bps), (Decimal("1600"), Decimal("1600"), 0))
+
     def test_validaciones(self):
         antes = Cotizacion.objects.count()
         self.fijar(compra="1600", venta="1500")
@@ -1134,3 +1148,43 @@ class ContabilidadResumenTests(BaseTest):
         resp = self.client.get(reverse("exchange_dashboard"))
         self.assertContains(resp, "Dinero ingresado")
         self.assertContains(resp, "En custodia ahora")
+
+
+@override_settings(BOLETOS_TOLERAR_ERROR_PDF=True)
+class ComprobantesTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        from unittest import mock
+        crear_cotizaciones()
+        self.cli = crear_usuario(saldo_ars=Decimal("500000"))
+        self.client.force_login(self.cli)
+        with mock.patch("usuarios.services.boletos._get_weasyprint_HTML", side_effect=OSError("sin pango")):
+            operar(self.client, "compra", "USDT", "100000")
+        self.b = BoletoOperacion.objects.get(usuario=self.cli)
+
+    def test_cliente_ve_su_comprobante_con_montos(self):
+        resp = self.client.get(reverse("ver_comprobante", args=[self.b.numero]))
+        self.assertContains(resp, "Compra de USDT")
+        self.assertContains(resp, "$ 100.000,00")  # pagó
+        self.assertContains(resp, "1.020,00 ARS / USDT")  # cotización
+        self.assertContains(resp, "Descargar imagen")
+        self.assertContains(self.client.get(reverse("comprobantes")), self.b.numero)
+
+    def test_otro_cliente_no_lo_ve(self):
+        self.client.force_login(crear_usuario("otro"))
+        self.assertEqual(self.client.get(reverse("ver_comprobante", args=[self.b.numero])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("descargar_boleto", args=[self.b.numero])).status_code, 404)
+
+    def test_admin_lo_ve_en_el_perfil_y_en_movimientos(self):
+        admin = crear_usuario("admin")
+        admin.is_staff = True
+        admin.save()
+        self.client.force_login(admin)
+        url = reverse("ver_comprobante", args=[self.b.numero])
+        self.assertContains(self.client.get(reverse("admin_usuario_perfil", args=[self.cli.pk])), url)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        # las dos patas de la compra (pesos que salen y USDT que entran) muestran el comprobante
+        resp = self.client.get(reverse("admin_movimientos"), {"u": self.cli.pk, "tipo": "compra"})
+        filas = list(resp.context["page_obj"])
+        self.assertEqual(len(filas), 2)
+        self.assertTrue(all(m.boleto == self.b for m in filas))

@@ -99,9 +99,9 @@
             </div>
           </dl>
           {% if a.boleto %}
-            <a href="{% url 'descargar_boleto' a.boleto.numero %}" class="btn btn-sm btn-secundario mt-4">
+            <a href="{% url 'ver_comprobante' a.boleto.numero %}" class="btn btn-sm btn-secundario mt-4">
               <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6" stroke-linejoin="round"/></svg>
-              Descargar comprobante
+              Ver comprobante
             </a>
           {% endif %}
         </div>

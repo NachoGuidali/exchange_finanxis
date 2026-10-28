@@ -86,75 +86,14 @@
           {% empty %}<li class="py-2 text-gray-500">Sin retiros crypto.</li>{% endfor %}
         </ul>
       </div>
-      {# --- Boletos / Comprobantes --- #}
-<section id="boletos" class="card p-5 mt-8">
-  <div class="flex items-center justify-between flex-wrap gap-3">
-    <h3 class="text-lg font-semibold">Boletos / Comprobantes</h3>
-    {% if boletos %}
-      <span class="text-sm text-gray-500">{{ boletos|length }} emitidos</span>
-    {% endif %}
+      {# --- Comprobantes --- #}
+<section id="boletos" class="card mt-8 p-5">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h3 class="text-lg font-semibold">Comprobantes</h3>
+    {% if boletos %}<span class="text-sm text-gray-500">{{ boletos|length }} emitido{{ boletos|length|pluralize }}</span>{% endif %}
   </div>
-
-  {% if boletos %}
-    <div class="overflow-x-auto mt-4">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50 text-gray-600">
-          <tr>
-            <th class="px-3 py-2 text-left">Número</th>
-            <th class="px-3 py-2 text-left">Tipo</th>
-            <th class="px-3 py-2 text-left">Moneda</th>
-            <th class="px-3 py-2 text-left">Monto</th>
-            <th class="px-3 py-2 text-left">Estado</th>
-            <th class="px-3 py-2 text-left">Emitido</th>
-            <th class="px-3 py-2 text-left">Vence</th>
-            <th class="px-3 py-2 text-left">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for b in boletos %}
-            <tr class="hover:bg-gray-50">
-              <td class="px-3 py-2 font-mono">
-                <a href="{% url 'verificar_boleto' b.numero %}" class="text-neon hover:opacity-80">
-                  {{ b.numero }}
-                </a>
-              </td>
-              <td class="px-3 py-2">{{ b.tipo|default:"—" }}</td>
-              <td class="px-3 py-2">{{ b.moneda|default:"—" }}</td>
-              <td class="px-3 py-2">
-                {% if b.moneda == "USDT" or b.moneda == "USD" %}
-                  {{ b.monto|money }}
-                {% else %}
-                  $ {{ b.monto|money }}
-                {% endif %}
-              </td>
-              <td class="px-3 py-2">
-                <span class="px-2 py-0.5 rounded border text-xs
-                  {% if b.estado == 'pagado' or b.estado == 'aprobado' %} border-emerald-400 text-emerald-300
-                  {% elif b.estado == 'pendiente' %} border-amber-400 text-amber-300
-                  {% elif b.estado == 'vencido' or b.estado == 'rechazado' %} border-red-400 text-red-300
-                  {% else %} border-white/20 text-black/80
-                  {% endif %}">
-                  {{ b.estado|capfirst }}
-                </span>
-              </td>
-              <td class="px-3 py-2">{{ b.fecha_emision|date:"d/m/Y H:i" }}</td>
-              <td class="px-3 py-2">{{ b.vence|date:"d/m/Y H:i"|default:"—" }}</td>
-              <td class="px-3 py-2">
-                <div class="flex flex-wrap gap-2">
-                  <a href="{% url 'verificar_boleto' b.numero %}"
-                     class="rounded-lg border border-white/15 px-3 py-1 hover:bg-gray-50">Ver</a>
-                  <a href="{% url 'descargar_boleto' b.numero %}"
-                     class="rounded-lg bg-neon text-black px-3 py-1 font-semibold hover:opacity-90">Descargar</a>
-                </div>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% else %}
-    <p class="text-gray-500 mt-2">Este usuario no tiene boletos/comprobantes emitidos.</p>
-  {% endif %}
+  <p class="mt-1 text-sm text-gray-500">Abrí uno para ver el detalle y descargarlo como imagen o PDF.</p>
+  <div class="-mx-2 mt-3">{% include "includes/comprobantes_lista.html" with boletos=boletos %}</div>
 </section>
 
     </div>

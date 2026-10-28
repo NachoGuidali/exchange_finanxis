@@ -1,34 +1,24 @@
 {% extends "base.html" %}
-{% block title %}Comprobantes{% endblock %}
+{% load finanxis %}
+{% block title %}Comprobantes — Finanxis{% endblock %}
+
 {% block content %}
-<section class="space-y-4">
-  <h1 class="text-2xl font-semibold">Comprobantes</h1>
-  <div class="overflow-x-auto">
-    <table class="min-w-full text-sm">
-      <thead>
-        <tr class="border-b">
-          <th class="text-left py-2">Fecha</th>
-          <th class="text-left py-2">Número</th>
-          <th class="text-left py-2">Tipo</th>
-          <th class="text-left py-2">Acciones</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for b in boletas %}
-        <tr class="border-b">
-          <td class="py-2">{{ b.fecha_emision|date:"d/m/Y H:i" }}</td>
-          <td class="py-2">{{ b.numero }}</td>
-          <td class="py-2">{{ b.get_tipo_display }}</td>
-          <td class="py-2 space-x-2">
-            <a class="text-brand-600" href="{% url 'verificar_boleto' b.numero %}" target="_blank">Ver</a>
-            <a class="text-brand-600" href="{% url 'descargar_boleto' b.numero %}">Descargar PDF</a>
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td class="py-4 text-ink-500" colspan="4">No hay comprobantes aún.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<div class="mx-auto max-w-3xl">
+  <div class="aparece">
+    <h1 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">Comprobantes</h1>
+    <p class="mt-1 text-gray-600">Cada compra, venta, swap, depósito y retiro tiene el suyo. Abrilo para ver el detalle y descargarlo como imagen o PDF.</p>
   </div>
-</section>
+
+  <section class="card mt-6 px-2 py-2 sm:px-4 aparece" style="--d:.06s" aria-label="Lista de comprobantes">
+    {% include "includes/comprobantes_lista.html" with boletos=page_obj %}
+  </section>
+
+  {% if page_obj.has_other_pages %}
+  <nav class="mt-6 flex items-center justify-between gap-4 text-sm" aria-label="Páginas">
+    {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}" class="btn btn-sm btn-secundario">Anteriores</a>{% else %}<span></span>{% endif %}
+    <span class="text-gray-600">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}" class="btn btn-sm btn-secundario">Siguientes</a>{% else %}<span></span>{% endif %}
+  </nav>
+  {% endif %}
+</div>
 {% endblock %}
