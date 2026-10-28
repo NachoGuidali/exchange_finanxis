@@ -2,13 +2,16 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_GET
 
 from ..models import Localidad, Pais, Provincia
+from ..limites import limitar
 
 
+@limitar('geo', 120, 60, metodos=('GET',), json=True)
 @require_GET
 def geo_paises(request):
     qs = Pais.objects.all().values("id","nombre","iso2").order_by("nombre")
     return JsonResponse({"paises": list(qs)})
 
+@limitar('geo', 120, 60, metodos=('GET',), json=True)
 @require_GET
 def geo_provincias(request):
     pais_id = request.GET.get("pais_id")
@@ -18,6 +21,7 @@ def geo_provincias(request):
     data = [{"id": p.id, "nombre": p.nombre} for p in qs]
     return JsonResponse({"provincias": data})
 
+@limitar('geo', 120, 60, metodos=('GET',), json=True)
 @require_GET
 def geo_localidades(request):
     prov_id = request.GET.get("provincia_id")

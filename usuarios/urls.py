@@ -2,6 +2,7 @@ from django.urls import path, reverse_lazy
 from django.contrib.auth import views as auth_views
 from .views import registro, dashboard, panel_admin, cambiar_estado_verificacion, agregar_saldo, panel_depositos, aprobar_deposito, operar, enviar_retiro, aprobar_retiro, solicitar_retiro, exportar_movimientos_admin, obtener_notificaciones, contar_notificaciones, solicitar_retiro_cripto, aprobar_retiro_cripto, panel_retiros, rechazar_deposito_usdt, aprobar_deposito_usdt, panel_depositos_usdt, depositar_usdt, logout_view, verificar_boleto, comprobantes, descargar_boleto, home, actualizar_perfil, cambiar_email, cambiar_password, soporte, faq, perfil, configuracion, tyc, mis_movimientos, exportar_movimientos, mis_tickets, admin_usuario_perfil, rechazar_retiro_cripto, rechazar_retiro_ars, admin_usuarios_list, exchange_dashboard, exchange_export_csv, verify_email_notice, verify_email, resend_verification, change_email_form, change_email_submit, LoginViewCustom, guardar_config_exchange, rechazar_deposito
 from . import views
+from .limites import limitar
 from .views import geo as views_geo
 from .views.twofa import activar_2fa, desactivar_2fa, login_2fa
 
@@ -80,13 +81,13 @@ urlpatterns = [
 
     path(
         "password-reset/",
-        auth_views.PasswordResetView.as_view(
+        limitar('recuperar_clave', 5, 3600)(auth_views.PasswordResetView.as_view(
             template_name="usuarios/password_reset_form.html",
             email_template_name="usuarios/password_reset_email.txt",
             subject_template_name="usuarios/password_reset_subject.txt",
             success_url=reverse_lazy("password_reset_done"),
             from_email=None,  # usa DEFAULT_FROM_EMAIL de settings
-        ),
+        )),
         name="password_reset",
     ),
     # Aviso “te enviamos el mail”

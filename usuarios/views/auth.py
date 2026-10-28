@@ -15,6 +15,7 @@ from django.views.decorators.http import require_POST
 from ..forms import EmailOrUsernameAuthenticationForm, RegistroUsuarioForm
 from ..utils_email_verify import send_verification_email
 from .twofa import iniciar_login_2fa
+from ..limites import limitar
 
 User = get_user_model()
 
@@ -40,7 +41,7 @@ def login_bloqueado(request, credentials, *args, **kwargs):
     messages.error(request, "Demasiados intentos fallidos. Esperá una hora o restablecé tu contraseña.")
     return render(request, 'usuarios/login.html', {'form': EmailOrUsernameAuthenticationForm(request)}, status=429)
 
-
+@limitar('registro', 5, 3600)
 def registro(request):
     if request.method == 'POST':
         form = RegistroUsuarioForm(request.POST, request.FILES)
@@ -91,6 +92,7 @@ def verify_email_notice(request):
     return render(request, 'usuarios/verify_email_notice.html')
 
 
+@limitar('reenvio_verificacion', 3, 3600, por='usuario')
 @login_required
 @require_POST
 def resend_verification(request):
@@ -110,6 +112,7 @@ def change_email_form(request):
     return render(request, 'usuarios/change_email_form.html')
 
 
+@limitar('cambio_email', 5, 3600, por='usuario')
 @login_required
 @require_POST
 def change_email_submit(request):

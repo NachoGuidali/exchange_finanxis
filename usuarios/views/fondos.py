@@ -15,6 +15,7 @@ from usuarios.services.comun import OperacionError
 from ..forms import DepositoARSForm, DepositoUSDTForm
 from ..templatetags.finanxis import money
 from ..utils import kyc_required, parse_monto, registrar_movimiento
+from ..limites import limitar
 
 logger = logging.getLogger(__name__)
 
@@ -69,18 +70,21 @@ def _deposito_transferencia(request, moneda):
     })
 
 
+@limitar('deposito', 20, 3600, por='usuario')
 @login_required
 @kyc_required
 def agregar_saldo(request):
     return _deposito_transferencia(request, 'ARS')
 
 
+@limitar('deposito', 20, 3600, por='usuario')
 @login_required
 @kyc_required
 def depositar_usd(request):
     return _deposito_transferencia(request, 'USD')
 
 
+@limitar('deposito', 20, 3600, por='usuario')
 @login_required
 @kyc_required
 def depositar_usdt(request):
@@ -136,6 +140,7 @@ def _volver_a_retiro(moneda):
     return redirect(f"{reverse('solicitar_retiro')}?moneda={moneda}")
 
 
+@limitar('retiro', 20, 3600, por='usuario')
 @login_required
 @kyc_required
 def solicitar_retiro(request):
@@ -174,6 +179,7 @@ def solicitar_retiro(request):
 
 
 
+@limitar('retiro', 20, 3600, por='usuario')
 @login_required
 @kyc_required
 @require_POST

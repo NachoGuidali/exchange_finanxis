@@ -1621,3 +1621,27 @@ class RolesTests(BaseTest):
         self.client.post(reverse("admin_equipo"), {"accion": "quitar", "usuario": "jefe"})
         jefe.refresh_from_db()
         self.assertTrue(jefe.is_staff)
+
+
+
+class LimitesTests(BaseTest):
+    def test_registro_se_limita_por_ip(self):
+        for _ in range(5):
+            self.assertEqual(self.client.post(reverse("registro"), {}).status_code, 200)
+        resp = self.client.post(reverse("registro"), {})
+        self.assertContains(resp, "Demasiados intentos", status_code=429)
+        # mirar el formulario sigue permitido
+        self.assertEqual(self.client.get(reverse("registro")).status_code, 200)
+
+    def test_por_usuario_y_json(self):
+        u = crear_usuario()
+        u.email_confirmed = False
+        u.save()
+        self.client.force_login(u)
+        for _ in range(3):
+            self.client.post(reverse("resend_verification"))
+        self.assertEqual(self.client.post(reverse("resend_verification")).status_code, 429)
+        for _ in range(120):
+            self.client.get(reverse("geo_paises"))
+        resp = self.client.get(reverse("geo_paises"))
+        self.assertEqual((resp.status_code, resp["Content-Type"]), (429, "application/json"))

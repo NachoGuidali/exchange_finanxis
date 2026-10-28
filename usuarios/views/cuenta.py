@@ -23,6 +23,7 @@ from usuarios.services.auditoria import auditar
 from ..forms import DeclaracionJuradaForm, SupportTicketForm
 from ..models import Localidad, Notificacion, Pais, Provincia, SupportTicket
 from ..utils_email_verify import send_verification_email
+from ..limites import limitar
 
 User = get_user_model()
 
@@ -181,6 +182,7 @@ def cambiar_password(request):
     return redirect(f"{reverse('configuracion')}?tab=seguridad")
 
 
+@limitar('cambio_email', 5, 3600, por='usuario')
 @require_POST
 @login_required
 def cambiar_email(request):
@@ -218,6 +220,7 @@ def cambiar_email(request):
     return redirect('verify_email_notice')
 
 
+@limitar('declaracion', 10, 3600, por='usuario')
 @login_required
 def declaracion_jurada(request):
     """Declaración jurada UIF: PEP, sujeto obligado, origen de fondos, perfil y residencia fiscal."""
@@ -241,6 +244,7 @@ def declaracion_jurada(request):
     return render(request, 'usuarios/declaracion_jurada.html', {'form': form, 'vigente': vigente})
 
 
+@limitar('soporte', 10, 3600, por='usuario')
 @login_required
 def soporte(request):
     if request.method == "POST":
@@ -265,6 +269,7 @@ def mis_tickets(request):
     return render(request, "usuarios/mis_tickets.html", {"page_obj": page_obj})
 
 
+@limitar('soporte_respuesta', 30, 3600, por='usuario')
 @login_required
 def ver_ticket(request, pk):
     ticket = get_object_or_404(SupportTicket, pk=pk, usuario=request.user)

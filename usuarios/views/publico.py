@@ -5,6 +5,7 @@ from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 
+from ..limites import limitar
 from ..models import BoletoOperacion
 
 
@@ -43,6 +44,7 @@ def tyc(request):
     return render(request, "usuarios/tyc.html", {"version": getattr(settings,"TYC_VERSION","")})
 
 
+@limitar('verificar_boleto', 60, 60, metodos=('GET',))
 def verificar_boleto(request, numero):
     b = get_object_or_404(BoletoOperacion, numero=numero)
     ctx = {
