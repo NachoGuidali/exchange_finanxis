@@ -97,6 +97,7 @@ def parametros_exchange(request):
 
 
 DURACIONES_MANUAL = [('30', '30 minutos'), ('60', '1 hora'), ('240', '4 horas'), ('1440', '24 horas'),
+                     ('4320', '3 días'), ('10080', '1 semana'),
                      ('0', 'Hasta que lo quite')]
 NOMBRE_MONEDA = {'USDT': 'USDT', 'USD': 'Dólar'}
 

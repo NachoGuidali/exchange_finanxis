@@ -23,7 +23,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h2 id="cot-{{ m.codigo }}" class="text-xl font-bold text-gray-900">{{ m.nombre }}</h2>
       {% if m.cot.manual_activa %}
-        <span class="etiqueta-estado bg-sky-50 text-sky-800">Precio manual {% if m.cot.manual_hasta %}hasta las {{ m.cot.manual_hasta|date:"H:i" }}{% else %}sin vencimiento{% endif %}</span>
+        <span class="etiqueta-estado bg-sky-50 text-sky-800">Precio manual {% if m.cot.manual_hasta %}hasta el {{ m.cot.manual_hasta|date:"d/m" }} a las {{ m.cot.manual_hasta|date:"H:i" }}{% else %}sin vencimiento{% endif %}</span>
       {% elif m.vigente %}
         <span class="etiqueta-estado bg-emerald-50 text-emerald-800">Vigente</span>
       {% else %}
@@ -118,7 +118,7 @@
           <td class="px-5 py-2.5 text-gray-700">
             {% if c.manual %}
               <span class="font-semibold text-gray-900">Manual</span>{% if c.cargada_por %}, {{ c.cargada_por.username }}{% endif %}
-              <span class="text-gray-500">{% if c.manual_activa %}(activo{% if c.manual_hasta %} hasta {{ c.manual_hasta|date:"H:i" }}{% endif %}){% elif c.manual_hasta %}(hasta {{ c.manual_hasta|date:"d/m H:i" }}){% endif %}</span>
+              <span class="text-gray-500">{% if c.manual_activa %}(activo{% if c.manual_hasta %} hasta {{ c.manual_hasta|date:"d/m H:i" }}{% endif %}){% elif c.manual_hasta %}(hasta {{ c.manual_hasta|date:"d/m H:i" }}){% endif %}</span>
             {% else %}{{ c.fuente|default:"—" }}{% endif %}
           </td>
         </tr>

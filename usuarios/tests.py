@@ -1081,6 +1081,13 @@ class AdminCotizacionesTests(BaseTest):
         self.assertEqual(cot.ref_venta, Decimal("1600"))
         self.assertTrue(RegistroAuditoria.objects.filter(accion="cotizacion_manual_quitada").exists())
 
+    def test_precio_manual_por_una_semana(self):
+        from .services import cotizaciones
+        self.fijar(duracion="10080")
+        cot = cotizaciones.ultima("USDT")
+        self.assertAlmostEqual((cot.manual_hasta - timezone.now()).total_seconds(), 7 * 24 * 3600, delta=60)
+        self.assertContains(self.client.get(reverse("admin_cotizaciones")), "1 semana")
+
     def test_mismo_precio_para_compra_y_venta(self):
         from .services import cotizaciones
         self.fijar(compra="1600", venta="1600")
@@ -1094,6 +1101,7 @@ class AdminCotizacionesTests(BaseTest):
         self.fijar(compra="abc")
         self.fijar(moneda="BTC")
         self.fijar(duracion="99999")
+        self.fijar(duracion="20160")
         self.assertEqual(Cotizacion.objects.count(), antes)
 
     def test_solo_staff(self):
