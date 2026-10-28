@@ -6,7 +6,7 @@ from .validators import validar_tamano, validar_imagen
 from datetime import date, timedelta
 from django.conf import settings
 from django.utils import timezone
-from .models import Pais, Provincia, Localidad, SupportTicket
+from .models import DeclaracionJurada, Pais, Provincia, Localidad, SupportTicket
 from django.contrib.auth.forms import AuthenticationForm
 from .models import ExchangeConfig
 
@@ -291,3 +291,61 @@ class EmailOrUsernameAuthenticationForm(AuthenticationForm):
         label="Email o usuario",
         widget=forms.TextInput(attrs={"autofocus": True, "placeholder": "tu@email.com o usuario"})
     )        
+
+class DeclaracionJuradaForm(forms.ModelForm):
+    SI_NO = [('', 'Elegí una opción'), ('no', 'No'), ('si', 'Sí')]
+
+    es_pep = forms.TypedChoiceField(choices=SI_NO, coerce=lambda v: v == 'si',
+                                    label="¿Sos Persona Expuesta Políticamente (PEP)?")
+    es_sujeto_obligado = forms.TypedChoiceField(choices=SI_NO, coerce=lambda v: v == 'si',
+                                                label="¿Sos Sujeto Obligado ante la UIF?")
+    residencia_fiscal_exterior = forms.TypedChoiceField(choices=SI_NO, coerce=lambda v: v == 'si',
+                                                        label="¿Tenés residencia fiscal fuera de Argentina?")
+    declara_veracidad = forms.BooleanField(
+        required=True,
+        label="Declaro bajo juramento que los datos son correctos y completos, y me comprometo a "
+              "informar cualquier cambio dentro de los 30 días.",
+        error_messages={'required': "Tenés que confirmar la declaración para continuar."},
+    )
+
+    class Meta:
+        model = DeclaracionJurada
+        fields = [
+            'es_pep', 'pep_tipo', 'pep_cargo', 'pep_organismo',
+            'es_sujeto_obligado', 'sujeto_obligado_actividad',
+            'actividad', 'origen_fondos', 'origen_detalle', 'ingresos_mensuales', 'volumen_mensual_previsto',
+            'residencia_fiscal_exterior', 'residencia_fiscal_pais', 'residencia_fiscal_nif',
+            'declara_veracidad',
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # al actualizar, los sí/no vienen del modelo como booleanos
+        for campo in ('es_pep', 'es_sujeto_obligado', 'residencia_fiscal_exterior'):
+            valor = self.initial.get(campo)
+            if isinstance(valor, bool):
+                self.initial[campo] = 'si' if valor else 'no'
+        self.initial['declara_veracidad'] = False
+
+    def clean(self):
+        d = super().clean()
+        requeridos = []
+        if d.get('es_pep'):
+            requeridos += ['pep_tipo', 'pep_cargo', 'pep_organismo']
+        if d.get('es_sujeto_obligado'):
+            requeridos += ['sujeto_obligado_actividad']
+        if d.get('origen_fondos') == 'otro':
+            requeridos += ['origen_detalle']
+        if d.get('residencia_fiscal_exterior'):
+            requeridos += ['residencia_fiscal_pais', 'residencia_fiscal_nif']
+        for campo in requeridos:
+            if not (d.get(campo) or '').strip():
+                self.add_error(campo, "Completá este dato.")
+        # lo que no aplica no se guarda
+        if not d.get('es_pep'):
+            d['pep_tipo'] = d['pep_cargo'] = d['pep_organismo'] = ''
+        if not d.get('es_sujeto_obligado'):
+            d['sujeto_obligado_actividad'] = ''
+        if not d.get('residencia_fiscal_exterior'):
+            d['residencia_fiscal_pais'] = d['residencia_fiscal_nif'] = ''
+        return d

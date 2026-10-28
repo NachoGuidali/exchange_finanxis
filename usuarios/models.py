@@ -242,6 +242,11 @@ class Usuario(AbstractUser):
     # Límite propio de volumen mensual (ARS); vacío = usa el general de ExchangeConfig
     limite_mensual_ars = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
 
+    @property
+    def declaracion_vigente(self):
+        """La última declaración jurada UIF del usuario, o None si nunca la completó."""
+        return self.declaraciones.first()
+
 
     def __str__(self):
         return self.username
@@ -422,14 +427,26 @@ class RetiroARS(models.Model):
         ('rechazado', 'Reachazado'),
     ]
 
+    MONEDAS = [('ARS', 'Pesos'), ('USD', 'Dólares')]
+
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    alias = models.CharField(max_length=50)
+    # retiro por transferencia bancaria: a una cuenta en pesos o en dólares
+    moneda = models.CharField(max_length=4, choices=MONEDAS, default='ARS')
+    alias = models.CharField(max_length=50, blank=True)
     cbu = models.CharField(max_length=30, blank=True, null=True)
     banco = models.CharField(max_length=50, blank=True, null=True)
     monto = models.DecimalField(max_digits=20, decimal_places=2)
     estado = models.CharField(max_length=20, choices=ESTADOS, default='pendiente')
     fecha_solicitud = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    @property
+    def simbolo(self):
+        return 'US$' if self.moneda == 'USD' else '$'
+
+    @property
+    def destino(self):
+        return ' / '.join(x for x in (self.alias, self.cbu) if x)
 
 
 class Notificacion(models.Model):
@@ -451,6 +468,7 @@ class RetiroCrypto(models.Model):
     moneda = models.CharField(max_length=4, choices=MONEDAS)
     monto = models.DecimalField(max_digits=12, decimal_places=2)
     direccion_wallet = models.CharField(max_length=255)
+    red = models.CharField(max_length=10, blank=True)  # elegida por el cliente (TRC20, ERC20, BEP20)
     estado = models.CharField(max_length=20, choices=[('pendiente', 'Pendiente'), ('enviado', 'Enviado'), ('rechazado', 'Rechazado')], default='pendiente')
     fecha_solicitud = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -514,15 +532,34 @@ class SupportTicket(models.Model):
     categoria = models.CharField(max_length=32, choices=CATEGORIAS, default="otro")
     prioridad = models.CharField(max_length=16, choices=PRIORIDADES, default="media")
     mensaje   = models.TextField()
+    ESTADOS = [
+        ("abierto", "Abierto"),          # espera respuesta del equipo
+        ("respondido", "Respondido"),    # espera al cliente
+        ("cerrado", "Cerrado"),
+    ]
+
     adjunto   = models.FileField(upload_to=subir_adjunto_ticket, blank=True, null=True)
-    estado    = models.CharField(max_length=20, default="abierto")
+    estado    = models.CharField(max_length=20, choices=ESTADOS, default="abierto", db_index=True)
     creado_en = models.DateTimeField(auto_now_add=True)
+    actualizado_en = models.DateTimeField(default=timezone.now)
 
     class Meta:
         ordering = ("-creado_en",)
 
     def __str__(self):
-        return f"#{self.id} {self.asunto}"        
+        return f"#{self.id} {self.asunto}"
+
+
+class RespuestaTicket(models.Model):
+    """Conversación de un ticket: mensajes del cliente y del equipo de soporte."""
+    ticket    = models.ForeignKey(SupportTicket, on_delete=models.CASCADE, related_name="respuestas")
+    autor     = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    es_staff  = models.BooleanField(default=False)
+    mensaje   = models.TextField()
+    creado_en = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ("creado_en", "id")
     
 
 
@@ -727,6 +764,7 @@ class AlertaCompliance(models.Model):
         ('fraccionamiento', 'Posible fraccionamiento (varias operaciones que suman el umbral)'),
         ('retiro_rapido', 'Retiro dentro de las 24 h de un depósito'),
         ('limite_excedido', 'Intento de superar un límite'),
+        ('pep', 'Cliente declarado Persona Expuesta Políticamente'),
     ]
     ESTADOS = [
         ('abierta', 'Abierta'),
@@ -752,6 +790,68 @@ class AlertaCompliance(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} — {self.usuario} — {self.estado}"
+
+
+class DeclaracionJurada(models.Model):
+    """
+    Declaraciones juradas que la normativa UIF le exige a un PSAV respecto de cada cliente:
+    condición de Persona Expuesta Políticamente, Sujeto Obligado, origen de los fondos,
+    actividad, perfil de ingresos y residencia fiscal. Cada cambio es una versión nueva:
+    la vigente es la última y las anteriores quedan como historial.
+    """
+    PEP_TIPOS = [
+        ('titular', 'Soy Persona Expuesta Políticamente'),
+        ('familiar', 'Soy familiar de una PEP'),
+        ('allegado', 'Soy allegado cercano de una PEP'),
+    ]
+    ORIGENES = [
+        ('sueldo', 'Sueldo en relación de dependencia'),
+        ('independiente', 'Actividad independiente o profesional'),
+        ('comercial', 'Actividad comercial o empresaria'),
+        ('jubilacion', 'Jubilación o pensión'),
+        ('ahorros', 'Ahorros propios'),
+        ('venta_bienes', 'Venta de bienes'),
+        ('herencia', 'Herencia o donación'),
+        ('inversiones', 'Rentas o inversiones'),
+        ('otro', 'Otro'),
+    ]
+    RANGOS = [
+        ('hasta_1m', 'Hasta $ 1.000.000'),
+        ('1m_5m', 'De $ 1.000.000 a $ 5.000.000'),
+        ('5m_20m', 'De $ 5.000.000 a $ 20.000.000'),
+        ('mas_20m', 'Más de $ 20.000.000'),
+    ]
+
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='declaraciones')
+    fecha = models.DateTimeField(default=timezone.now, db_index=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    version = models.CharField(max_length=20)
+
+    es_pep = models.BooleanField()
+    pep_tipo = models.CharField(max_length=10, choices=PEP_TIPOS, blank=True)
+    pep_cargo = models.CharField(max_length=150, blank=True)
+    pep_organismo = models.CharField(max_length=150, blank=True)
+
+    es_sujeto_obligado = models.BooleanField()
+    sujeto_obligado_actividad = models.CharField(max_length=150, blank=True)
+
+    actividad = models.CharField(max_length=150)
+    origen_fondos = models.CharField(max_length=20, choices=ORIGENES)
+    origen_detalle = models.CharField(max_length=255, blank=True)
+    ingresos_mensuales = models.CharField(max_length=10, choices=RANGOS)
+    volumen_mensual_previsto = models.CharField(max_length=10, choices=RANGOS)
+
+    residencia_fiscal_exterior = models.BooleanField()
+    residencia_fiscal_pais = models.CharField(max_length=80, blank=True)
+    residencia_fiscal_nif = models.CharField(max_length=40, blank=True)
+
+    declara_veracidad = models.BooleanField()
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+
+    def __str__(self):
+        return f"DDJJ {self.usuario.username} {self.fecha:%d/%m/%Y}"
 
 
 class CotizacionReservada(models.Model):

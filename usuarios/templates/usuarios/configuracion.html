@@ -66,6 +66,15 @@
               cambios</button>
           </div>
         </form>
+        <div class="mt-6 flex flex-col gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="font-medium text-gray-900">Declaración jurada</h3>
+            {% with d=request.user.declaracion_vigente %}
+            <p class="text-sm text-gray-600">{% if d %}Última versión del {{ d.fecha|date:"d/m/Y" }}. Si cambió tu condición de PEP, tu actividad o el origen de tus fondos, actualizala.{% else %}Todavía no la completaste.{% endif %}</p>
+            {% endwith %}
+          </div>
+          <a href="{% url 'declaracion_jurada' %}" class="btn btn-sm btn-secundario shrink-0">Ver y actualizar</a>
+        </div>
       </section>
 
       <!-- SEGURIDAD -->

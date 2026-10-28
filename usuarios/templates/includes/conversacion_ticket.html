@@ -1,0 +1,24 @@
+{% load finanxis %}
+{# Mensaje original + respuestas. "lado" = quién mira ("cliente" o "staff"): sus mensajes van a la derecha. #}
+<ol class="space-y-4" aria-label="Conversación">
+  <li class="flex {% if lado == 'cliente' %}justify-end{% endif %}">
+    <div class="max-w-[85%] rounded-2xl {% if lado == 'cliente' %}rounded-br-md bg-gray-900 text-white{% else %}rounded-bl-md bg-gray-100 text-gray-900{% endif %} px-4 py-3">
+      <p class="text-xs font-semibold {% if lado == 'cliente' %}text-white/70{% else %}text-gray-500{% endif %}">{% if lado == 'cliente' %}Vos{% else %}{{ ticket.usuario.get_full_name|default:ticket.usuario.username }}{% endif %} · {{ ticket.creado_en|date:"d/m H:i" }}</p>
+      <p class="mt-1 whitespace-pre-line break-words text-[15px] leading-relaxed">{{ ticket.mensaje }}</p>
+      {% if ticket.adjunto %}<a href="{{ ticket.adjunto.url }}" target="_blank" rel="noopener" class="mt-2 inline-block text-sm font-semibold underline underline-offset-2">Ver adjunto</a>{% endif %}
+    </div>
+  </li>
+  {% for r in respuestas %}
+  {% with propio=r.es_staff|yesno:"staff,cliente" %}
+  <li class="flex {% if propio == lado %}justify-end{% endif %}">
+    <div class="max-w-[85%] rounded-2xl {% if propio == lado %}rounded-br-md bg-gray-900 text-white{% else %}rounded-bl-md bg-gray-100 text-gray-900{% endif %} px-4 py-3">
+      <p class="text-xs font-semibold {% if propio == lado %}text-white/70{% else %}text-gray-500{% endif %}">
+        {% if r.es_staff %}{% if lado == 'staff' %}{{ r.autor.username|default:"Soporte" }}{% else %}Soporte Finanxis{% endif %}{% else %}{% if lado == 'cliente' %}Vos{% else %}{{ ticket.usuario.get_full_name|default:ticket.usuario.username }}{% endif %}{% endif %}
+        · {{ r.creado_en|date:"d/m H:i" }}
+      </p>
+      <p class="mt-1 whitespace-pre-line break-words text-[15px] leading-relaxed">{{ r.mensaje }}</p>
+    </div>
+  </li>
+  {% endwith %}
+  {% endfor %}
+</ol>

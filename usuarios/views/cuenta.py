@@ -6,19 +6,21 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import ValidationError
-from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.core.validators import validate_email
 from django.db import transaction
+from django.forms.models import model_to_dict
 from django.http import JsonResponse
-from django.shortcuts import redirect, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
+from usuarios.services import compliance
+from usuarios.services import soporte as servicio_soporte
 from usuarios.services.auditoria import auditar
 
-from ..forms import SupportTicketForm
+from ..forms import DeclaracionJuradaForm, SupportTicketForm
 from ..models import Localidad, Notificacion, Pais, Provincia, SupportTicket
 from ..utils_email_verify import send_verification_email
 
@@ -217,6 +219,29 @@ def cambiar_email(request):
 
 
 @login_required
+def declaracion_jurada(request):
+    """Declaración jurada UIF: PEP, sujeto obligado, origen de fondos, perfil y residencia fiscal."""
+    if not request.user.email_confirmed:
+        return redirect('verify_email_notice')
+    vigente = request.user.declaracion_vigente
+    if request.method == 'POST':
+        form = DeclaracionJuradaForm(request.POST)
+        if form.is_valid():
+            datos = {k: v for k, v in form.cleaned_data.items()}
+            compliance.registrar_declaracion(request.user, datos, version=settings.DDJJ_VERSION)
+            if request.user.estado_verificacion == 'aprobado':
+                messages.success(request, "Actualizamos tu declaración jurada.")
+                return redirect('configuracion')
+            messages.success(request, "Gracias. Ahora revisamos tu identidad y te avisamos cuando puedas operar.")
+            return redirect('dashboard')
+        messages.error(request, "Revisá los datos marcados.")
+    else:
+        inicial = model_to_dict(vigente, exclude=['id', 'usuario', 'fecha', 'ip', 'version']) if vigente else {}
+        form = DeclaracionJuradaForm(initial=inicial)
+    return render(request, 'usuarios/declaracion_jurada.html', {'form': form, 'vigente': vigente})
+
+
+@login_required
 def soporte(request):
     if request.method == "POST":
         form = SupportTicketForm(request.POST, request.FILES)
@@ -224,44 +249,10 @@ def soporte(request):
             ticket = form.save(commit=False)
             ticket.usuario = request.user
             ticket.save()
-            try:
-                send_mail(
-                    subject=f"[Full Finanzas] Nuevo ticket #{ticket.id}: {ticket.asunto}",
-                    message=(
-                        f"Usuario: {request.user.username} ({ticket.email})\n"
-                        f"Categoría: {ticket.categoria}\n"
-                        f"Prioridad: {ticket.prioridad}\n"
-                        f"Mensaje:\n{ticket.mensaje}\n"
-                    ),
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=getattr(settings, "SOPORTE_TO", []),
-                    fail_silently=True,
-                )
-            except Exception:
-                pass  # no interrumpimos UX si el mail falla
-
-            # Confirmación al usuario (opcional)
-            try:
-                send_mail(
-                    subject=f"Recibimos tu ticket #{ticket.id}",
-                    message=(
-                        f"Hola {request.user.username},\n\n"
-                        f"Recibimos tu solicitud y ya la estamos revisando.\n"
-                        f"Asunto: {ticket.asunto}\n"
-                        f"ID: #{ticket.id}\n\n"
-                        f"Te responderemos a este email.\n\n"
-                        f"— Equipo de Soporte Full Finanzas"
-                    ),
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[ticket.email],
-                    fail_silently=True,
-                )
-            except Exception:
-                pass
-            messages.success(request, "Tu ticket fue creado correctamente. ¡Te vamos a escribir por email!")
-            return redirect("soporte")
-        else:
-            messages.error(request, "Revisá los campos resaltados.")
+            servicio_soporte.avisar_ticket_nuevo(ticket)
+            messages.success(request, f"Recibimos tu consulta #{ticket.pk}. Te avisamos cuando te respondamos.")
+            return redirect("ver_ticket", pk=ticket.pk)
+        messages.error(request, "Revisá los campos resaltados.")
     else:
         form = SupportTicketForm(initial={"email": request.user.email})
     return render(request, "usuarios/soporte.html", {"form": form})
@@ -269,10 +260,25 @@ def soporte(request):
 
 @login_required
 def mis_tickets(request):
-    qs = SupportTicket.objects.filter(usuario=request.user).order_by("-creado_en")
-    paginator = Paginator(qs, 20)
-    page_obj = paginator.get_page(request.GET.get("page"))
+    qs = SupportTicket.objects.filter(usuario=request.user).order_by("-actualizado_en")
+    page_obj = Paginator(qs, 20).get_page(request.GET.get("page"))
     return render(request, "usuarios/mis_tickets.html", {"page_obj": page_obj})
+
+
+@login_required
+def ver_ticket(request, pk):
+    ticket = get_object_or_404(SupportTicket, pk=pk, usuario=request.user)
+    if request.method == "POST":
+        try:
+            servicio_soporte.responder(ticket, request.user, request.POST.get("mensaje"), es_staff=False)
+            messages.success(request, "Enviamos tu respuesta.")
+        except ValueError as e:
+            messages.error(request, str(e))
+        return redirect("ver_ticket", pk=ticket.pk)
+    return render(request, "usuarios/ticket.html", {
+        "ticket": ticket,
+        "respuestas": ticket.respuestas.select_related("autor"),
+    })
 
 
 @login_required

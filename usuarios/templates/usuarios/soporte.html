@@ -3,81 +3,67 @@
 {% block meta_description %}Contactate con el equipo de soporte de Finanxis: envianos tu consulta o reporte de problema.{% endblock %}
 
 {% block content %}
-<section class="container max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+<div class="mx-auto max-w-4xl">
+  <div class="flex flex-wrap items-end justify-between gap-4 aparece">
+    <div>
+      <h1 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">Soporte</h1>
+      <p class="mt-1 text-gray-600">Contanos qué pasó y te respondemos acá y por email.</p>
+    </div>
+    <a href="{% url 'mis_tickets' %}" class="btn btn-sm btn-secundario">Mis consultas</a>
+  </div>
 
-  <!-- Header -->
-  <header class="mb-6">
-    <h1 class="text-3xl font-extrabold text-gray-900">Soporte</h1>
-    <p class="text-gray-600 mt-1">Estamos para ayudarte. Dejanos tu consulta y te respondemos a la brevedad.</p>
-  </header>
-
-  <div class="grid gap-6 md:grid-cols-3">
-    <!-- Formulario -->
-    <div class="md:col-span-2 rounded-2xl border border-gray-200 bg-white p-5">
-      <form method="post" action="{% url 'soporte' %}" class="grid gap-4">
+  <div class="mt-6 grid gap-6 lg:grid-cols-12">
+    <section class="card p-5 sm:p-6 lg:col-span-8 aparece" style="--d:.06s" aria-label="Nueva consulta">
+      <form method="post" action="{% url 'soporte' %}" enctype="multipart/form-data" class="space-y-5" novalidate>
         {% csrf_token %}
-        <input type="hidden" name="next" value="{{ next_url }}">
+        {% if form.non_field_errors %}<div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ form.non_field_errors }}</div>{% endif %}
         <label class="block">
-          <span class="block text-xs text-gray-500 mb-1">Asunto</span>
-          <input name="asunto" required placeholder="Ej: Problema con retiro"
-                 class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 focus:border-primary focus:ring-0">
+          <span class="etiqueta">Asunto</span>
+          <input name="asunto" required maxlength="150" value="{{ form.asunto.value|default_if_none:'' }}" placeholder="Ej.: No me llegó un retiro" class="campo">
+          {% for e in form.asunto.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
         </label>
-
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="block">
-            <span class="block text-xs text-gray-500 mb-1">Categoría</span>
-            <select name="categoria" class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 focus:border-primary focus:ring-0">
-              <option value="operar">Operar (compra/venta/swap)</option>
-              <option value="deposito">Depósito</option>
-              <option value="retiro">Retiro</option>
-              <option value="verificacion">Verificación (KYC)</option>
-              <option value="seguridad">Seguridad / 2FA</option>
-              <option value="otros">Otros</option>
+            <span class="etiqueta">Tema</span>
+            <select name="categoria" class="campo">
+              {% for valor, nombre in form.fields.categoria.choices %}{% if valor %}<option value="{{ valor }}" {% if form.categoria.value == valor %}selected{% endif %}>{{ nombre }}</option>{% endif %}{% endfor %}
             </select>
           </label>
-
           <label class="block">
-            <span class="block text-xs text-gray-500 mb-1">Email de contacto</span>
-            <input name="email" type="email" required value="{{ request.user.email }}"
-                   class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 focus:border-primary focus:ring-0">
+            <span class="etiqueta">Urgencia</span>
+            <select name="prioridad" class="campo">
+              {% for valor, nombre in form.fields.prioridad.choices %}{% if valor %}<option value="{{ valor }}" {% if form.prioridad.value|default:'media' == valor %}selected{% endif %}>{{ nombre }}</option>{% endif %}{% endfor %}
+            </select>
           </label>
         </div>
-
         <label class="block">
-          <span class="block text-xs text-gray-500 mb-1">Mensaje</span>
-          <textarea name="mensaje" rows="5" required
-                    placeholder="Comentá el detalle del caso (fechas, montos, códigos, pantallazos si aplica)…"
-                    class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 focus:border-primary focus:ring-0"></textarea>
+          <span class="etiqueta">Mensaje</span>
+          <textarea name="mensaje" rows="6" required class="campo h-auto py-3" placeholder="Fechas, montos y códigos de comprobante o movimiento nos ayudan a resolverlo más rápido.">{{ form.mensaje.value|default_if_none:'' }}</textarea>
+          {% for e in form.mensaje.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
         </label>
-
-        <div class="flex items-center justify-end gap-2 pt-2">
-          <a href="{% url 'faq' %}" class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm hover:bg-gray-100">Ver FAQs</a>
-          <button type="submit" class="rounded-xl bg-primary text-dark font-semibold px-5 py-2.5 text-sm shadow-soft hover:opacity-90">
-            Enviar consulta
-          </button>
+        <div class="grid gap-4 sm:grid-cols-2">
+          <label class="block">
+            <span class="etiqueta">Email de contacto</span>
+            <input name="email" type="email" required value="{{ form.email.value|default_if_none:request.user.email }}" class="campo">
+            {% for e in form.email.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+          </label>
+          <label class="block">
+            <span class="etiqueta">Adjunto (opcional)</span>
+            <input type="file" name="adjunto" class="campo-archivo">
+            <span class="mt-1 block text-sm text-gray-500">Captura o PDF, hasta 5 MB.</span>
+            {% for e in form.adjunto.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+          </label>
         </div>
+        <button type="submit" class="btn btn-lg btn-primario w-full sm:w-auto">Enviar consulta</button>
       </form>
-    </div>
+    </section>
 
-    <!-- Lateral informativo -->
-    <aside class="rounded-2xl border border-gray-200 bg-white p-5 space-y-4 text-sm">
-      <div>
-        <h3 class="font-semibold text-gray-900">Tiempos de respuesta</h3>
-        <p class="text-gray-700 mt-1">Lunes a viernes 10–18h (AR). Prioridad alta para problemas de acceso y seguridad.</p>
-      </div>
-      <div class="border-t border-gray-200 pt-4">
-        <h3 class="font-semibold text-gray-900">Consejos</h3>
-        <ul class="mt-2 list-disc pl-5 text-gray-700">
-          <li>Incluí <b>códigos</b> (comprobante, transacción, retiro).</li>
-          <li>Agregá <b>montos y fechas</b> exactas si aplica.</li>
-          <li>Contanos qué <b>esperabas que pase</b> y qué ocurrió.</li>
-        </ul>
-      </div>
-      <div class="border-t border-gray-200 pt-4">
-        <h3 class="font-semibold text-gray-900">¿Preferís leer?</h3>
-        <p class="text-gray-700">Revisá la <a class="text-primary underline" href="{% url 'faq' %}">sección de Preguntas frecuentes</a>.</p>
-      </div>
+    <aside class="card p-5 sm:p-6 lg:col-span-4 aparece" style="--d:.1s">
+      <h2 class="font-bold text-gray-900">Horario</h2>
+      <p class="mt-1 text-sm text-gray-600">Lunes a viernes de 10 a 18 h. Los problemas de acceso y seguridad se atienden primero.</p>
+      <h2 class="mt-5 font-bold text-gray-900">¿Preferís leer?</h2>
+      <p class="mt-1 text-sm text-gray-600">Muchas respuestas están en <a href="{% url 'faq' %}" class="font-semibold text-gray-900 underline decoration-gray-300 underline-offset-2">Preguntas frecuentes</a>.</p>
     </aside>
   </div>
-</section>
+</div>
 {% endblock %}

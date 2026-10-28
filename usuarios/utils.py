@@ -29,11 +29,13 @@ def parse_monto(raw):
 
 
 def kyc_required(view):
-    """Exige email confirmado y KYC aprobado para operar con saldo."""
+    """Exige email confirmado, declaración jurada UIF y KYC aprobado para operar con saldo."""
     @wraps(view)
     def _wrapped(request, *args, **kwargs):
         if not request.user.email_confirmed:
             return redirect('verify_email_notice')
+        if request.user.declaracion_vigente is None:
+            return redirect('declaracion_jurada')
         if request.user.estado_verificacion != 'aprobado':
             return render(request, 'usuarios/no_verificado.html')
         return view(request, *args, **kwargs)

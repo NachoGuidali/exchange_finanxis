@@ -6,19 +6,21 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from usuarios.services import compliance, fondos
 from usuarios.services.comun import OperacionError
 
 from ..forms import DepositoARSForm, DepositoUSDTForm
+from ..templatetags.finanxis import money
 from ..utils import kyc_required, parse_monto, registrar_movimiento
 
 logger = logging.getLogger(__name__)
 
 
 NOMBRE_MONEDA = {'ARS': 'pesos', 'USD': 'dólares'}
-CAMPO_SALDO = {'ARS': 'saldo_ars', 'USD': 'saldo_usd'}
+CAMPO_SALDO = {'ARS': 'saldo_ars', 'USD': 'saldo_usd', 'USDT': 'saldo_usdt'}
 
 
 def _deposito_transferencia(request, moneda):
@@ -115,55 +117,68 @@ def _programar_verificacion(deposito_id):
         logger.warning("No se pudo encolar la verificación on-chain del depósito %s", deposito_id, exc_info=True)
 
 
+def _volver_a_retiro(moneda):
+    return redirect(f"{reverse('solicitar_retiro')}?moneda={moneda}")
+
+
 @login_required
 @kyc_required
 def solicitar_retiro(request):
-    if request.method == 'POST':
+    """Retiros: pesos y dólares por transferencia bancaria; USDT a una billetera (solicitar_retiro_cripto)."""
+    moneda = request.POST.get('moneda') if request.method == 'POST' else request.GET.get('moneda')
+    moneda = moneda if moneda in ('ARS', 'USD', 'USDT') else 'ARS'
+
+    if request.method == 'POST' and moneda in ('ARS', 'USD'):
         monto = parse_monto(request.POST.get('monto'))
         if monto is None:
             messages.error(request, "Monto inválido.")
-            return redirect('solicitar_retiro')
+            return _volver_a_retiro(moneda)
         try:
-            fondos.solicitar_retiro_ars(
-                request.user, monto,
+            retiro = fondos.solicitar_retiro_ars(
+                request.user, monto, moneda=moneda,
                 alias=(request.POST.get('alias') or '').strip(),
-                cbu=(request.POST.get('cbu') or '').strip(),
+                cbu=(request.POST.get('cbu') or '').strip().replace(' ', ''),
                 banco=(request.POST.get('banco') or '').strip(),
             )
         except compliance.LimiteExcedido as e:
             compliance.alerta_limite(request.user, e)
             messages.error(request, str(e))
-            return redirect('solicitar_retiro')
+            return _volver_a_retiro(moneda)
         except OperacionError as e:
             messages.error(request, str(e))
-            return redirect('solicitar_retiro')
+            return _volver_a_retiro(moneda)
 
-        messages.success(request, f"Solicitud de retiro enviada: ${monto} ARS")
+        messages.success(request, f"Pediste un retiro de {retiro.simbolo} {money(monto)}. Te avisamos cuando lo enviemos.")
         return redirect('dashboard')
 
-    return render(request, 'usuarios/solicitar_retiro.html')
+    return render(request, 'usuarios/solicitar_retiro.html', {
+        'moneda': moneda,
+        'saldo': getattr(request.user, CAMPO_SALDO[moneda]),
+        'redes': fondos.REDES_RETIRO,
+    })
+
 
 
 @login_required
 @kyc_required
 @require_POST
 def solicitar_retiro_cripto(request):
-    moneda = request.POST.get('moneda')
     monto = parse_monto(request.POST.get('monto'))
     if monto is None:
         messages.error(request, "Monto inválido.")
-        return redirect('solicitar_retiro')
+        return _volver_a_retiro('USDT')
     try:
         fondos.solicitar_retiro_crypto(
-            request.user, moneda, monto, (request.POST.get('direccion_wallet') or '').strip()
+            request.user, 'USDT', monto, (request.POST.get('direccion_wallet') or '').strip(),
+            red=request.POST.get('red', ''),
         )
     except compliance.LimiteExcedido as e:
         compliance.alerta_limite(request.user, e)
         messages.error(request, str(e))
-        return redirect('solicitar_retiro')
+        return _volver_a_retiro('USDT')
     except OperacionError as e:
         messages.error(request, str(e))
-        return redirect('solicitar_retiro')
+        return _volver_a_retiro('USDT')
 
-    messages.success(request, f"Solicitud de retiro enviada: {monto} {moneda}")
+    messages.success(request, f"Pediste un retiro de {money(monto)} USDT. Te avisamos cuando lo enviemos.")
     return redirect('dashboard')

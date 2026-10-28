@@ -39,7 +39,7 @@
                   {{ retiro.usuario.username }}
                 </a>
               </td>
-              <td class="px-3 py-2">$ {{ retiro.monto|money }}</td>
+              <td class="px-3 py-2 num whitespace-nowrap">{{ retiro.simbolo }} {{ retiro.monto|money }}</td>
               <td class="px-3 py-2">{{ retiro.alias|default:"—" }}</td>
               <td class="px-3 py-2 break-all font-mono text-xs">{{ retiro.cbu|default:"—" }}</td>
               <td class="px-3 py-2">{{ retiro.banco|default:"—" }}</td>
@@ -106,8 +106,8 @@
                   {{ retiro.usuario.username }}
                 </a>
               </td>
-              <td class="px-3 py-2">{{ retiro.moneda }}</td>
-              <td class="px-3 py-2">{{ retiro.monto|money }}</td>
+              <td class="px-3 py-2">{{ retiro.moneda }}{% if retiro.red %} <span class="text-gray-500">({{ retiro.red }})</span>{% endif %}</td>
+              <td class="px-3 py-2 num">{{ retiro.monto|money }}</td>
               <td class="px-3 py-2 break-all font-mono text-xs">{{ retiro.direccion_wallet }}</td>
               <td class="px-3 py-2">
                 <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium
@@ -119,8 +119,11 @@
               </td>
               <td class="px-3 py-2">
                 {% if retiro.estado == 'pendiente' %}
-                <form method="post" action="{% url 'aprobar_retiro_cripto' retiro.id %}">{% csrf_token %}
-                  <button class="rounded-lg bg-primary text-dark px-3 py-1 text-sm font-semibold hover:opacity-90">Aprobar</button>
+                <form method="post" action="{% url 'aprobar_retiro_cripto' retiro.id %}" class="flex flex-wrap items-center gap-2"
+                      onsubmit="return confirm('¿Ya enviaste {{ retiro.monto|money }} {{ retiro.moneda }} a {{ retiro.direccion_wallet|escapejs }}?')">{% csrf_token %}
+                  <input type="hidden" name="red" value="{{ retiro.red }}">
+                  <input type="text" name="txid" placeholder="Hash del envío (TXID)" autocomplete="off" class="campo h-9 w-56 font-mono text-xs">
+                  <button class="btn btn-sm btn-primario">Marcar enviado</button>
                 </form>
                 {% else %}
                 <span class="text-gray-500">—</span>

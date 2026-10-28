@@ -101,8 +101,8 @@ def deposito_usdt_creado_o_aprobado(sender, instance: DepositoUSDT, created, **k
 def retiro_ars_enviado_o_completado(sender, instance: RetiroARS, created, **kwargs):
     if getattr(instance, 'estado', None) in ('enviado', 'completado'):
         _marcar_salida(
-            importe=instance.monto, moneda='ARS', instance=instance,
-            detalle=f"Retiro ARS {instance.estado} #{instance.id}"
+            importe=instance.monto, moneda=instance.moneda, instance=instance,
+            detalle=f"Retiro {instance.moneda} {instance.estado} #{instance.id}"
         )
 
 @receiver(post_save, sender=RetiroCrypto)

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Consulta #{{ ticket.pk }} — Finanxis{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl">
+  <a href="{% url 'mis_tickets' %}" class="text-sm font-semibold text-gray-600 hover:text-gray-900">← Mis consultas</a>
+  <div class="mt-3 flex flex-wrap items-start justify-between gap-3 aparece">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-extrabold text-gray-900 sm:text-3xl">{{ ticket.asunto }}</h1>
+      <p class="mt-1 text-sm text-gray-500">#{{ ticket.pk }} · {{ ticket.get_categoria_display }}</p>
+    </div>
+    {% include "includes/estado_ticket.html" with estado=ticket.estado vista="cliente" %}
+  </div>
+
+  <section class="card mt-6 p-4 sm:p-6 aparece" style="--d:.06s">
+    {% include "includes/conversacion_ticket.html" with lado="cliente" %}
+
+    {% if ticket.estado == 'cerrado' %}
+      <p class="mt-6 rounded-xl bg-gray-100 px-4 py-3 text-sm text-gray-600">Esta consulta está cerrada. Si necesitás algo más, <a href="{% url 'soporte' %}" class="font-semibold text-gray-900 underline underline-offset-2">abrí una nueva</a>.</p>
+    {% else %}
+      <form method="post" class="mt-6 border-t border-gray-200 pt-5">
+        {% csrf_token %}
+        <label class="block">
+          <span class="etiqueta">Responder</span>
+          <textarea name="mensaje" rows="3" required class="campo h-auto py-3" placeholder="Escribí tu mensaje"></textarea>
+        </label>
+        <button class="btn btn-primario mt-3">Enviar</button>
+      </form>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

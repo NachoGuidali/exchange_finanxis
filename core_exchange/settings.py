@@ -224,6 +224,8 @@ PSAV_LEYENDA = "“Ariel Jesús Vandoni - Proveedor de Servicios de Activos Virt
 PASSWORD_RESET_TIMEOUT = 60 * 60 * 24  # 24 hs
 
 TYC_VERSION = "2025-09"
+# Versión del formulario de declaración jurada UIF (PEP, sujeto obligado, origen de fondos)
+DDJJ_VERSION = "2026-10"
 
 # Una cotización más vieja que esto bloquea compra/venta
 COTIZACION_MAX_EDAD_MIN = config("COTIZACION_MAX_EDAD_MIN", default=15, cast=int)

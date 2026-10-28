@@ -18,7 +18,7 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import localtime
 from django.views.decorators.http import require_POST
 
-from usuarios.services import cotizaciones, fondos, onchain
+from usuarios.services import cotizaciones, fondos, onchain, soporte
 from usuarios.services.auditoria import auditar
 from usuarios.services.comun import OperacionError
 
@@ -37,6 +37,7 @@ from ..models import (
     RetiroARS,
     RegistroAuditoria,
     RetiroCrypto,
+    SupportTicket,
     Usuario,
 )
 
@@ -194,12 +195,64 @@ def quitar_precio_manual(request):
 
 @login_required
 @user_passes_test(es_admin)
+def admin_tickets(request):
+    estado = request.GET.get('estado', 'abierto')
+    q = request.GET.get('q', '').strip()
+    qs = SupportTicket.objects.select_related('usuario').order_by('-actualizado_en')
+    if estado in dict(SupportTicket.ESTADOS):
+        qs = qs.filter(estado=estado)
+    if q:
+        filtro = (Q(asunto__icontains=q) | Q(mensaje__icontains=q) | Q(usuario__username__icontains=q) |
+                  Q(usuario__first_name__icontains=q) | Q(usuario__last_name__icontains=q) |
+                  Q(usuario__doc_nro__icontains=q) | Q(email__icontains=q))
+        if q.lstrip('#').isdigit():
+            filtro |= Q(pk=int(q.lstrip('#')))
+        qs = qs.filter(filtro)
+    conteo = dict(SupportTicket.objects.values_list('estado').annotate(n=Count('id')))
+    return render(request, 'usuarios/admin_tickets.html', {
+        'page_obj': Paginator(qs, 30).get_page(request.GET.get('page')),
+        'estado': estado,
+        'q': q,
+        'estados': [(v, n, conteo.get(v, 0)) for v, n in SupportTicket.ESTADOS],
+    })
+
+
+@login_required
+@user_passes_test(es_admin)
+def admin_ticket(request, pk):
+    ticket = get_object_or_404(SupportTicket.objects.select_related('usuario'), pk=pk)
+    if request.method == 'POST':
+        try:
+            if request.POST.get('accion') == 'estado':
+                soporte.cambiar_estado(ticket, request.POST.get('estado'), request.user)
+                messages.success(request, f"Ticket #{ticket.pk}: {ticket.get_estado_display().lower()}.")
+            else:
+                soporte.responder(ticket, request.user, request.POST.get('mensaje'), es_staff=True)
+                if request.POST.get('cerrar'):
+                    soporte.cambiar_estado(ticket, 'cerrado', request.user)
+                messages.success(request, "Respuesta enviada al cliente.")
+        except ValueError as e:
+            messages.error(request, str(e))
+        return redirect('admin_ticket', pk=ticket.pk)
+    return render(request, 'usuarios/admin_ticket.html', {
+        'ticket': ticket,
+        'respuestas': ticket.respuestas.select_related('autor'),
+        'otros': SupportTicket.objects.filter(usuario=ticket.usuario).exclude(pk=ticket.pk).order_by('-creado_en')[:5],
+        'estados': SupportTicket.ESTADOS,
+    })
+
+
+@login_required
+@user_passes_test(es_admin)
 def cambiar_estado_verificacion(request, user_id):
     usuario = get_object_or_404(Usuario, id=user_id)
 
     if request.method == 'POST':
         nuevo_estado = request.POST.get('estado')
-        if nuevo_estado in ['pendiente', 'aprobado', 'rechazado']:
+        if nuevo_estado == 'aprobado' and usuario.declaracion_vigente is None:
+            messages.error(request, f"{usuario.get_full_name() or usuario.username} todavía no completó la "
+                                    "declaración jurada (PEP y origen de fondos): no se puede aprobar.")
+        elif nuevo_estado in ['pendiente', 'aprobado', 'rechazado']:
             anterior = usuario.estado_verificacion
             usuario.estado_verificacion = nuevo_estado
             if nuevo_estado == 'aprobado':
@@ -574,10 +627,10 @@ def _resumen_plataforma(params):
     # en custodia: saldos actuales de los clientes + retiros pedidos que todavía no salieron
     saldos = Usuario.objects.aggregate(ARS=Sum('saldo_ars'), USDT=Sum('saldo_usdt'), USD=Sum('saldo_usd'))
     por_enviar = {m: Decimal('0') for m in MONEDAS_RESUMEN}
-    por_enviar['ARS'] = RetiroARS.objects.filter(estado__in=('pendiente', 'aprobado')).aggregate(
-        s=Sum('monto'))['s'] or Decimal('0')
-    for f in RetiroCrypto.objects.filter(estado='pendiente').values('moneda').annotate(s=Sum('monto')):
-        por_enviar[f['moneda']] = por_enviar.get(f['moneda'], 0) + (f['s'] or 0)
+    for qs in (RetiroARS.objects.filter(estado__in=('pendiente', 'aprobado')),
+               RetiroCrypto.objects.filter(estado='pendiente')):
+        for f in qs.values('moneda').annotate(s=Sum('monto')):
+            por_enviar[f['moneda']] = por_enviar.get(f['moneda'], 0) + (f['s'] or 0)
     custodia = [{'moneda': m, 'saldos': saldos[m] or Decimal('0'), 'por_enviar': por_enviar.get(m, 0),
                  'total': (saldos[m] or Decimal('0')) + por_enviar.get(m, 0)} for m in MONEDAS_RESUMEN]
 

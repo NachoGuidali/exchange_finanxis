@@ -12,7 +12,15 @@ from django.db.models import Sum
 from django.db.models.functions import Abs
 from django.utils import timezone
 
-from usuarios.models import AlertaCompliance, Cotizacion, ExchangeConfig, Movimiento, RetiroARS, RetiroCrypto
+from usuarios.models import (
+    AlertaCompliance,
+    Cotizacion,
+    DeclaracionJurada,
+    ExchangeConfig,
+    Movimiento,
+    RetiroARS,
+    RetiroCrypto,
+)
 from usuarios.services.comun import OperacionError
 
 VENTANA_FRACCIONAMIENTO = timedelta(hours=24)
@@ -49,11 +57,11 @@ def volumen_operado_30d(usuario):
 
 def retirado_24h_ars(usuario):
     desde = timezone.now() - timedelta(hours=24)
-    total = (RetiroARS.objects.filter(usuario=usuario, fecha_solicitud__gte=desde)
-             .exclude(estado='rechazado').aggregate(s=Sum('monto'))['s'] or Decimal('0'))
-    for r in (RetiroCrypto.objects.filter(usuario=usuario, fecha_solicitud__gte=desde)
-              .exclude(estado='rechazado').values('moneda').annotate(s=Sum('monto'))):
-        total += valor_ars(r['moneda'], r['s'])
+    total = Decimal('0')
+    for modelo in (RetiroARS, RetiroCrypto):
+        for r in (modelo.objects.filter(usuario=usuario, fecha_solicitud__gte=desde)
+                  .exclude(estado='rechazado').values('moneda').annotate(s=Sum('monto'))):
+            total += valor_ars(r['moneda'], r['s'])
     return total
 
 
@@ -130,3 +138,23 @@ def evaluar_retiro(usuario, *, descripcion, monto_ars, referencia=''):
             detalle=f"{descripcion} dentro de las 24 h de un depósito acreditado"[:255],
         ))
     return alertas
+
+
+# ---------------- Declaración jurada (PEP, sujeto obligado, origen de fondos) ----------------
+
+def registrar_declaracion(usuario, datos, *, version):
+    """
+    Guarda una versión nueva de la declaración jurada. Un cliente PEP genera una alerta para
+    que Cumplimiento aplique debida diligencia reforzada.
+    """
+    from usuarios.services.auditoria import auditar, ip_actual
+
+    ddjj = DeclaracionJurada.objects.create(usuario=usuario, version=version, ip=ip_actual(), **datos)
+    auditar(usuario, 'declaracion_jurada', ddjj, pep=ddjj.es_pep, sujeto_obligado=ddjj.es_sujeto_obligado,
+            origen=ddjj.origen_fondos)
+    if ddjj.es_pep:
+        AlertaCompliance.objects.create(
+            usuario=usuario, tipo='pep', referencia=f'DeclaracionJurada:{ddjj.pk}',
+            detalle=f"{ddjj.get_pep_tipo_display()}: {ddjj.pep_cargo} ({ddjj.pep_organismo})"[:255],
+        )
+    return ddjj

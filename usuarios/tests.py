@@ -3,6 +3,7 @@ import tempfile
 from datetime import timedelta
 from decimal import Decimal
 
+from django.conf import settings
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, TransactionTestCase, override_settings
@@ -12,7 +13,7 @@ from django.utils import timezone
 from .forms import DepositoARSForm
 from .models import (
     ApunteExchange, BoletoOperacion, Cotizacion, CuentaExchange, DepositoARS,
-    Movimiento, RegistroAuditoria, RetiroARS, RetiroCrypto, Usuario,
+    AlertaCompliance, Movimiento, Notificacion, RegistroAuditoria, RetiroARS, RetiroCrypto, SupportTicket, Usuario,
 )
 from .utils import parse_monto
 
@@ -28,7 +29,18 @@ def crear_usuario(username="cliente", aprobado=True, **saldos):
     for campo, valor in saldos.items():
         setattr(u, campo, Decimal(valor))
     u.save()
+    if aprobado:
+        crear_declaracion(u)
     return u
+
+
+def crear_declaracion(u, **extra):
+    from .models import DeclaracionJurada
+    datos = dict(version="test", es_pep=False, es_sujeto_obligado=False, actividad="Empleado",
+                 origen_fondos="sueldo", ingresos_mensuales="hasta_1m", volumen_mensual_previsto="hasta_1m",
+                 residencia_fiscal_exterior=False, declara_veracidad=True)
+    datos.update(extra)
+    return DeclaracionJurada.objects.create(usuario=u, **datos)
 
 
 def crear_cotizaciones(edad=timedelta(0)):
@@ -77,7 +89,7 @@ class RetiroCryptoTests(BaseTest):
     def test_monto_negativo_no_acredita_saldo(self):
         u = crear_usuario(saldo_usdt="10")
         self.client.force_login(u)
-        self.client.post(self.url, {"moneda": "USDT", "monto": "-1000000", "direccion_wallet": "T1"})
+        self.client.post(self.url, {"moneda": "USDT", "monto": "-1000000", "direccion_wallet": "T1", "red": "TRC20"})
         u.refresh_from_db()
         self.assertEqual(u.saldo_usdt, Decimal("10"))
         self.assertFalse(RetiroCrypto.objects.exists())
@@ -85,7 +97,7 @@ class RetiroCryptoTests(BaseTest):
     def test_moneda_ars_rechazada(self):
         u = crear_usuario(saldo_ars="500000")
         self.client.force_login(u)
-        self.client.post(self.url, {"moneda": "ARS", "monto": "500000", "direccion_wallet": "T1"})
+        self.client.post(self.url, {"moneda": "ARS", "monto": "500000", "direccion_wallet": "T1", "red": "TRC20"})
         u.refresh_from_db()
         self.assertEqual(u.saldo_ars, Decimal("500000"))
         self.assertFalse(RetiroCrypto.objects.exists())
@@ -93,13 +105,13 @@ class RetiroCryptoTests(BaseTest):
     def test_saldo_insuficiente(self):
         u = crear_usuario(saldo_usdt="5")
         self.client.force_login(u)
-        self.client.post(self.url, {"moneda": "USDT", "monto": "6", "direccion_wallet": "T1"})
+        self.client.post(self.url, {"moneda": "USDT", "monto": "6", "direccion_wallet": "T1", "red": "TRC20"})
         self.assertFalse(RetiroCrypto.objects.exists())
 
     def test_retiro_ok_descuenta_y_registra_negativo(self):
         u = crear_usuario(saldo_usdt="100")
         self.client.force_login(u)
-        self.client.post(self.url, {"moneda": "USDT", "monto": "40", "direccion_wallet": "T1"})
+        self.client.post(self.url, {"moneda": "USDT", "monto": "40", "direccion_wallet": "T1", "red": "TRC20"})
         u.refresh_from_db()
         self.assertEqual(u.saldo_usdt, Decimal("60"))
         mov = Movimiento.objects.get(usuario=u, tipo="retiro")
@@ -108,7 +120,7 @@ class RetiroCryptoTests(BaseTest):
     def test_requiere_kyc(self):
         u = crear_usuario(aprobado=False, saldo_usdt="100")
         self.client.force_login(u)
-        self.client.post(self.url, {"moneda": "USDT", "monto": "40", "direccion_wallet": "T1"})
+        self.client.post(self.url, {"moneda": "USDT", "monto": "40", "direccion_wallet": "T1", "red": "TRC20"})
         self.assertFalse(RetiroCrypto.objects.exists())
 
     def test_get_no_rompe(self):
@@ -116,21 +128,64 @@ class RetiroCryptoTests(BaseTest):
         self.assertEqual(self.client.get(self.url).status_code, 405)
 
     def test_rechazo_recredita_en_la_misma_moneda(self):
-        u = crear_usuario(saldo_usd="100")
+        u = crear_usuario(saldo_usdt="100")
         admin = crear_usuario("admin")
         admin.is_staff = True
         admin.save()
         self.client.force_login(u)
-        self.client.post(self.url, {"moneda": "USD", "monto": "30", "direccion_wallet": "T1"})
+        self.client.post(self.url, {"moneda": "USDT", "monto": "30", "direccion_wallet": "T1", "red": "TRC20"})
         r = RetiroCrypto.objects.get()
+        self.assertEqual(r.red, "TRC20")
         self.client.force_login(admin)
         self.client.post(reverse("rechazar_retiro_cripto", args=[r.id]))
         u.refresh_from_db()
-        self.assertEqual((u.saldo_usd, u.saldo_usdt), (Decimal("100"), Decimal("0")))
+        self.assertEqual((u.saldo_usdt, u.saldo_usd), (Decimal("100"), Decimal("0")))
+
+    def test_dolares_a_billetera_rechazado_y_red_obligatoria(self):
+        u = crear_usuario(saldo_usd="100", saldo_usdt="100")
+        self.client.force_login(u)
+        # el formulario cripto siempre retira USDT: aunque manden USD, no toca dólares
+        self.client.post(self.url, {"moneda": "USD", "monto": "30", "direccion_wallet": "T1", "red": "TRC20"})
+        self.client.post(self.url, {"monto": "30", "direccion_wallet": "T1"})  # sin red
+        u.refresh_from_db()
+        self.assertEqual(u.saldo_usd, Decimal("100"))
+        self.assertEqual(RetiroCrypto.objects.filter(moneda="USD").count(), 0)
+        self.assertEqual(RetiroCrypto.objects.count(), 1)
 
 
 class RetiroARSTests(BaseTest):
     url = reverse("solicitar_retiro")
+
+    def test_retiro_en_dolares_a_cuenta_bancaria(self):
+        crear_cotizaciones()
+        u = crear_usuario(saldo_usd="500", saldo_ars="1000")
+        admin = crear_usuario("admin")
+        admin.is_staff = True
+        admin.save()
+        self.client.force_login(u)
+        self.client.post(self.url, {"moneda": "USD", "monto": "200", "cbu": "0" * 22, "banco": "B"})
+        u.refresh_from_db()
+        self.assertEqual((u.saldo_usd, u.saldo_ars), (Decimal("300"), Decimal("1000")))
+        r = RetiroARS.objects.get()
+        self.assertEqual((r.moneda, r.cbu), ("USD", "0" * 22))
+
+        self.client.force_login(admin)
+        self.client.post(reverse("aprobar_retiro", args=[r.id]))
+        with self.settings(BOLETOS_TOLERAR_ERROR_PDF=True), self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("enviar_retiro", args=[r.id]))
+        r.refresh_from_db()
+        self.assertEqual(r.estado, "enviado")
+        self.assertEqual(BoletoOperacion.objects.get(usuario=u).tipo, "retiro_usd")
+        self.assertTrue(ApunteExchange.objects.filter(categoria="salida", moneda="USD").exists())
+
+    def test_destino_valido(self):
+        u = crear_usuario(saldo_ars="1000")
+        self.client.force_login(u)
+        for datos in ({}, {"alias": "a"}, {"cbu": "123"}, {"alias": "con espacios no"}):
+            self.client.post(self.url, {"monto": "10", **datos})
+        self.assertFalse(RetiroARS.objects.exists())
+        self.client.post(self.url, {"monto": "10", "cbu": "1" * 22})
+        self.assertEqual(RetiroARS.objects.get().moneda, "ARS")
 
     def test_montos_invalidos(self):
         u = crear_usuario(saldo_ars="1000")
@@ -371,10 +426,10 @@ class LibroMayorTests(BaseTest):
         r = trading.cotizar(u, "venta", "USD", Decimal("2"), Cotizacion.objects.get(moneda="USD"))
         trading.ejecutar_cotizacion(u, r.id)
 
-        r1 = fondos.solicitar_retiro_ars(u, Decimal("1000"), alias="a")
+        r1 = fondos.solicitar_retiro_ars(u, Decimal("1000"), alias="mi.alias")
         fondos.aprobar_retiro_ars(r1.pk)
         fondos.enviar_retiro_ars(r1.pk, self.admin)
-        r2 = fondos.solicitar_retiro_crypto(u, "USDT", Decimal("1"), "T1")
+        r2 = fondos.solicitar_retiro_crypto(u, "USDT", Decimal("1"), "T1", red="TRC20")
         fondos.rechazar_retiro_crypto(r2.pk, self.admin)
         self.assertConciliado()
 
@@ -426,7 +481,7 @@ class LibroMayorTests(BaseTest):
         u = crear_usuario(saldo_ars="1000")
         self.call_command("ledger_apertura", verbosity=0)
         from .services import fondos
-        r = fondos.solicitar_retiro_ars(u, Decimal("300"), alias="a")
+        r = fondos.solicitar_retiro_ars(u, Decimal("300"), alias="mi.alias")
         fondos.aprobar_retiro_ars(r.pk)
         self.admin.is_superuser = True  # el admin de Django exige permisos del modelo
         self.admin.save()
@@ -460,7 +515,7 @@ class ConcurrenciaTests(TransactionTestCase):
         def retirar():
             try:
                 barrera.wait()
-                fondos.solicitar_retiro_ars(u, Decimal("80"), alias="a")
+                fondos.solicitar_retiro_ars(u, Decimal("80"), alias="mi.alias")
                 resultados.append("ok")
             except OperacionError:
                 resultados.append("rechazado")
@@ -577,8 +632,8 @@ class ComplianceTests(BaseTest):
     def test_limite_diario_de_retiro(self):
         u = crear_usuario(saldo_ars="500000")
         self.client.force_login(u)
-        self.client.post(reverse("solicitar_retiro"), {"monto": "150000", "alias": "a"})
-        self.client.post(reverse("solicitar_retiro"), {"monto": "100000", "alias": "a"})  # 250k > 200k
+        self.client.post(reverse("solicitar_retiro"), {"monto": "150000", "alias": "mi.alias"})
+        self.client.post(reverse("solicitar_retiro"), {"monto": "100000", "alias": "mi.alias"})  # 250k > 200k
         self.assertEqual(RetiroARS.objects.count(), 1)
         self.assertEqual(self.alertas("limite_excedido").count(), 1)
 
@@ -587,7 +642,7 @@ class ComplianceTests(BaseTest):
         u = crear_usuario()
         dep = DepositoARS.objects.create(usuario=u, monto=Decimal("50000"), comprobante="c.png")
         fondos.aprobar_deposito_ars(dep.pk, self.admin)
-        fondos.solicitar_retiro_ars(u, Decimal("49000"), alias="a")
+        fondos.solicitar_retiro_ars(u, Decimal("49000"), alias="mi.alias")
         self.assertEqual(self.alertas("retiro_rapido").count(), 1)
 
     def test_resolver_alerta_exige_nota_y_audita(self):
@@ -756,6 +811,7 @@ class AuditoriaTests(BaseTest):
         admin.is_staff = True
         admin.save()
         objetivo = crear_usuario("nuevo", aprobado=False)
+        crear_declaracion(objetivo)
         self.client.force_login(admin)
         self.client.post(reverse("cambiar_estado_verificacion", args=[objetivo.id]), {"estado": "aprobado"})
         reg = RegistroAuditoria.objects.get(accion="kyc_cambio_estado")
@@ -918,6 +974,7 @@ class PanelPendientesTests(BaseTest):
         self.client.force_login(self.admin)
         self.cliente = crear_usuario()
         self.nuevo = crear_usuario("nuevo", aprobado=False)
+        crear_declaracion(self.nuevo)
         self.dep = DepositoARS.objects.create(usuario=self.cliente, monto=Decimal("1500"), comprobante="c.png")
 
     def test_cola_ordenada_y_filtrable(self):
@@ -1262,3 +1319,131 @@ class DepositoDolaresTests(BaseTest):
             resp = self.client.get(reverse("depositar_usdt"))
         self.assertContains(resp, "Twallet")
         self.assertEqual([v for v, _ in resp.context["form"].fields["red"].choices], ["TRC20"])
+
+
+@override_settings(SOPORTE_TO=["soporte@test.local"])
+class SoporteTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.cli = crear_usuario()
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+
+    def abrir(self):
+        self.client.force_login(self.cli)
+        return self.client.post(reverse("soporte"), {
+            "asunto": "No me llegó el retiro", "categoria": "pagos", "prioridad": "alta",
+            "mensaje": "Pedí un retiro ayer", "email": "cli@test.local",
+        })
+
+    def test_cliente_abre_ticket_y_avisa_al_equipo(self):
+        from django.core import mail
+        resp = self.abrir()
+        t = SupportTicket.objects.get()
+        self.assertRedirects(resp, reverse("ver_ticket", args=[t.pk]), fetch_redirect_response=False)
+        self.assertEqual(t.estado, "abierto")
+        self.assertEqual({tuple(m.to) for m in mail.outbox}, {("soporte@test.local",), ("cli@test.local",)})
+        self.assertContains(self.client.get(reverse("mis_tickets")), "No me llegó el retiro")
+
+    def test_conversacion_y_estados(self):
+        from django.core import mail
+        self.abrir()
+        t = SupportTicket.objects.get()
+        mail.outbox.clear()
+
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse("admin_tickets")), "No me llegó el retiro")
+        self.client.post(reverse("admin_ticket", args=[t.pk]), {"mensaje": "Ya salió, revisá en 1 hora"})
+        t.refresh_from_db()
+        self.assertEqual(t.estado, "respondido")
+        self.assertEqual(mail.outbox[-1].to, ["cli@test.local"])
+        self.assertTrue(Notificacion.objects.filter(usuario=self.cli).exists())
+
+        # el cliente responde: vuelve a abierto
+        self.client.force_login(self.cli)
+        self.client.post(reverse("ver_ticket", args=[t.pk]), {"mensaje": "Gracias, llegó"})
+        t.refresh_from_db()
+        self.assertEqual(t.estado, "abierto")
+        self.assertEqual(t.respuestas.count(), 2)
+
+        # el equipo responde y cierra; el cliente ya no puede responder
+        self.client.force_login(self.admin)
+        self.client.post(reverse("admin_ticket", args=[t.pk]), {"mensaje": "Genial", "cerrar": "1"})
+        t.refresh_from_db()
+        self.assertEqual(t.estado, "cerrado")
+        self.client.force_login(self.cli)
+        self.client.post(reverse("ver_ticket", args=[t.pk]), {"mensaje": "otra cosa"})
+        self.assertEqual(t.respuestas.count(), 3)
+
+    def test_permisos(self):
+        self.abrir()
+        t = SupportTicket.objects.get()
+        self.client.force_login(crear_usuario("otro"))
+        self.assertEqual(self.client.get(reverse("ver_ticket", args=[t.pk])).status_code, 404)
+        self.assertEqual(self.client.get(reverse("admin_tickets")).status_code, 302)
+
+
+
+class DeclaracionJuradaTests(BaseTest):
+    DATOS = {
+        "es_pep": "no", "es_sujeto_obligado": "no", "actividad": "Comerciante", "origen_fondos": "comercial",
+        "ingresos_mensuales": "1m_5m", "volumen_mensual_previsto": "hasta_1m",
+        "residencia_fiscal_exterior": "no", "declara_veracidad": "on",
+    }
+
+    def setUp(self):
+        super().setUp()
+        self.u = Usuario.objects.create_user("nuevo", "n@test.com", "Clave-Segura-123", email_confirmed=True)
+        self.client.force_login(self.u)
+
+    def test_sin_declaracion_no_opera(self):
+        self.assertRedirects(self.client.get(reverse("operar")), reverse("declaracion_jurada"),
+                             fetch_redirect_response=False)
+        self.assertRedirects(self.client.get(reverse("dashboard")), reverse("declaracion_jurada"),
+                             fetch_redirect_response=False)
+
+    def test_completa_y_queda_auditada(self):
+        resp = self.client.post(reverse("declaracion_jurada"), self.DATOS)
+        self.assertRedirects(resp, reverse("dashboard"), fetch_redirect_response=False)
+        d = self.u.declaracion_vigente
+        self.assertEqual((d.es_pep, d.origen_fondos, d.version), (False, "comercial", settings.DDJJ_VERSION))
+        self.assertTrue(RegistroAuditoria.objects.filter(accion="declaracion_jurada").exists())
+        self.assertFalse(AlertaCompliance.objects.exists())
+        # con declaración pero sin KYC: pantalla de verificación
+        self.assertContains(self.client.get(reverse("operar")), "Estamos verificando tu identidad")
+
+    def test_validaciones(self):
+        casos = [
+            {**self.DATOS, "declara_veracidad": ""},             # sin confirmar
+            {**self.DATOS, "es_pep": "si"},                       # PEP sin cargo
+            {**self.DATOS, "origen_fondos": "otro"},              # otro sin detalle
+            {**self.DATOS, "residencia_fiscal_exterior": "si"},   # sin país
+            {**self.DATOS, "es_pep": ""},                         # sin responder
+        ]
+        for datos in casos:
+            self.assertEqual(self.client.post(reverse("declaracion_jurada"), datos).status_code, 200)
+        self.assertIsNone(self.u.declaracion_vigente)
+
+    def test_pep_genera_alerta_y_se_guarda_historial(self):
+        self.client.post(reverse("declaracion_jurada"), self.DATOS)
+        self.client.post(reverse("declaracion_jurada"), {
+            **self.DATOS, "es_pep": "si", "pep_tipo": "familiar", "pep_cargo": "Intendente", "pep_organismo": "Municipio",
+        })
+        self.assertEqual(self.u.declaraciones.count(), 2)
+        self.assertTrue(self.u.declaracion_vigente.es_pep)
+        alerta = AlertaCompliance.objects.get(tipo="pep")
+        self.assertIn("Intendente", alerta.detalle)
+
+    def test_admin_no_aprueba_kyc_sin_declaracion(self):
+        admin = crear_usuario("admin")
+        admin.is_staff = True
+        admin.save()
+        self.client.force_login(admin)
+        self.client.post(reverse("cambiar_estado_verificacion", args=[self.u.pk]), {"estado": "aprobado"})
+        self.u.refresh_from_db()
+        self.assertEqual(self.u.estado_verificacion, "pendiente")
+        crear_declaracion(self.u)
+        self.client.post(reverse("cambiar_estado_verificacion", args=[self.u.pk]), {"estado": "aprobado"})
+        self.u.refresh_from_db()
+        self.assertEqual(self.u.estado_verificacion, "aprobado")

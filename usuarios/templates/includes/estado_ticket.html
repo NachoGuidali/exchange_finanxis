@@ -1,0 +1,8 @@
+{# Etiqueta del estado de un ticket. vista="cliente" lo dice desde el lado del cliente. #}
+{% if estado == 'abierto' %}
+  <span class="etiqueta-estado shrink-0 bg-amber-50 text-amber-800">{% if vista == 'cliente' %}Esperando respuesta{% else %}Abierto{% endif %}</span>
+{% elif estado == 'respondido' %}
+  <span class="etiqueta-estado shrink-0 bg-sky-50 text-sky-800">{% if vista == 'cliente' %}Te respondimos{% else %}Respondido{% endif %}</span>
+{% else %}
+  <span class="etiqueta-estado shrink-0 bg-gray-100 text-gray-600">Cerrado</span>
+{% endif %}

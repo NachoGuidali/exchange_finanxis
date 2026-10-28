@@ -30,3 +30,8 @@ def auditar(actor, accion, objeto='', **detalle):
         detalle={k: (v if isinstance(v, (int, float, bool, type(None))) else str(v)) for k, v in detalle.items()},
         ip=_ip(request_actual()),
     )
+
+
+def ip_actual():
+    """IP real del pedido en curso (o None fuera de un request)."""
+    return _ip(request_actual())

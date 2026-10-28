@@ -37,6 +37,26 @@
         <p class="text-sm text-gray-600">Tel: {{ usuario.telefono }}</p>
       </div>
       <div class="card p-4">
+        <h3 class="font-semibold mb-2">Declaración jurada</h3>
+        {% with d=usuario.declaracion_vigente %}
+        {% if d %}
+          <dl class="space-y-1 text-sm">
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">PEP</dt><dd class="text-right {% if d.es_pep %}font-semibold text-rose-700{% else %}text-gray-900{% endif %}">{% if d.es_pep %}Sí: {{ d.get_pep_tipo_display|lower }}{% else %}No{% endif %}</dd></div>
+            {% if d.es_pep %}<div class="flex justify-between gap-3"><dt class="text-gray-500">Cargo</dt><dd class="text-right text-gray-900">{{ d.pep_cargo }} ({{ d.pep_organismo }})</dd></div>{% endif %}
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">Sujeto obligado</dt><dd class="text-right text-gray-900">{% if d.es_sujeto_obligado %}Sí: {{ d.sujeto_obligado_actividad }}{% else %}No{% endif %}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">Actividad</dt><dd class="text-right text-gray-900">{{ d.actividad }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">Origen de fondos</dt><dd class="text-right text-gray-900">{{ d.get_origen_fondos_display }}{% if d.origen_detalle %}: {{ d.origen_detalle }}{% endif %}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">Ingresos</dt><dd class="text-right text-gray-900">{{ d.get_ingresos_mensuales_display }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">Operaría por mes</dt><dd class="text-right text-gray-900">{{ d.get_volumen_mensual_previsto_display }}</dd></div>
+            <div class="flex justify-between gap-3"><dt class="text-gray-500">Residencia fiscal exterior</dt><dd class="text-right text-gray-900">{% if d.residencia_fiscal_exterior %}{{ d.residencia_fiscal_pais }} ({{ d.residencia_fiscal_nif }}){% else %}No{% endif %}</dd></div>
+          </dl>
+          <p class="mt-2 text-xs text-gray-500">Declarada el {{ d.fecha|date:"d/m/Y H:i" }}{% if d.ip %} desde {{ d.ip }}{% endif %}. Versiones: {{ usuario.declaraciones.count }}.</p>
+        {% else %}
+          <p class="text-sm font-semibold text-rose-700">No la completó. No se puede aprobar su identidad.</p>
+        {% endif %}
+        {% endwith %}
+      </div>
+      <div class="card p-4">
         <h3 class="font-semibold mb-2">Domicilio</h3>
         <p class="text-sm text-gray-600">{{ usuario.calle }} {{ usuario.numero_calle }}, {{ usuario.localidad }}, {{ usuario.provincia }}, {{ usuario.pais }}</p>
       </div>
@@ -69,20 +89,20 @@
           </ul>
         </div>
         <div class="card p-4">
-          <h3 class="font-semibold mb-2">Retiros (ARS)</h3>
+          <h3 class="font-semibold mb-2">Retiros bancarios</h3>
           <ul class="text-sm divide-y divide-gray-200">
             {% for r in retiros %}
-            <li class="py-2 flex justify-between"><span>$ {{ r.monto|money }} — {{ r.estado }}</span><span class="text-gray-500">{{ r.fecha_creacion }}</span></li>
+            <li class="py-2 flex justify-between gap-3"><span>{{ r.simbolo }} {{ r.monto|money }} — {{ r.estado }}</span><span class="text-gray-500">{{ r.fecha_solicitud|date:"d/m/Y H:i" }}</span></li>
             {% empty %}<li class="py-2 text-gray-500">Sin retiros.</li>{% endfor %}
           </ul>
         </div>
       </div>
 
       <div class="card p-4">
-        <h3 class="font-semibold mb-2">Retiros CRYPTO</h3>
+        <h3 class="font-semibold mb-2">Retiros USDT</h3>
         <ul class="text-sm divide-y divide-gray-200">
           {% for rc in retiros_crypto %}
-          <li class="py-2 flex justify-between"><span>{{ rc.moneda }} {{ rc.monto|money }} — {{ rc.estado }}</span><span class="text-gray-500">{{ rc.fecha_creacion }}</span></li>
+          <li class="py-2 flex justify-between"><span>{{ rc.moneda }} {{ rc.monto|money }} — {{ rc.estado }}</span><span class="text-gray-500">{{ rc.fecha_solicitud|date:"d/m/Y H:i" }}</span></li>
           {% empty %}<li class="py-2 text-gray-500">Sin retiros crypto.</li>{% endfor %}
         </ul>
       </div>

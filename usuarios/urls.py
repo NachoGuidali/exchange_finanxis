@@ -51,6 +51,7 @@ urlpatterns = [
     path("boletos/<str:numero>/descargar/", descargar_boleto, name="descargar_boleto"),
     path('perfil/', perfil, name='perfil'),
     path('configuracion/', configuracion, name='configuracion'),
+    path('declaracion-jurada/', views.declaracion_jurada, name='declaracion_jurada'),
 
     # Acciones de configuración
     path('configuracion/perfil/actualizar/', actualizar_perfil, name='actualizar_perfil'),
@@ -72,6 +73,7 @@ urlpatterns = [
     path("movimientos/exportar/", exportar_movimientos, name="movimientos_exportar"),
 
     path("soporte/mis-tickets/", mis_tickets, name="mis_tickets"),
+    path("soporte/tickets/<int:pk>/", views.ver_ticket, name="ver_ticket"),
     #confirmacion email
     path('auth/verify-email/', verify_email_notice, name='verify_email_notice'),
     path('auth/verify/<uidb64>/<token>/', verify_email, name='verify_email'),
@@ -119,6 +121,8 @@ urlpatterns = [
     path('admin-dashboard/parametros/', views.parametros_exchange, name='parametros_exchange'),
     path('admin-dashboard/movimientos/', views.admin_movimientos, name='admin_movimientos'),
     path('admin-dashboard/cotizaciones/', views.admin_cotizaciones, name='admin_cotizaciones'),
+    path('admin-dashboard/soporte/', views.admin_tickets, name='admin_tickets'),
+    path('admin-dashboard/soporte/<int:pk>/', views.admin_ticket, name='admin_ticket'),
     path('admin-dashboard/cotizaciones/actualizar/', views.actualizar_cotizaciones_admin, name='actualizar_cotizaciones_admin'),
     path('admin-dashboard/cotizaciones/manual/', views.fijar_precio_manual, name='fijar_precio_manual'),
     path('admin-dashboard/cotizaciones/manual/quitar/', views.quitar_precio_manual, name='quitar_precio_manual'),

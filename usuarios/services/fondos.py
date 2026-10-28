@@ -9,6 +9,8 @@ Ciclo de un retiro en el mayor:
 
 Toda acción de un admin queda en RegistroAuditoria.
 """
+import re
+
 from django.conf import settings
 from django.db import transaction
 from django.utils.timezone import localtime
@@ -38,7 +40,7 @@ from usuarios.services.ledger import (
     cuenta_usuario,
     registrar_asiento,
 )
-from usuarios.utils import MONEDAS_CRYPTO, crear_notificacion, registrar_movimiento
+from usuarios.utils import crear_notificacion, registrar_movimiento
 
 
 def _bloquear(modelo, pk):
@@ -168,25 +170,44 @@ def _reservar_retiro(usuario, moneda, monto, descripcion, crear_documento):
     return retiro
 
 
+ALIAS_RE = re.compile(r'^[A-Za-z0-9.-]{6,20}$')
+CBU_RE = re.compile(r'^\d{22}$')
+
+
 @transaction.atomic
-def solicitar_retiro_ars(usuario, monto, *, alias, cbu='', banco=''):
-    if not alias:
-        raise OperacionError("Ingresá el alias de destino.")
+def solicitar_retiro_ars(usuario, monto, *, alias='', cbu='', banco='', moneda='ARS'):
+    """Retiro por transferencia bancaria a una cuenta en pesos o en dólares."""
+    if moneda not in ('ARS', 'USD'):
+        raise OperacionError("Moneda inválida.")
+    if not alias and not cbu:
+        raise OperacionError("Ingresá el alias o el CBU/CVU de destino.")
+    if alias and not ALIAS_RE.match(alias):
+        raise OperacionError("El alias tiene que tener de 6 a 20 caracteres: letras, números, punto o guion.")
+    if cbu and not CBU_RE.match(cbu):
+        raise OperacionError("El CBU/CVU tiene que tener 22 números.")
+    destino = alias or cbu
     return _reservar_retiro(
-        usuario, 'ARS', monto, f'Solicitud de retiro ARS ({alias})',
-        lambda u: RetiroARS.objects.create(usuario=u, alias=alias, cbu=cbu, banco=banco, monto=monto),
+        usuario, moneda, monto, f'Solicitud de retiro {moneda} ({destino})',
+        lambda u: RetiroARS.objects.create(usuario=u, moneda=moneda, alias=alias, cbu=cbu,
+                                           banco=banco, monto=monto),
     )
 
 
+REDES_RETIRO = ('TRC20', 'ERC20', 'BEP20')
+
+
 @transaction.atomic
-def solicitar_retiro_crypto(usuario, moneda, monto, wallet):
-    if moneda not in MONEDAS_CRYPTO:
+def solicitar_retiro_crypto(usuario, moneda, monto, wallet, red=''):
+    # los dólares se retiran por transferencia bancaria (solicitar_retiro_ars con moneda USD)
+    if moneda != 'USDT':
         raise OperacionError("Moneda inválida.")
+    if red not in REDES_RETIRO:
+        raise OperacionError("Elegí la red de destino.")
     if not wallet:
         raise OperacionError("Ingresá la dirección de destino.")
     retiro = _reservar_retiro(
         usuario, moneda, monto, f'Solicitud de retiro {moneda} - pendiente',
-        lambda u: RetiroCrypto.objects.create(usuario=u, moneda=moneda, monto=monto,
+        lambda u: RetiroCrypto.objects.create(usuario=u, moneda=moneda, monto=monto, red=red,
                                               direccion_wallet=wallet, estado='pendiente'),
     )
     crear_notificacion(usuario, f"Tu retiro de {monto} {moneda} está pendiente de aprobación.")
@@ -200,7 +221,7 @@ def aprobar_retiro_ars(retiro_id, admin=None):
         raise OperacionError("El retiro ya fue procesado.")
     retiro.estado = 'aprobado'
     retiro.save()
-    auditar(admin, 'retiro_aprobado', retiro, moneda='ARS', monto=retiro.monto)
+    auditar(admin, 'retiro_aprobado', retiro, moneda=retiro.moneda, monto=retiro.monto)
     return retiro
 
 
@@ -235,10 +256,10 @@ def enviar_retiro_ars(retiro_id, admin):
     retiro.estado = 'enviado'
     retiro.save()
     _enviar_retiro(
-        retiro, 'ARS', admin, tipo_bol='retiro_ars',
-        descripcion=(f'Retiro de ${retiro.monto} ARS enviado por admin a {retiro.alias} / '
-                     f'{retiro.cbu or "s/CBU"} ({retiro.banco or "s/banco"})'),
-        tasa=f"Alias/CBU: {retiro.alias} / {retiro.cbu or '—'}",
+        retiro, retiro.moneda, admin, tipo_bol='retiro_usd' if retiro.moneda == 'USD' else 'retiro_ars',
+        descripcion=(f'Retiro de {retiro.simbolo}{retiro.monto} {retiro.moneda} enviado por admin a '
+                     f'{retiro.destino} ({retiro.banco or "s/banco"})'),
+        tasa=f"Cuenta destino: {retiro.destino}{f' ({retiro.banco})' if retiro.banco else ''}",
     )
     return retiro
 
@@ -251,6 +272,7 @@ def enviar_retiro_crypto(retiro_id, admin, *, red='', txid=''):
     retiro.estado = 'enviado'
     retiro.admin_responsable = admin
     retiro.save()
+    red = red or retiro.red  # la que eligió el cliente, salvo que el admin indique otra
     onchain = {
         'red': red,
         'origen': '(custodia interna)',
@@ -290,7 +312,7 @@ def rechazar_retiro_ars(retiro_id, admin):
     retiro = _bloquear(RetiroARS, retiro_id)
     if retiro.estado not in ('pendiente', 'aprobado'):
         raise OperacionError("El retiro ya fue procesado.")
-    return _rechazar_retiro(retiro, 'ARS', admin)
+    return _rechazar_retiro(retiro, retiro.moneda, admin)
 
 
 @transaction.atomic

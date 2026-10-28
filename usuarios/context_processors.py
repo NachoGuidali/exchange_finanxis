@@ -10,7 +10,7 @@ def pendientes_admin(request):
     user = getattr(request, "user", None)
     if not (user and user.is_authenticated and user.is_staff and request.path.startswith("/admin-dashboard")):
         return {}
-    from .models import AlertaCompliance, DepositoARS, DepositoUSDT, RetiroARS, RetiroCrypto, Usuario
+    from .models import AlertaCompliance, DepositoARS, DepositoUSDT, RetiroARS, RetiroCrypto, SupportTicket, Usuario
 
     p = {
         "kyc": Usuario.objects.filter(estado_verificacion="pendiente").count(),
@@ -21,6 +21,8 @@ def pendientes_admin(request):
         "alertas": AlertaCompliance.objects.filter(estado="abierta").count(),
     }
     p["total"] = sum(p.values())
+    # los tickets se cuentan aparte: no son decisiones sobre dinero o identidad
+    p["tickets"] = SupportTicket.objects.filter(estado="abierto").count()
 
     # aviso en la barra lateral: precio manual activo o cotización vencida
     from .services.cotizaciones import FUENTES, ultima

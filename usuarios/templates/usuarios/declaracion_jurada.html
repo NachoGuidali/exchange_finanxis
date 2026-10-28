@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Declaración jurada — Finanxis{% endblock %}
+{% block meta_description %}Declaración jurada de Persona Expuesta Políticamente, Sujeto Obligado y origen de los fondos.{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-3xl">
+  <div class="aparece">
+    <h1 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">Declaración jurada</h1>
+    <p class="mt-1 text-gray-600">
+      {% if vigente %}Tu última declaración es del {{ vigente.fecha|date:"d/m/Y" }}. Si algo cambió, actualizala acá: queda guardada como una versión nueva.
+      {% else %}Como proveedor de servicios de activos virtuales, la normativa de la UIF nos pide estos datos antes de que operes. Lleva un par de minutos.{% endif %}
+    </p>
+  </div>
+
+  <form method="post" class="mt-6 space-y-6" novalidate>
+    {% csrf_token %}
+    {% if form.non_field_errors %}<div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ form.non_field_errors }}</div>{% endif %}
+
+    <!-- PEP -->
+    <section class="card p-5 sm:p-6 aparece" style="--d:.04s" aria-labelledby="t-pep">
+      <h2 id="t-pep" class="text-lg font-bold text-gray-900">Persona Expuesta Políticamente</h2>
+      <p class="mt-1 text-sm text-gray-600">Es PEP quien ejerce o ejerció en los últimos años una función pública importante (por ejemplo funcionarios, legisladores, jueces, autoridades de partidos, sindicatos o empresas del Estado), y también sus familiares y allegados cercanos.</p>
+      <label class="mt-4 block sm:max-w-xs">
+        <span class="etiqueta">{{ form.es_pep.label }}</span>
+        <select name="es_pep" class="campo" data-condicion="pep">
+          {% for v, n in form.fields.es_pep.choices %}<option value="{{ v }}" {% if form.es_pep.value == v %}selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+        {% for e in form.es_pep.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+      </label>
+      <div class="mt-4 grid gap-4 sm:grid-cols-3" data-si="pep">
+        <label class="block">
+          <span class="etiqueta">Condición</span>
+          <select name="pep_tipo" class="campo">
+            <option value="">Elegí</option>
+            {% for v, n in form.fields.pep_tipo.choices %}{% if v %}<option value="{{ v }}" {% if form.pep_tipo.value == v %}selected{% endif %}>{{ n }}</option>{% endif %}{% endfor %}
+          </select>
+          {% for e in form.pep_tipo.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Cargo o función</span>
+          <input name="pep_cargo" value="{{ form.pep_cargo.value|default_if_none:'' }}" maxlength="150" class="campo">
+          {% for e in form.pep_cargo.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Organismo</span>
+          <input name="pep_organismo" value="{{ form.pep_organismo.value|default_if_none:'' }}" maxlength="150" class="campo">
+          {% for e in form.pep_organismo.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+      </div>
+    </section>
+
+    <!-- Sujeto obligado -->
+    <section class="card p-5 sm:p-6 aparece" style="--d:.08s" aria-labelledby="t-so">
+      <h2 id="t-so" class="text-lg font-bold text-gray-900">Sujeto Obligado</h2>
+      <p class="mt-1 text-sm text-gray-600">Son Sujetos Obligados quienes por su actividad deben informar a la UIF: por ejemplo escribanos, contadores, entidades financieras, aseguradoras, agentes de bolsa o inmobiliarias.</p>
+      <label class="mt-4 block sm:max-w-xs">
+        <span class="etiqueta">{{ form.es_sujeto_obligado.label }}</span>
+        <select name="es_sujeto_obligado" class="campo" data-condicion="so">
+          {% for v, n in form.fields.es_sujeto_obligado.choices %}<option value="{{ v }}" {% if form.es_sujeto_obligado.value == v %}selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+        {% for e in form.es_sujeto_obligado.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+      </label>
+      <label class="mt-4 block" data-si="so">
+        <span class="etiqueta">Actividad por la que sos Sujeto Obligado</span>
+        <input name="sujeto_obligado_actividad" value="{{ form.sujeto_obligado_actividad.value|default_if_none:'' }}" maxlength="150" class="campo">
+        {% for e in form.sujeto_obligado_actividad.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+      </label>
+    </section>
+
+    <!-- Fondos -->
+    <section class="card p-5 sm:p-6 aparece" style="--d:.12s" aria-labelledby="t-fondos">
+      <h2 id="t-fondos" class="text-lg font-bold text-gray-900">Actividad y origen de los fondos</h2>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2">
+        <label class="block sm:col-span-2">
+          <span class="etiqueta">Actividad u ocupación principal</span>
+          <input name="actividad" value="{{ form.actividad.value|default_if_none:'' }}" maxlength="150" class="campo" placeholder="Ej.: Empleado administrativo, médica, comerciante">
+          {% for e in form.actividad.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Origen del dinero que vas a operar</span>
+          <select name="origen_fondos" class="campo" data-condicion="otro" data-valor="otro">
+            <option value="">Elegí</option>
+            {% for v, n in form.fields.origen_fondos.choices %}{% if v %}<option value="{{ v }}" {% if form.origen_fondos.value == v %}selected{% endif %}>{{ n }}</option>{% endif %}{% endfor %}
+          </select>
+          {% for e in form.origen_fondos.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block" data-si="otro">
+          <span class="etiqueta">¿Cuál?</span>
+          <input name="origen_detalle" value="{{ form.origen_detalle.value|default_if_none:'' }}" maxlength="255" class="campo">
+          {% for e in form.origen_detalle.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Ingresos mensuales aproximados</span>
+          <select name="ingresos_mensuales" class="campo">
+            <option value="">Elegí</option>
+            {% for v, n in form.fields.ingresos_mensuales.choices %}{% if v %}<option value="{{ v }}" {% if form.ingresos_mensuales.value == v %}selected{% endif %}>{{ n }}</option>{% endif %}{% endfor %}
+          </select>
+          {% for e in form.ingresos_mensuales.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Cuánto pensás operar por mes</span>
+          <select name="volumen_mensual_previsto" class="campo">
+            <option value="">Elegí</option>
+            {% for v, n in form.fields.volumen_mensual_previsto.choices %}{% if v %}<option value="{{ v }}" {% if form.volumen_mensual_previsto.value == v %}selected{% endif %}>{{ n }}</option>{% endif %}{% endfor %}
+          </select>
+          {% for e in form.volumen_mensual_previsto.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+      </div>
+    </section>
+
+    <!-- Residencia fiscal -->
+    <section class="card p-5 sm:p-6 aparece" style="--d:.16s" aria-labelledby="t-fiscal">
+      <h2 id="t-fiscal" class="text-lg font-bold text-gray-900">Residencia fiscal</h2>
+      <label class="mt-4 block sm:max-w-xs">
+        <span class="etiqueta">{{ form.residencia_fiscal_exterior.label }}</span>
+        <select name="residencia_fiscal_exterior" class="campo" data-condicion="fiscal">
+          {% for v, n in form.fields.residencia_fiscal_exterior.choices %}<option value="{{ v }}" {% if form.residencia_fiscal_exterior.value == v %}selected{% endif %}>{{ n }}</option>{% endfor %}
+        </select>
+        {% for e in form.residencia_fiscal_exterior.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+      </label>
+      <div class="mt-4 grid gap-4 sm:grid-cols-2" data-si="fiscal">
+        <label class="block">
+          <span class="etiqueta">País</span>
+          <input name="residencia_fiscal_pais" value="{{ form.residencia_fiscal_pais.value|default_if_none:'' }}" maxlength="80" class="campo">
+          {% for e in form.residencia_fiscal_pais.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+        <label class="block">
+          <span class="etiqueta">Número de identificación fiscal en ese país</span>
+          <input name="residencia_fiscal_nif" value="{{ form.residencia_fiscal_nif.value|default_if_none:'' }}" maxlength="40" class="campo">
+          {% for e in form.residencia_fiscal_nif.errors %}<span class="mt-1 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+        </label>
+      </div>
+    </section>
+
+    <section class="card p-5 sm:p-6 aparece" style="--d:.2s">
+      <label class="flex items-start gap-3">
+        <input type="checkbox" name="declara_veracidad" value="on" class="casilla mt-0.5">
+        <span class="text-sm text-gray-700">{{ form.declara_veracidad.label }}</span>
+      </label>
+      {% for e in form.declara_veracidad.errors %}<span class="mt-2 block text-sm text-rose-700">{{ e }}</span>{% endfor %}
+      <button type="submit" class="btn btn-lg btn-primario mt-5 w-full sm:w-auto">{% if vigente %}Guardar nueva versión{% else %}Enviar declaración{% endif %}</button>
+    </section>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}{{ block.super }}
+<script>
+  // Muestra los datos extra solo cuando la respuesta los pide (PEP, sujeto obligado, otro origen, residencia exterior)
+  document.querySelectorAll('[data-condicion]').forEach((sel) => {
+    const bloque = document.querySelector(`[data-si="${sel.dataset.condicion}"]`);
+    const esperado = sel.dataset.valor || 'si';
+    const pinta = () => bloque.classList.toggle('hidden', sel.value !== esperado);
+    sel.addEventListener('change', pinta);
+    pinta();
+  });
+</script>
+{% endblock %}

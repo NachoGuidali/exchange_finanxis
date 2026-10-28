@@ -1,172 +1,40 @@
 {% extends "base.html" %}
-{% block title %}Mis movimientos — Finanxis{% endblock %}
-{% block meta_description %}Consulta y exportá tus movimientos con filtros.{% endblock %}
+{% load finanxis %}
+{% block title %}Mis consultas — Finanxis{% endblock %}
 
 {% block content %}
-<section class="max-w-7xl mx-auto px-4 py-8">
-  <!-- Header -->
-  <header class="mb-6">
-    <h1 class="text-2xl sm:text-3xl font-extrabold">Mis <span class="text-accent">movimientos</span></h1>
-    <p class="text-white/70">Filtrá por fecha, moneda o tipo. Podés exportar el resultado.</p>
-  </header>
-
-  <!-- Filtros -->
-  <form method="get" class="card p-5 mb-6 space-y-4">
-    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-      <label class="block">
-        <span class="text-xs text-white/60 mb-1 block">Desde</span>
-        <input type="date" name="desde" value="{{ params.desde }}"
-               class="w-full rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon">
-      </label>
-      <label class="block">
-        <span class="text-xs text-white/60 mb-1 block">Hasta</span>
-        <input type="date" name="hasta" value="{{ params.hasta }}"
-               class="w-full rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon">
-      </label>
-      <label class="block">
-        <span class="text-xs text-white/60 mb-1 block">Tipo</span>
-        <select name="tipo"
-                class="w-full rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon">
-          <option value="">Todos</option>
-          <option value="compra"  {% if params.tipo == 'compra'  %}selected{% endif %}>Compra</option>
-          <option value="venta"   {% if params.tipo == 'venta'   %}selected{% endif %}>Venta</option>
-          <option value="swap"    {% if params.tipo == 'swap'    %}selected{% endif %}>Swap</option>
-          <option value="deposito"{% if params.tipo == 'deposito'%}selected{% endif %}>Depósito</option>
-          <option value="retiro"  {% if params.tipo == 'retiro'  %}selected{% endif %}>Retiro</option>
-        </select>
-      </label>
-      <label class="block">
-        <span class="text-xs text-white/60 mb-1 block">Moneda</span>
-        <select name="moneda"
-                class="w-full rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon">
-          <option value="">Todas</option>
-          <option value="ARS"  {% if params.moneda == 'ARS'  %}selected{% endif %}>ARS</option>
-          <option value="USDT" {% if params.moneda == 'USDT' %}selected{% endif %}>USDT</option>
-          <option value="USD"  {% if params.moneda == 'USD'  %}selected{% endif %}>USD</option>
-        </select>
-      </label>
-      <label class="block">
-        <span class="text-xs text-white/60 mb-1 block">Orden</span>
-        <select name="orden"
-                class="w-full rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon">
-          <option value="-fecha" {% if params.orden == '-fecha' %}selected{% endif %}>Fecha ↓</option>
-          <option value="fecha"  {% if params.orden == 'fecha'  %}selected{% endif %}>Fecha ↑</option>
-          <option value="-monto" {% if params.orden == '-monto' %}selected{% endif %}>Monto ↓</option>
-          <option value="monto"  {% if params.orden == 'monto'  %}selected{% endif %}>Monto ↑</option>
-        </select>
-      </label>
-      <label class="block">
-        <span class="text-xs text-white/60 mb-1 block">Por página</span>
-        <select name="por_pagina"
-                class="w-full rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon">
-          {% for n in por_pagina_opts %}
-            <option value="{{ n }}" {% if params.por_pagina == n %}selected{% endif %}>{{ n }}</option>
-          {% endfor %}
-        </select>
-      </label>
-    </div>
-
-    <div class="grid gap-3 sm:grid-cols-3">
-      <label class="block sm:col-span-2">
-        <span class="text-xs text-white/60 mb-1 block">Buscar</span>
-        <input type="text" name="q" value="{{ params.q }}" placeholder="Descripción o ID…"
-               class="w-full rounded-lg border border-white/10 bg-white text-black px-3 py-2 focus:outline-none focus:ring-2 focus:ring-neon">
-      </label>
-      <div class="flex items-end gap-2 sm:justify-end">
-        <button class="rounded-xl bg-neon text-black font-semibold px-4 py-2 hover:opacity-90">Aplicar</button>
-        <a href="{% url 'mis_movimientos' %}"
-           class="rounded-xl border border-white/10 px-4 py-2 hover:bg-white/5">Limpiar</a>
-        <a href="{% url 'movimientos_exportar' %}?{{ request.GET.urlencode }}"
-           class="rounded-xl border border-neon/50 text-neon px-4 py-2 hover:bg-neon/10">Exportar CSV</a>
-      </div>
-    </div>
-  </form>
-
-  <!-- Tabla -->
-  <div class="card p-0 overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead class="sticky top-0 bg-white/5 backdrop-blur supports-[backdrop-filter]:bg-white/5 text-white/80">
-        <tr>
-          <th class="px-3 py-2 text-left">Fecha</th>
-          <th class="px-3 py-2 text-left">Tipo</th>
-          <th class="px-3 py-2 text-left">Moneda</th>
-          <th class="px-3 py-2 text-left">Monto</th>
-          <th class="px-3 py-2 text-left">Saldo antes</th>
-          <th class="px-3 py-2 text-left">Saldo después</th>
-          <th class="px-3 py-2 text-left">Descripción</th>
-          <th class="px-3 py-2 text-left">ID</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-white/10">
-        {% for m in page_obj %}
-        <tr class="hover:bg-white/5">
-          <td class="px-3 py-2 whitespace-nowrap">{{ m.fecha }}</td>
-
-          <!-- Tipo como chip -->
-          <td class="px-3 py-2">
-            <span class="rounded-full px-2 py-0.5 text-xs border capitalize
-              {% with t=m.get_tipo_display|lower %}
-                {% if t == 'compra' %} border-emerald-400 text-emerald-300
-                {% elif t == 'venta' %}  border-rose-400 text-rose-300
-                {% elif t == 'swap' %}   border-sky-400 text-sky-300
-                {% elif t == 'depósito' or t == 'deposito' %} border-amber-400 text-amber-300
-                {% elif t == 'retiro' %} border-fuchsia-400 text-fuchsia-300
-                {% else %} border-white/20 text-white/80
-                {% endif %}
-              {% endwith %}">
-              {{ m.get_tipo_display }}
-            </span>
-          </td>
-
-          <!-- Moneda como chip -->
-          <td class="px-3 py-2">
-            <span class="rounded-full px-2 py-0.5 text-xs border
-              {% if m.moneda == 'ARS' %}  border-amber-400 text-amber-300
-              {% elif m.moneda == 'USDT' %} border-emerald-400 text-emerald-300
-              {% elif m.moneda == 'USD' %}  border-sky-400 text-sky-300
-              {% else %} border-white/20 text-white/80 {% endif %}">
-              {{ m.moneda }}
-            </span>
-          </td>
-
-          <td class="px-3 py-2">${{ m.monto }}</td>
-          <td class="px-3 py-2">${{ m.saldo_antes }}</td>
-          <td class="px-3 py-2">${{ m.saldo_despues }}</td>
-          <td class="px-3 py-2">{{ m.descripcion }}</td>
-          <td class="px-3 py-2 font-mono">{{ m.codigo }}</td>
-        </tr>
-        {% empty %}
-        <tr>
-          <td colspan="8" class="px-3 py-8 text-center">
-            <div class="flex flex-col items-center gap-2 text-white/70">
-              <div class="h-10 w-10 rounded-full border border-white/15 flex items-center justify-center">📄</div>
-              <p class="text-sm">Sin movimientos para los filtros seleccionados.</p>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+<div class="mx-auto max-w-3xl">
+  <div class="flex flex-wrap items-end justify-between gap-4 aparece">
+    <h1 class="text-3xl font-extrabold text-gray-900 sm:text-4xl">Mis consultas</h1>
+    <a href="{% url 'soporte' %}" class="btn btn-sm btn-primario">Nueva consulta</a>
   </div>
 
-  {% if page_obj.paginator.num_pages > 1 %}
-  <nav class="mt-4 flex items-center justify-between text-sm" aria-label="Paginación">
-    <span class="text-white/60">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
-    <div class="flex gap-2">
-      {% if page_obj.has_previous %}
-        <a class="rounded-lg border border-white/10 px-3 py-1 hover:bg-white/5"
-           href="?page=1&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">« Primera</a>
-        <a class="rounded-lg border border-white/10 px-3 py-1 hover:bg-white/5"
-           href="?page={{ page_obj.previous_page_number }}&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">‹ Anterior</a>
-      {% endif %}
-      {% if page_obj.has_next %}
-        <a class="rounded-lg border border-white/10 px-3 py-1 hover:bg-white/5"
-           href="?page={{ page_obj.next_page_number }}&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">Siguiente ›</a>
-        <a class="rounded-lg border border-white/10 px-3 py-1 hover:bg-white/5"
-           href="?page={{ page_obj.paginator.num_pages }}&{{ request.GET.urlencode|cut:'page='|cut:'page=' }}">Última »</a>
-      {% endif %}
-    </div>
+  <section class="card mt-6 px-2 py-2 sm:px-4 aparece" style="--d:.06s" aria-label="Consultas">
+    <ul class="divide-y divide-gray-200">
+      {% for t in page_obj %}
+      <li>
+        <a href="{% url 'ver_ticket' t.pk %}" class="flex items-center gap-3 rounded-xl px-3 py-3.5 transition hover:bg-gray-50">
+          <span class="min-w-0 flex-1">
+            <span class="block truncate font-semibold text-gray-900">{{ t.asunto }}</span>
+            <span class="block truncate text-sm text-gray-500">#{{ t.pk }} · {{ t.get_categoria_display }} · actualizada hace {{ t.actualizado_en|hace }}</span>
+          </span>
+          {% include "includes/estado_ticket.html" with estado=t.estado vista="cliente" %}
+        </a>
+      </li>
+      {% empty %}
+      <li class="px-3 py-12 text-center">
+        <p class="font-semibold text-gray-900">No tenés consultas</p>
+        <a href="{% url 'soporte' %}" class="btn btn-sm btn-secundario mt-4">Escribirnos</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {% if page_obj.has_other_pages %}
+  <nav class="mt-6 flex items-center justify-between text-sm" aria-label="Páginas">
+    {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}" class="btn btn-sm btn-secundario">Anteriores</a>{% else %}<span></span>{% endif %}
+    {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}" class="btn btn-sm btn-secundario">Siguientes</a>{% endif %}
   </nav>
   {% endif %}
-</section>
+</div>
 {% endblock %}

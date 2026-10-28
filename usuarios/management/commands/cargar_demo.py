@@ -14,7 +14,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from PIL import Image
 
-from usuarios.models import Cotizacion, CuentaContable, DepositoARS, Localidad, Usuario
+from usuarios.models import Cotizacion, CuentaContable, DeclaracionJurada, DepositoARS, Localidad, Usuario
 from usuarios.services import fondos, ledger, trading
 from usuarios.services.cotizaciones import FuenteNoDisponible, actualizar
 
@@ -43,6 +43,7 @@ class Command(BaseCommand):
         if not getattr(settings, "DEMO_MODE", False):
             raise CommandError("Este comando solo corre con DEMO_MODE=True: crea usuarios con datos ficticios.")
         if Usuario.objects.filter(username="demo_cliente").exists():
+            self._declaraciones()
             self.stdout.write(self.style.WARNING("Los datos demo ya estaban cargados."))
             return
 
@@ -51,6 +52,7 @@ class Command(BaseCommand):
         self._cotizaciones()
         with transaction.atomic():
             usuarios = self._usuarios(password)
+            self._declaraciones()
             self._historial(usuarios)
         call_command("conciliar_saldos")
 
@@ -87,6 +89,17 @@ class Command(BaseCommand):
             )
             creados[username] = u
         return creados
+
+    def _declaraciones(self):
+        """Declaración jurada UIF para los usuarios demo que no la tengan (idempotente)."""
+        for username, *_ in USUARIOS:
+            u = Usuario.objects.filter(username=username).first()
+            if u and not u.declaraciones.exists():
+                DeclaracionJurada.objects.create(
+                    usuario=u, version=settings.DDJJ_VERSION, es_pep=False, es_sujeto_obligado=False,
+                    actividad="Empleado administrativo", origen_fondos="sueldo", ingresos_mensuales="1m_5m",
+                    volumen_mensual_previsto="hasta_1m", residencia_fiscal_exterior=False, declara_veracidad=True,
+                )
 
     def _historial(self, u):
         admin, cliente = u["demo_admin"], u["demo_cliente"]
