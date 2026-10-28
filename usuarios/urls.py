@@ -1,6 +1,6 @@
 from django.urls import path, reverse_lazy
 from django.contrib.auth import views as auth_views
-from .views import registro, dashboard, panel_admin, cambiar_estado_verificacion, agregar_saldo, panel_depositos, aprobar_deposito, historial_usuario, operar, enviar_retiro, aprobar_retiro, solicitar_retiro, exportar_historial_usuario, exportar_movimientos_admin, exportar_movimientos_usuario, obtener_notificaciones, contar_notificaciones, solicitar_retiro_cripto, aprobar_retiro_cripto, panel_retiros, rechazar_deposito_usdt, aprobar_deposito_usdt, panel_depositos_usdt, depositar_usdt, logout_view, verificar_boleto, comprobantes, descargar_boleto, home, actualizar_perfil, cambiar_email, cambiar_password, soporte, faq, perfil, configuracion, tyc, mis_movimientos, exportar_movimientos, mis_tickets, admin_usuario_perfil, rechazar_retiro_cripto, rechazar_retiro_ars, admin_usuarios_list, exchange_dashboard, exchange_export_csv, verify_email_notice, verify_email, resend_verification, change_email_form, change_email_submit, LoginViewCustom, guardar_config_exchange, rechazar_deposito, exportar_movimientos_usuario_admin
+from .views import registro, dashboard, panel_admin, cambiar_estado_verificacion, agregar_saldo, panel_depositos, aprobar_deposito, operar, enviar_retiro, aprobar_retiro, solicitar_retiro, exportar_movimientos_admin, obtener_notificaciones, contar_notificaciones, solicitar_retiro_cripto, aprobar_retiro_cripto, panel_retiros, rechazar_deposito_usdt, aprobar_deposito_usdt, panel_depositos_usdt, depositar_usdt, logout_view, verificar_boleto, comprobantes, descargar_boleto, home, actualizar_perfil, cambiar_email, cambiar_password, soporte, faq, perfil, configuracion, tyc, mis_movimientos, exportar_movimientos, mis_tickets, admin_usuario_perfil, rechazar_retiro_cripto, rechazar_retiro_ars, admin_usuarios_list, exchange_dashboard, exchange_export_csv, verify_email_notice, verify_email, resend_verification, change_email_form, change_email_submit, LoginViewCustom, guardar_config_exchange, rechazar_deposito
 from . import views
 from .views import geo as views_geo
 from .views.twofa import activar_2fa, desactivar_2fa, login_2fa
@@ -18,16 +18,13 @@ urlpatterns = [
     path('admin-dashboard/admin-depositos/', panel_depositos, name='panel_depositos'),
     path('admin-dashboard/aprobar-deposito/<int:deposito_id>/', aprobar_deposito, name='aprobar_deposito'),
     path('admin-dashboard/rechazar-deposito/<int:deposito_id>/', rechazar_deposito, name='rechazar_deposito'),
-    path('historial-usuario/<int:user_id>/', historial_usuario, name='historial_usuario'),
     path('operar/', operar, name='operar'),
     path('admin-dashboard/retiro/aprobar/<int:id>/', aprobar_retiro, name='aprobar_retiro'),
     path('admin-dashboard/retiro/enviar/<int:id>/', enviar_retiro, name='enviar_retiro'),
     path('admin-dashboard/retiro/rechazar/<int:id>/', rechazar_retiro_ars, name='rechazar_retiro_ars'),
 
     path('solicitar-retiro/', solicitar_retiro, name='solicitar_retiro'),
-    path('exportar-movimientos/', exportar_movimientos_usuario, name='exportar_movimientos_usuario'),
     path('admin-dashboard/exportar-movimientos/', exportar_movimientos_admin, name='exportar_movimientos_admin'),
-    path('admin-dashboard/historial-usuario/<int:user_id>/exportar/', exportar_historial_usuario, name='exportar_historial_usuario'),
     path('notificaciones/ajax/', obtener_notificaciones, name='ajax_obtener_notificaciones'),
     path('notificaciones/contar/', contar_notificaciones, name='contar_notificaciones'),    
     path('solicitar-retiro-cripto/', solicitar_retiro_cripto, name='solicitar_retiro_cripto'),
@@ -117,7 +114,6 @@ urlpatterns = [
         ),
         name="password_reset_complete",
     ),
-    # path('admin-dashboard/config/', exchange_config_view, name='exchange_config'),
     path('admin-dashboard/parametros/', views.parametros_exchange, name='parametros_exchange'),
     path('admin-dashboard/parametros/probar-email/', views.probar_email, name='probar_email'),
     path('admin-dashboard/movimientos/', views.admin_movimientos, name='admin_movimientos'),
@@ -133,11 +129,6 @@ urlpatterns = [
     path('admin-dashboard/compliance/<int:alerta_id>/resolver/', views.resolver_alerta, name='resolver_alerta'),
     path('admin-dashboard/auditoria/', views.auditoria, name='auditoria'),
     path('operar/confirmar/', views.confirmar_operacion, name='confirmar_operacion'),
-    path(
-        'admin-dashboard/usuarios/<int:user_id>/exportar-movimientos/',
-        exportar_movimientos_usuario_admin,
-        name='exportar_movimientos_usuario_admin'
-    ),
 
 
 ]

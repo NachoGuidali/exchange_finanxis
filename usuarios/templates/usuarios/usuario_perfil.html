@@ -20,7 +20,7 @@
        class="inline-flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50">
       Ver y filtrar movimientos
     </a>
-    <a href="{% url 'exportar_movimientos_usuario_admin' usuario.id %}"
+    <a href="{% url 'exportar_movimientos_admin' %}?u={{ usuario.id }}"
        class="inline-flex items-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50">
       Descargar historial CSV
     </a>

@@ -27,7 +27,7 @@ from ..models import (
 )
 from ..services import presentacion
 from ..services.boletos import qr_base64
-from ..utils import cotizacion_vigente, kyc_required
+from ..utils import cotizacion_vigente, kyc_required, monto_csv
 
 
 def _rate_ars(moneda, cot_usd, cot_usdt):
@@ -248,39 +248,15 @@ def exportar_movimientos(request):
             localtime(m.fecha).strftime('%Y-%m-%d %H:%M:%S'),
             m.get_tipo_display(),
             m.moneda,
-            f"{m.monto:.2f}",
-            f"{m.saldo_antes:.2f}" if m.saldo_antes is not None else '',
-            f"{m.saldo_despues:.2f}" if m.saldo_despues is not None else '',
+            monto_csv(m.monto, m.moneda),
+            monto_csv(m.saldo_antes, m.moneda),
+            monto_csv(m.saldo_despues, m.moneda),
             m.descripcion or '',
             m.codigo,
             m.operacion or '',
         ])
     return response
 
-
-@login_required
-def exportar_movimientos_usuario(request):
-    movimientos = Movimiento.objects.filter(usuario=request.user).order_by('-fecha')
-
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="movimientos_usuario.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow(['Fecha','ID', 'Tipo', 'Moneda', 'Monto', 'Saldo antes', 'Saldo después', 'Descripción'])
-
-    for m in movimientos:
-        writer.writerow([
-            localtime(m.fecha).strftime('%Y-%m-%d %H:%M'),
-            m.codigo,
-            m.tipo,
-            m.moneda,
-            m.monto,
-            m.saldo_antes,
-            m.saldo_despues,
-            m.descripcion
-        ])
-
-    return response
 
 
 @login_required

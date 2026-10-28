@@ -31,7 +31,7 @@ from usuarios.services.comun import (
     fmt_ccy,
     fmt_money,
     gen_numero_boleto,
-    q2,
+    q_moneda,
     snapshot_boleto,
 )
 from usuarios.services.ledger import (
@@ -58,7 +58,7 @@ def _bloquear(modelo, pk):
 def _acreditar(u, moneda, monto):
     campo = CAMPO_SALDO[moneda]
     antes = getattr(u, campo)
-    setattr(u, campo, q2(antes + monto))
+    setattr(u, campo, q_moneda(antes + monto, moneda))
     u.save(update_fields=[campo])
     return antes, getattr(u, campo)
 

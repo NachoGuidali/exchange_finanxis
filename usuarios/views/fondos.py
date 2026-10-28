@@ -178,7 +178,7 @@ def solicitar_retiro(request):
 @kyc_required
 @require_POST
 def solicitar_retiro_cripto(request):
-    monto = parse_monto(request.POST.get('monto'))
+    monto = parse_monto(request.POST.get('monto'), decimales=6)
     if monto is None:
         messages.error(request, "Monto inválido.")
         return _volver_a_retiro('USDT')

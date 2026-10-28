@@ -13,7 +13,7 @@ from usuarios.services import compliance, cotizaciones, trading
 from usuarios.services.comun import OperacionError
 
 from ..models import Cotizacion, ExchangeConfig
-from ..utils import MONEDAS_CRYPTO, cotizacion_vigente, kyc_required, parse_monto
+from ..utils import MONEDAS_CRYPTO, cotizacion_vigente, decimales_de, kyc_required, parse_monto
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,8 @@ def operar(request):
             moneda = request.POST.get('moneda')
             if moneda not in MONEDAS_CRYPTO:
                 return HttpResponse("Moneda inválida.", status=400)
-            monto = parse_monto(request.POST.get('monto'))
+            # compra: pesos (2 decimales); venta: la moneda que entrega (USDT admite 6)
+            monto = parse_monto(request.POST.get('monto'), decimales_de('ARS' if operacion == 'compra' else moneda))
             if monto is None:
                 return HttpResponse("Monto inválido.", status=400)
 
@@ -60,7 +61,8 @@ def operar(request):
             return render(request, 'usuarios/confirmar_operacion.html', {'reserva': reserva})
 
         elif operacion == 'swap':
-            amount = parse_monto(request.POST.get('monto'))
+            origen = trading.SWAPS.get(request.POST.get('swap_direccion'), ('USD',))[0]
+            amount = parse_monto(request.POST.get('monto'), decimales_de(origen))
             if amount is None:
                 messages.error(request, "Monto inválido.")
                 return redirect('dashboard')

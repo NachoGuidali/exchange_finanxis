@@ -204,7 +204,7 @@ class Usuario(AbstractUser):
 
     # Saldos (ya estaban)
     saldo_ars  = models.DecimalField(max_digits=20, decimal_places=2, default=0)
-    saldo_usdt = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    saldo_usdt = models.DecimalField(max_digits=26, decimal_places=6, default=0)  # USDT: 6 decimales
     saldo_usd  = models.DecimalField(max_digits=20, decimal_places=2, default=0)
 
     # Documento / identidad
@@ -332,7 +332,7 @@ class DepositoUSDT(models.Model):
     ]
 
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    monto = models.DecimalField(max_digits=20, decimal_places=2)
+    monto = models.DecimalField(max_digits=26, decimal_places=6)
     red = models.CharField(max_length=10, choices=REDES)
     txid = models.CharField(max_length=200)
     comprobante = models.ImageField(upload_to=subir_comprobante_usdt)
@@ -376,9 +376,10 @@ class Movimiento(models.Model):
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
     moneda = models.CharField(max_length=10, choices=MONEDA_CHOICES)
-    monto = models.DecimalField(max_digits=20, decimal_places=2)
-    saldo_antes = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
-    saldo_despues = models.DecimalField(max_digits=20, decimal_places=2, null=True, blank=True)
+    # 6 decimales para USDT; pesos y dólares se redondean a 2 en services
+    monto = models.DecimalField(max_digits=26, decimal_places=6)
+    saldo_antes = models.DecimalField(max_digits=26, decimal_places=6, null=True, blank=True)
+    saldo_despues = models.DecimalField(max_digits=26, decimal_places=6, null=True, blank=True)
     admin_responsable = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -473,7 +474,7 @@ class RetiroCrypto(models.Model):
 
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     moneda = models.CharField(max_length=4, choices=MONEDAS)
-    monto = models.DecimalField(max_digits=12, decimal_places=2)
+    monto = models.DecimalField(max_digits=26, decimal_places=6)
     direccion_wallet = models.CharField(max_length=255)
     red = models.CharField(max_length=10, blank=True)  # elegida por el cliente (TRC20, ERC20, BEP20)
     estado = models.CharField(max_length=20, choices=[('pendiente', 'Pendiente'), ('enviado', 'Enviado'), ('rechazado', 'Rechazado')], default='pendiente')
@@ -869,10 +870,10 @@ class CotizacionReservada(models.Model):
     usuario     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     operacion   = models.CharField(max_length=8, choices=OPERACIONES)
     moneda      = models.CharField(max_length=10)
-    monto       = models.DecimalField(max_digits=20, decimal_places=2)  # ARS en compra, moneda en venta
+    monto       = models.DecimalField(max_digits=26, decimal_places=6)  # ARS en compra, moneda en venta
     precio      = models.DecimalField(max_digits=20, decimal_places=2)
     precio_ref  = models.DecimalField(max_digits=20, decimal_places=6)
-    resultado   = models.DecimalField(max_digits=20, decimal_places=2)  # lo que recibe el cliente
+    resultado   = models.DecimalField(max_digits=26, decimal_places=6)  # lo que recibe el cliente
     cotizacion  = models.ForeignKey(Cotizacion, on_delete=models.PROTECT)
     creada      = models.DateTimeField(auto_now_add=True)
     expira      = models.DateTimeField()

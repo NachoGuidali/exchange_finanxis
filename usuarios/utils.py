@@ -13,17 +13,29 @@ MONEDAS_CRYPTO = ('USDT', 'USD')
 MONTO_MAXIMO = Decimal('9999999999.99')  # entra en todos los DecimalField de montos
 
 
-def parse_monto(raw):
+def decimales_de(moneda):
+    """USDT se maneja con 6 decimales (como en la blockchain); pesos y dólares, con 2."""
+    return 6 if moneda == 'USDT' else 2
+
+
+def monto_csv(valor, moneda):
+    """Monto para CSV con la precisión de la moneda (punto decimal, sin separador de miles)."""
+    if valor is None:
+        return ''
+    return f"{Decimal(valor).quantize(Decimal(1).scaleb(-decimales_de(moneda))):f}"
+
+
+def parse_monto(raw, decimales=2):
     """
     Convierte el monto que manda el cliente a Decimal.
-    Devuelve None si no es un número finito, positivo, con 2 decimales como máximo
+    Devuelve None si no es un número finito, positivo, con `decimales` decimales como máximo
     y no mayor a MONTO_MAXIMO.
     """
     try:
         monto = Decimal(str(raw).strip().replace(',', '.'))
     except (InvalidOperation, TypeError, ValueError):
         return None
-    if not monto.is_finite() or monto <= 0 or monto > MONTO_MAXIMO or monto.as_tuple().exponent < -2:
+    if not monto.is_finite() or monto <= 0 or monto > MONTO_MAXIMO or monto.as_tuple().exponent < -decimales:
         return None
     return monto
 

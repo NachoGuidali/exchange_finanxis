@@ -14,7 +14,6 @@ django-axes==8.0.0
 django-celery-beat==2.8.1
 django-timezone-field==7.1
 Django==5.2.3
-djangorestframework==3.16.0
 gunicorn==23.0.0
 idna==3.10
 kombu==5.5.4

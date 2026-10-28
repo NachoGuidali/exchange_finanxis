@@ -8,10 +8,14 @@ register = template.Library()
 
 @register.filter
 def money(valor, decimales=2):
-    """1234567.5 → '1.234.567,50' (formato argentino, sin depender de USE_THOUSAND_SEPARATOR)."""
+    """1234567.5 → '1.234.567,50' (formato argentino). 109,192345 USDT conserva sus decimales."""
     try:
         d = Decimal(str(valor if valor not in (None, "") else 0))
-        texto = f"{d:,.{int(decimales)}f}"
+        decimales = int(decimales)
+        if decimales == 2 and d != d.quantize(Decimal("0.01")):
+            # USDT: muestra los decimales que tenga (hasta 6) en lugar de redondear a centavos
+            decimales = min(6, -d.normalize().as_tuple().exponent)
+        texto = f"{d:,.{decimales}f}"
     except (InvalidOperation, ValueError, TypeError):
         return valor
     return texto.replace(",", "_").replace(".", ",").replace("_", ".")

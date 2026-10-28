@@ -24,6 +24,7 @@ from usuarios.services.comun import (
     fmt_money,
     gen_numero_boleto,
     q2,
+    q_moneda,
     snapshot_boleto,
 )
 from usuarios.services.ledger import (
@@ -52,7 +53,7 @@ def _mover(u, moneda, delta):
     """Aplica delta al saldo cacheado y devuelve (antes, despues)."""
     campo = CAMPO_SALDO[moneda]
     antes = getattr(u, campo)
-    setattr(u, campo, q2(antes + delta))
+    setattr(u, campo, q_moneda(antes + delta, moneda))
     return antes, getattr(u, campo)
 
 
@@ -63,8 +64,11 @@ def _precios(operacion, cotizacion):
     return Decimal(cotizacion.compra), Decimal(cotizacion.ref_compra or cotizacion.compra)
 
 
-def _resultado(operacion, monto, precio):
-    return q2(Decimal(monto) / precio) if operacion == 'compra' else q2(Decimal(monto) * precio)
+def _resultado(operacion, monto, precio, moneda):
+    """Lo que recibe el cliente: la moneda al comprar, pesos al vender."""
+    if operacion == 'compra':
+        return q_moneda(Decimal(monto) / precio, moneda)
+    return q2(Decimal(monto) * precio)
 
 
 def cotizar(usuario, operacion, moneda, monto, cotizacion):
@@ -77,7 +81,7 @@ def cotizar(usuario, operacion, moneda, monto, cotizacion):
     if moneda not in MONEDAS:
         raise OperacionError("Moneda inválida.")
     precio, precio_ref = _precios(operacion, cotizacion)
-    resultado = _resultado(operacion, monto, precio)
+    resultado = _resultado(operacion, monto, precio, moneda)
     if resultado <= 0:
         raise OperacionError("El monto es demasiado chico para esta cotización.")
 
@@ -123,7 +127,7 @@ def comprar(usuario, moneda, monto_ars, *, precio, precio_ref, cotizacion_id):
         raise OperacionError("Saldo ARS insuficiente o monto inválido")
     compliance.verificar_limite_operacion(u, monto_ars)
 
-    recibido = _resultado('compra', monto_ars, precio)
+    recibido = _resultado('compra', monto_ars, precio, moneda)
     if recibido <= 0:
         raise OperacionError("El monto es demasiado chico para esta cotización.")
 
@@ -182,7 +186,7 @@ def vender(usuario, moneda, monto_ccy, *, precio, precio_ref, cotizacion_id):
     if getattr(u, CAMPO_SALDO[moneda]) < monto_ccy:
         raise OperacionError(f"Saldo {moneda} insuficiente")
 
-    ars_recibe = _resultado('venta', monto_ccy, precio)
+    ars_recibe = _resultado('venta', monto_ccy, precio, moneda)
     compliance.verificar_limite_operacion(u, ars_recibe)
     ccy_antes, ccy_despues = _mover(u, moneda, -monto_ccy)
     ars_antes, ars_despues = _mover(u, 'ARS', ars_recibe)
@@ -247,8 +251,8 @@ def swap(usuario, direccion, amount, *, fee_bps):
         raise OperacionError(f"Saldo {origen} insuficiente")
 
     bruto = amount * SWAP_RATE if origen == 'USD' else amount / SWAP_RATE
-    neto = q2(bruto * (Decimal('1') - fee_bps / Decimal('10000')))
-    fee = q2(bruto - neto)
+    neto = q_moneda(bruto * (Decimal('1') - fee_bps / Decimal('10000')), destino)
+    fee = q_moneda(bruto - neto, destino)
 
     org_antes, org_despues = _mover(u, origen, -amount)
     dst_antes, dst_despues = _mover(u, destino, neto)

@@ -4,7 +4,7 @@ from decimal import ROUND_DOWN, Decimal
 from django.conf import settings
 from django.utils.timezone import localtime
 
-from usuarios.utils import cliente_ctx
+from usuarios.utils import cliente_ctx, decimales_de
 
 
 class OperacionError(Exception):
@@ -15,12 +15,19 @@ def q2(x):
     return Decimal(x).quantize(Decimal('0.01'), rounding=ROUND_DOWN)
 
 
+def q_moneda(x, moneda):
+    """Redondea hacia abajo a la precisión de la moneda: 6 decimales USDT, 2 el resto."""
+    return Decimal(x).quantize(Decimal(1).scaleb(-decimales_de(moneda)), rounding=ROUND_DOWN)
+
+
 def fmt_money(x, symbol='$'):
     return f"{symbol}{q2(Decimal(x)):,.2f}"
 
 
 def fmt_ccy(x, ccy):
-    return f"{q2(Decimal(x))} {ccy}"
+    entero, _, dec = f"{q_moneda(x, ccy):f}".partition('.')
+    dec = dec.rstrip('0').ljust(2, '0')  # sin ceros de más, pero con al menos 2 decimales
+    return f"{entero}.{dec} {ccy}"
 
 
 def gen_numero_boleto():

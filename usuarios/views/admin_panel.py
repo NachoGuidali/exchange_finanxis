@@ -23,7 +23,7 @@ from usuarios.services.auditoria import auditar
 from usuarios.services.comun import OperacionError
 
 from ..forms import CAMPOS_AVISOS, ExchangeConfigForm
-from ..utils import cotizacion_vigente, parse_monto
+from ..utils import cotizacion_vigente, monto_csv, parse_monto
 from ..models import (
     AlertaCompliance,
     ApunteExchange,
@@ -303,16 +303,6 @@ def panel_depositos(request):
     return render(request, 'usuarios/panel_depositos.html', {'depositos':depositos})
 
 
-@login_required
-@user_passes_test(es_admin)
-def historial_usuario(request, user_id):
-    usuario = get_object_or_404(Usuario, id=user_id)
-    movimientos = Movimiento.objects.filter(usuario=usuario).order_by('-fecha')
-    return render(request, 'usuarios/historial_usuario.html', {
-        'usuario': usuario,
-        'movimientos': movimientos
-    })
-
 
 @login_required
 @user_passes_test(es_admin)
@@ -477,9 +467,9 @@ def exportar_movimientos_admin(request):
             u.email,
             m.get_tipo_display(),
             m.moneda,
-            f"{m.monto:.2f}",
-            f"{m.saldo_antes:.2f}" if m.saldo_antes is not None else '',
-            f"{m.saldo_despues:.2f}" if m.saldo_despues is not None else '',
+            monto_csv(m.monto, m.moneda),
+            monto_csv(m.saldo_antes, m.moneda),
+            monto_csv(m.saldo_despues, m.moneda),
             m.descripcion or '',
             m.admin_responsable.username if m.admin_responsable else '',
             m.codigo,
@@ -487,31 +477,6 @@ def exportar_movimientos_admin(request):
         ])
     return response
 
-
-@login_required
-@user_passes_test(es_admin)
-def exportar_historial_usuario(request, user_id):
-    usuario = get_object_or_404(Usuario, id=user_id)
-    movimientos = Movimiento.objects.filter(usuario=usuario).order_by('-fecha')
-
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="movimientos_{usuario.username}.csv"'
-
-    writer = csv.writer(response)
-    writer.writerow(['Fecha', 'Tipo', 'Moneda', 'Monto', 'Saldo antes', 'Saldo después', 'Descripción'])
-
-    for m in movimientos:
-        writer.writerow([
-            localtime(m.fecha).strftime('%Y-%m-%d %H:%M'),
-            m.tipo,
-            m.moneda,
-            m.monto,
-            m.saldo_antes,
-            m.saldo_despues,
-            m.descripcion
-        ])
-
-    return response
 
 
 @login_required
@@ -794,38 +759,6 @@ def guardar_config_exchange(request):
         return _render_parametros(request, form)
     return redirect('parametros_exchange')
 
-
-@login_required
-@user_passes_test(es_admin)
-def exportar_movimientos_usuario_admin(request, user_id):
-    """
-    Exporta a CSV todos los movimientos de UN usuario específico,
-    pensado para usar desde el panel admin (perfil del usuario).
-    """
-    usuario = get_object_or_404(Usuario, pk=user_id)
-    movimientos = Movimiento.objects.filter(usuario=usuario).order_by('-fecha')
-
-    response = HttpResponse(content_type='text/csv')
-    filename = f"movimientos_{usuario.username}.csv"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
-
-    writer = csv.writer(response)
-    writer.writerow(['Fecha', 'ID', 'Tipo', 'Moneda', 'Monto',
-                     'Saldo antes', 'Saldo después', 'Descripción'])
-
-    for m in movimientos:
-        writer.writerow([
-            localtime(m.fecha).strftime('%Y-%m-%d %H:%M'),
-            m.codigo,
-            m.tipo,
-            m.moneda,
-            m.monto,
-            m.saldo_antes,
-            m.saldo_despues,
-            m.descripcion
-        ])
-
-    return response
 
 
 def _accion_admin(request, accion, destino, exito=None):
