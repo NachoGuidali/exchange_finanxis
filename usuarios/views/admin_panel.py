@@ -9,7 +9,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
 from django.db.models import Count, Q, Sum
-from django.db.models.functions import TruncDate
+from django.db.models.functions import Abs, TruncDate
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -299,6 +299,29 @@ def _filtrar_movimientos_admin(request):
     return qs.order_by('-fecha', '-id'), p
 
 
+def _atajos_periodo(filtros, params, con_todo=False):
+    """Links de período (Hoy, Últimos 7 días, ...) que conservan el resto de los filtros."""
+    hoy = timezone.localdate()
+    inicio_mes = hoy.replace(day=1)
+    fin_mes_anterior = inicio_mes - timedelta(days=1)
+    opciones = [('Hoy', hoy, hoy), ('Últimos 7 días', hoy - timedelta(days=6), hoy),
+                ('Este mes', inicio_mes, hoy),
+                ('Mes anterior', fin_mes_anterior.replace(day=1), fin_mes_anterior)]
+    periodos = []
+    for nombre, d, h in opciones:
+        q = filtros.copy()
+        q['desde'], q['hasta'] = d.isoformat(), h.isoformat()
+        periodos.append({'nombre': nombre, 'query': q.urlencode(),
+                         'activo': params['desde'] == d.isoformat() and params['hasta'] == h.isoformat()})
+    if con_todo:
+        q = filtros.copy()
+        q.pop('desde', None)
+        q.pop('hasta', None)
+        periodos.append({'nombre': 'Todo', 'query': q.urlencode(),
+                         'activo': not params['desde'] and not params['hasta']})
+    return periodos
+
+
 @login_required
 @user_passes_test(es_admin)
 def admin_movimientos(request):
@@ -322,18 +345,7 @@ def admin_movimientos(request):
     for k in ('u', 'usuario'):
         sin_usuario.pop(k, None)
 
-    # atajos de período que conservan el resto de los filtros
-    hoy = timezone.localdate()
-    inicio_mes = hoy.replace(day=1)
-    fin_mes_anterior = inicio_mes - timedelta(days=1)
-    periodos = []
-    for nombre, d, h in (('Hoy', hoy, hoy), ('Últimos 7 días', hoy - timedelta(days=6), hoy),
-                         ('Este mes', inicio_mes, hoy),
-                         ('Mes anterior', fin_mes_anterior.replace(day=1), fin_mes_anterior)):
-        q = filtros.copy()
-        q['desde'], q['hasta'] = d.isoformat(), h.isoformat()
-        periodos.append({'nombre': nombre, 'query': q.urlencode(),
-                         'activo': params['desde'] == d.isoformat() and params['hasta'] == h.isoformat()})
+    periodos = _atajos_periodo(filtros, params)
 
     return render(request, 'usuarios/admin_movimientos.html', {
         'periodos': periodos,
@@ -505,61 +517,125 @@ def _qs_exchange_from_request(request):
     return qs, params
 
 
+MONEDAS_RESUMEN = ('ARS', 'USDT', 'USD')
+NOMBRES_CATEGORIA = {
+    'spread_compra': 'Spread en compras', 'spread_venta': 'Spread en ventas', 'fee_swap': 'Comisión de swaps',
+    'entrada': 'Depósitos acreditados', 'salida': 'Retiros enviados', 'ajuste': 'Ajustes',
+}
+
+
+def _por_moneda(filas, campo):
+    d = {f['moneda']: f for f in filas}
+    return [{'moneda': m, 'monto': abs(d[m][campo] or 0) if m in d else Decimal('0'),
+             'n': d[m]['n'] if m in d else 0} for m in MONEDAS_RESUMEN]
+
+
+def _resumen_plataforma(params):
+    """
+    Números grandes de la plataforma para el período (solo fechas; categoría y moneda filtran la tabla).
+    Ingresos y retiros salen de los apuntes 'entrada'/'salida' (se crean al acreditar un depósito
+    o enviar un retiro) y su valuación en pesos es la del momento en que ocurrieron.
+    """
+    d1, d2 = _parse_iso_date(params['desde']), _parse_iso_date(params['hasta'])
+
+    def en_periodo(qs, campo='fecha'):
+        if d1:
+            qs = qs.filter(**{f'{campo}__date__gte': d1})
+        if d2:
+            qs = qs.filter(**{f'{campo}__date__lte': d2})
+        return qs
+
+    flujos = {}
+    for cat in ('entrada', 'salida'):
+        qs = en_periodo(ApunteExchange.objects.filter(categoria=cat))
+        filas = qs.values('moneda').annotate(total=Sum('monto_moneda'), n=Count('id'))
+        flujos[cat] = {
+            'monedas': _por_moneda(filas, 'total'),
+            'ars': abs(qs.aggregate(s=Sum('monto_ars'))['s'] or 0),
+            'n': sum(f['n'] for f in filas),
+        }
+    neto_ars = flujos['entrada']['ars'] - flujos['salida']['ars']
+    neto_monedas = [{'moneda': e['moneda'], 'monto': e['monto'] - s['monto']}
+                    for e, s in zip(flujos['entrada']['monedas'], flujos['salida']['monedas'])]
+
+    # en custodia: saldos actuales de los clientes + retiros pedidos que todavía no salieron
+    saldos = Usuario.objects.aggregate(ARS=Sum('saldo_ars'), USDT=Sum('saldo_usdt'), USD=Sum('saldo_usd'))
+    por_enviar = {m: Decimal('0') for m in MONEDAS_RESUMEN}
+    por_enviar['ARS'] = RetiroARS.objects.filter(estado__in=('pendiente', 'aprobado')).aggregate(
+        s=Sum('monto'))['s'] or Decimal('0')
+    for f in RetiroCrypto.objects.filter(estado='pendiente').values('moneda').annotate(s=Sum('monto')):
+        por_enviar[f['moneda']] = por_enviar.get(f['moneda'], 0) + (f['s'] or 0)
+    custodia = [{'moneda': m, 'saldos': saldos[m] or Decimal('0'), 'por_enviar': por_enviar.get(m, 0),
+                 'total': (saldos[m] or Decimal('0')) + por_enviar.get(m, 0)} for m in MONEDAS_RESUMEN]
+
+    # volumen: patas en pesos de compras y ventas, y la moneda que entrega el cliente en los swaps
+    operado = en_periodo(Movimiento.objects.filter(tipo__in=('compra', 'venta')))
+    compra_venta = operado.filter(moneda='ARS').aggregate(total=Sum(Abs('monto')), n=Count('id'))
+    swaps = operado.filter(descripcion__startswith='Swap', monto__lt=0).aggregate(total=Sum(Abs('monto')), n=Count('id'))
+
+    ganancia = en_periodo(ApunteExchange.objects.filter(categoria__in=['spread_compra', 'spread_venta', 'fee_swap']))
+    return {
+        'ingresado': flujos['entrada'],
+        'retirado': flujos['salida'],
+        'neto_ars': neto_ars,
+        'neto_monedas': neto_monedas,
+        'custodia': custodia,
+        'volumen_ars': compra_venta['total'] or Decimal('0'),
+        'operaciones': compra_venta['n'] or 0,
+        'volumen_swap': swaps['total'] or Decimal('0'),
+        'swaps': swaps['n'] or 0,
+        'ganancia_ars': ganancia.aggregate(s=Sum('monto_ars'))['s'] or Decimal('0'),
+        'serie': _serie_flujos(d1, d2),
+    }
+
+
+def _serie_flujos(d1, d2):
+    """Ingresos y retiros por día, en pesos. Sin período elegido, los últimos 30 días."""
+    hasta = d2 or timezone.localdate()
+    desde = d1 or (hasta - timedelta(days=29))
+    if (hasta - desde).days > 366:
+        desde = hasta - timedelta(days=366)
+    filas = (ApunteExchange.objects.filter(categoria__in=('entrada', 'salida'),
+                                           fecha__date__gte=desde, fecha__date__lte=hasta)
+             .annotate(dia=TruncDate('fecha')).values('dia', 'categoria').annotate(s=Sum('monto_ars')))
+    por_dia = {}
+    for f in filas:
+        por_dia.setdefault(f['dia'], {})[f['categoria']] = abs(float(f['s'] or 0))
+    dias = [desde + timedelta(days=i) for i in range((hasta - desde).days + 1)]
+    return {
+        'labels': [d.isoformat() for d in dias],
+        'entradas': [por_dia.get(d, {}).get('entrada', 0) for d in dias],
+        'salidas': [por_dia.get(d, {}).get('salida', 0) for d in dias],
+    }
+
+
 @login_required
 @user_passes_test(staff_required)
 def exchange_dashboard(request):
     qs, params = _qs_exchange_from_request(request)
+    filtros = request.GET.copy()
 
-    cuenta = CuentaExchange.objects.first()
+    # caja del exchange = solo rentas del negocio (spread, comisiones y ajustes)
+    rentas = ['spread_compra', 'spread_venta', 'fee_swap', 'ajuste']
+    nombres = dict(ApunteExchange.CATEGORIAS)
+    totales_cat = [{**t, 'nombre': NOMBRES_CATEGORIA.get(t['categoria'], nombres.get(t['categoria'], t['categoria']))}
+                   for t in qs.values('categoria').annotate(total_ars=Sum('monto_ars'), n=Count('id'))
+                   .order_by('-total_ars')]
 
-    # Caja del exchange = SOLO rentas del negocio (y ajustes si hubiera)
-    RENTAS_CATS = ['spread_compra', 'spread_venta', 'fee_swap', 'ajuste']
-
-    # Métricas globales (no tocan caja)
-    FLOW_IN_CATS  = ['entrada']  # depósitos acreditados
-    FLOW_OUT_CATS = ['salida']   # retiros enviados
-
-    # KPIs de renta (en ARS normalizado)
-    ingresos_ars = qs.filter(categoria__in=RENTAS_CATS).aggregate(s=Sum("monto_ars"))["s"] or Decimal("0")
-
-    # Totales de flujo global (lo que entró y salió de la app)
-    total_entradas = qs.filter(categoria__in=FLOW_IN_CATS).aggregate(s=Sum("monto_ars"))["s"] or Decimal("0")
-    total_salidas  = qs.filter(categoria__in=FLOW_OUT_CATS).aggregate(s=Sum("monto_ars"))["s"] or Decimal("0")
-
-    # Serie diaria (por defecto, sobre TODO lo filtrado). Si querés SOLO rentas:
-    serie = (
-        qs.filter(categoria__in=RENTAS_CATS)
-          .annotate(dia=TruncDate("fecha"))
-          .values("dia")
-          .annotate(total_ars=Sum("monto_ars"))
-          .order_by("dia")
-    )
-    serie_diaria = [{"dia": s["dia"].isoformat(), "total_ars": float(s["total_ars"] or 0)} for s in serie]
-
-    totales_cat = (
-        qs.values("categoria")
-          .annotate(total_ars=Sum("monto_ars"), n=Count("id"))
-          .order_by("-total_ars")
-    )
-
-    totales_mon = (
-        qs.values("moneda")
-          .annotate(total_mon=Sum("monto_moneda"), total_ars=Sum("monto_ars"))
-          .order_by("moneda")
-    )
-
-    apuntes = qs.order_by("-fecha")[:200]
+    apuntes = list(qs.order_by("-fecha")[:200])
+    for a in apuntes:
+        a.nombre_categoria = NOMBRES_CATEGORIA.get(a.categoria, a.categoria)
 
     ctx = {
         "params": params,
-        "cuenta": cuenta,
-        "ingresos_ars": ingresos_ars,      # renta neta normalizada a ARS
-        "total_entradas": total_entradas,  # métrica global (depósitos)
-        "total_salidas":  total_salidas,   # métrica global (retiros)
-        "serie_diaria": serie_diaria,
+        "resumen": _resumen_plataforma(params),
+        "periodos": _atajos_periodo(filtros, params, con_todo=True),
+        "cuenta": CuentaExchange.objects.first(),
+        "renta_ars": qs.filter(categoria__in=rentas).aggregate(s=Sum("monto_ars"))["s"] or Decimal("0"),
         "totales_cat": totales_cat,
-        "totales_mon": totales_mon,
+        "categorias": [(c, NOMBRES_CATEGORIA.get(c, n)) for c, n in ApunteExchange.CATEGORIAS],
         "apuntes": apuntes,
+        "query_filtros": filtros.urlencode(),
     }
     return render(request, "usuarios/exchange_dashboard.html", ctx)
 

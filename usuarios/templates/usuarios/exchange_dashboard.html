@@ -1,281 +1,250 @@
 {% extends "usuarios/admin_base.html" %}
 {% load finanxis %}
-{% block title %}Cuenta Exchange — Full Finanzas{% endblock %}
-{% block meta_description %}Caja del exchange: rentas (spread/comisiones/ajustes) y flujo global (entradas/salidas).{% endblock %}
+{% block title %}Contabilidad — Administración Finanxis{% endblock %}
+{% block meta_description %}Dinero que entró y salió de la plataforma, custodia, volumen operado y ganancia del exchange.{% endblock %}
 
 {% block admin_content %}
-<section class="min-w-0 space-y-8">
+{% with r=resumen %}
+<div class="aparece">
+  <h1 class="text-3xl font-extrabold text-gray-900">Contabilidad</h1>
+  <p class="mt-1 max-w-2xl text-gray-600">Cuánto dinero entró y salió de la plataforma, cuánto tenés en custodia y cuánto ganó el exchange.</p>
+</div>
 
-  <!-- Header + Filtros -->
-  <header class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-    <div>
-      <h1 class="text-2xl sm:text-3xl font-extrabold">Cuenta del Exchange</h1>
-      <p class="text-gray-600">
-        <b>Caja</b> = rentas (spread/fee/ajustes). El <b>flujo global</b> muestra entradas (depósitos) y salidas (retiros).
-      </p>
-    </div>
+<!-- Período -->
+<form method="get" class="mt-6 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between aparece" style="--d:.04s" aria-label="Período">
+  <div class="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="group" aria-label="Atajos de período">
+    {% for p in periodos %}
+      <a href="?{{ p.query }}" class="chip" aria-current="{% if p.activo %}true{% else %}false{% endif %}">{{ p.nombre }}</a>
+    {% endfor %}
+  </div>
+  <div class="flex flex-wrap items-end gap-2">
+    {% if params.cat %}<input type="hidden" name="cat" value="{{ params.cat }}">{% endif %}
+    {% if params.mon %}<input type="hidden" name="mon" value="{{ params.mon }}">{% endif %}
+    <label><span class="etiqueta">Desde</span><input type="date" name="desde" value="{{ params.desde }}" class="campo"></label>
+    <label><span class="etiqueta">Hasta</span><input type="date" name="hasta" value="{{ params.hasta }}" class="campo"></label>
+    <button class="btn btn-secundario">Ver</button>
+  </div>
+</form>
 
-    <form method="get" class="bg-white rounded-2xl border border-gray-200 shadow-card p-4 w-full md:w-auto">
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-        <label class="block">
-          <span class="text-xs text-gray-600">Desde</span>
-          <input type="date" name="desde" value="{{ params.desde|default:'' }}"
-                 class="mt-1 w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-        </label>
-        <label class="block">
-          <span class="text-xs text-gray-600">Hasta</span>
-          <input type="date" name="hasta" value="{{ params.hasta|default:'' }}"
-                 class="mt-1 w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-        </label>
+<!-- Resumen -->
+<section class="mt-6 grid gap-4 sm:grid-cols-2 2xl:grid-cols-4" aria-label="Resumen del período">
+  <article class="card p-5 aparece" style="--d:.08s">
+    <h2 class="text-sm font-semibold text-gray-600">Dinero ingresado</h2>
+    <p class="num mt-1 whitespace-nowrap text-3xl font-extrabold text-gray-900">$ <span data-contar="{{ r.ingresado.ars|stringformat:'s' }}">{{ r.ingresado.ars|money }}</span></p>
+    <p class="text-sm text-gray-500">{{ r.ingresado.n }} depósito{{ r.ingresado.n|pluralize }} acreditado{{ r.ingresado.n|pluralize }}, en pesos</p>
+    <dl class="mt-4 space-y-1 border-t border-gray-200 pt-3 text-sm">
+      {% for m in r.ingresado.monedas %}
+        <div class="flex justify-between gap-3"><dt class="text-gray-500">{% if m.moneda == 'ARS' %}Pesos{% elif m.moneda == 'USD' %}Dólares{% else %}USDT{% endif %}</dt><dd class="num text-gray-900">{% if m.moneda == 'ARS' %}$ {% endif %}{{ m.monto|money }}{% if m.moneda != 'ARS' %} {{ m.moneda }}{% endif %}</dd></div>
+      {% endfor %}
+    </dl>
+  </article>
 
-        <label class="block">
-          <span class="text-xs text-gray-600">Categoría</span>
-          <select name="cat" class="mt-1 w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-            <option value="">Todas</option>
-            <option value="spread_compra" {% if params.cat == 'spread_compra' %}selected{% endif %}>Spread compra</option>
-            <option value="spread_venta"  {% if params.cat == 'spread_venta'  %}selected{% endif %}>Spread venta</option>
-            <option value="fee_swap"      {% if params.cat == 'fee_swap'      %}selected{% endif %}>Comisión swap</option>
-            <option value="ajuste"        {% if params.cat == 'ajuste'        %}selected{% endif %}>Ajuste</option>
-            <option value="entrada"       {% if params.cat == 'entrada'       %}selected{% endif %}>Entrada</option>
-            <option value="salida"        {% if params.cat == 'salida'        %}selected{% endif %}>Salida</option>
-          </select>
-        </label>
+  <article class="card p-5 aparece" style="--d:.12s">
+    <h2 class="text-sm font-semibold text-gray-600">Dinero retirado</h2>
+    <p class="num mt-1 whitespace-nowrap text-3xl font-extrabold text-gray-900">$ <span data-contar="{{ r.retirado.ars|stringformat:'s' }}">{{ r.retirado.ars|money }}</span></p>
+    <p class="text-sm text-gray-500">{{ r.retirado.n }} retiro{{ r.retirado.n|pluralize }} enviado{{ r.retirado.n|pluralize }}, en pesos</p>
+    <dl class="mt-4 space-y-1 border-t border-gray-200 pt-3 text-sm">
+      {% for m in r.retirado.monedas %}
+        <div class="flex justify-between gap-3"><dt class="text-gray-500">{% if m.moneda == 'ARS' %}Pesos{% elif m.moneda == 'USD' %}Dólares{% else %}USDT{% endif %}</dt><dd class="num text-gray-900">{% if m.moneda == 'ARS' %}$ {% endif %}{{ m.monto|money }}{% if m.moneda != 'ARS' %} {{ m.moneda }}{% endif %}</dd></div>
+      {% endfor %}
+    </dl>
+  </article>
 
-        <label class="block">
-          <span class="text-xs text-gray-600">Moneda</span>
-          <select name="mon" class="mt-1 w-full rounded-lg border border-gray-300 bg-white text-gray-900 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary">
-            <option value="">Todas</option>
-            <option value="ARS"  {% if params.mon == 'ARS'  %}selected{% endif %}>ARS</option>
-            <option value="USDT" {% if params.mon == 'USDT' %}selected{% endif %}>USDT</option>
-            <option value="USD"  {% if params.mon == 'USD'  %}selected{% endif %}>USD</option>
-          </select>
-        </label>
+  <article class="card p-5 aparece" style="--d:.16s">
+    <h2 class="text-sm font-semibold text-gray-600">Neto: quedó en la plataforma</h2>
+    <p class="num mt-1 whitespace-nowrap text-3xl font-extrabold {% if r.neto_ars > 0 %}positivo{% else %}text-gray-900{% endif %}">{% if r.neto_ars < 0 %}−{% endif %}$ <span data-contar="{{ r.neto_ars|absoluto|stringformat:'s' }}">{{ r.neto_ars|absoluto|money }}</span></p>
+    <p class="text-sm text-gray-500">Ingresado menos retirado. Por moneda puede diferir de la custodia, porque los clientes convierten pesos a USDT o dólares y al revés.</p>
+    <dl class="mt-4 space-y-1 border-t border-gray-200 pt-3 text-sm">
+      {% for m in r.neto_monedas %}
+        <div class="flex justify-between gap-3"><dt class="text-gray-500">{% if m.moneda == 'ARS' %}Pesos{% elif m.moneda == 'USD' %}Dólares{% else %}USDT{% endif %}</dt><dd class="num text-gray-900">{% if m.monto < 0 %}−{% endif %}{% if m.moneda == 'ARS' %}$ {% endif %}{{ m.monto|absoluto|money }}{% if m.moneda != 'ARS' %} {{ m.moneda }}{% endif %}</dd></div>
+      {% endfor %}
+    </dl>
+  </article>
 
-        <div class="flex items-end gap-2">
-          <button class="rounded-lg bg-primary text-white font-semibold px-4 py-2 shadow-soft hover:opacity-90">Aplicar</button>
-          <a href="{% url 'exchange_dashboard' %}" class="rounded-lg border border-gray-300 px-4 py-2 hover:bg-gray-50">Limpiar</a>
+  <article class="card p-5 aparece" style="--d:.2s">
+    <h2 class="text-sm font-semibold text-gray-600">Ganancia del exchange</h2>
+    <p class="num mt-1 whitespace-nowrap text-3xl font-extrabold text-gray-900">$ <span data-contar="{{ r.ganancia_ars|stringformat:'s' }}">{{ r.ganancia_ars|money }}</span></p>
+    <p class="text-sm text-gray-500">Spread de compras y ventas más comisiones de swap</p>
+    <dl class="mt-4 space-y-1 border-t border-gray-200 pt-3 text-sm">
+      <div class="flex justify-between gap-3"><dt class="text-gray-500">Compras y ventas</dt><dd class="num text-gray-900">$ {{ r.volumen_ars|money:0 }}</dd></div>
+      <div class="flex justify-between gap-3"><dt class="text-gray-500">Operaciones</dt><dd class="num text-gray-900">{{ r.operaciones }}</dd></div>
+      <div class="flex justify-between gap-3"><dt class="text-gray-500">Swaps</dt><dd class="num text-gray-900">{{ r.volumen_swap|money }} <span class="text-gray-500">en {{ r.swaps }}</span></dd></div>
+    </dl>
+  </article>
+</section>
+
+<div class="mt-4 grid gap-4 xl:grid-cols-3">
+  <!-- Gráfico -->
+  <section class="card p-5 sm:p-6 xl:col-span-2 aparece" style="--d:.24s" aria-labelledby="t-flujo">
+    <h2 id="t-flujo" class="text-lg font-bold text-gray-900">Ingresos y retiros por día</h2>
+    <p class="text-sm text-gray-500">En pesos, a la cotización del día{% if not params.desde and not params.hasta %}. Últimos 30 días{% endif %}.</p>
+    <div class="relative mt-5 h-64"><canvas id="cx-flujo" role="img" aria-label="Gráfico de ingresos y retiros por día"></canvas></div>
+    <p id="cx-flujo-vacio" class="mt-5 hidden rounded-xl bg-gray-100 px-4 py-10 text-center text-sm text-gray-500">No hubo depósitos ni retiros en este período.</p>
+  </section>
+
+  <!-- Custodia -->
+  <section class="card p-5 sm:p-6 aparece" style="--d:.28s" aria-labelledby="t-custodia">
+    <h2 id="t-custodia" class="text-lg font-bold text-gray-900">En custodia ahora</h2>
+    <p class="text-sm text-gray-500">Lo que tiene que haber en cuentas y billeteras para cubrir a los clientes. No depende del período.</p>
+    <dl class="mt-4 divide-y divide-gray-200">
+      {% for c in r.custodia %}
+        <div class="py-3">
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="font-semibold text-gray-900">{% if c.moneda == 'ARS' %}Pesos{% elif c.moneda == 'USD' %}Dólares{% else %}USDT{% endif %}</dt>
+            <dd class="num whitespace-nowrap text-lg font-bold text-gray-900">{% if c.moneda == 'ARS' %}$ {% endif %}{{ c.total|money }}{% if c.moneda != 'ARS' %} <span class="text-xs text-gray-500">{{ c.moneda }}</span>{% endif %}</dd>
+          </div>
+          <dd class="num mt-0.5 text-sm text-gray-500">Saldos {{ c.saldos|money }}{% if c.por_enviar %} + retiros por enviar {{ c.por_enviar|money }}{% endif %}</dd>
         </div>
-      </div>
-    </form>
-  </header>
+      {% endfor %}
+    </dl>
+  </section>
+</div>
 
-  <!-- KPIs -->
-  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
-      <p class="text-gray-600 text-sm">Saldo caja ARS</p>
-      <p class="num text-2xl font-bold text-gray-900">$ {{ cuenta.saldo_ars|money }}</p>
-    </div>
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
-      <p class="text-gray-600 text-sm">Saldo caja USDT</p>
-      <p class="num text-2xl font-bold text-gray-900">{{ cuenta.saldo_usdt|money:6 }}</p>
-    </div>
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
-      <p class="text-gray-600 text-sm">Saldo caja USD</p>
-      <p class="num text-2xl font-bold text-gray-900">US$ {{ cuenta.saldo_usd|money }}</p>
-    </div>
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
-      <p class="text-gray-600 text-sm">Renta (ARS) filtrada</p>
-      <p class="num text-2xl font-bold text-gray-900">$ {{ ingresos_ars|money }}</p>
-      <p class="text-gray-500 text-xs mt-1">Solo spread/fee/ajustes (no incluye depósitos/retiros)</p>
+<!-- Caja del exchange -->
+<section class="card mt-4 p-5 sm:p-6 aparece" style="--d:.32s" aria-labelledby="t-caja">
+  <div class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h2 id="t-caja" class="text-lg font-bold text-gray-900">Caja del exchange</h2>
+      <p class="text-sm text-gray-500">Saldo acumulado de spreads, comisiones y ajustes desde el inicio.</p>
     </div>
   </div>
+  <dl class="mt-4 grid gap-3 sm:grid-cols-3">
+    <div class="rounded-2xl bg-gray-100 px-4 py-3"><dt class="text-sm text-gray-500">Pesos</dt><dd class="num text-xl font-bold text-gray-900">$ {{ cuenta.saldo_ars|money }}</dd></div>
+    <div class="rounded-2xl bg-gray-100 px-4 py-3"><dt class="text-sm text-gray-500">USDT</dt><dd class="num text-xl font-bold text-gray-900">{{ cuenta.saldo_usdt|money:6 }}</dd></div>
+    <div class="rounded-2xl bg-gray-100 px-4 py-3"><dt class="text-sm text-gray-500">Dólares</dt><dd class="num text-xl font-bold text-gray-900">US$ {{ cuenta.saldo_usd|money }}</dd></div>
+  </dl>
+</section>
 
-  <!-- Charts -->
-  <!-- <div class="grid gap-6 lg:grid-cols-2">
-    
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-lg font-semibold">Composición de Caja (ARS)</h2>
-        <span class="text-sm text-gray-600">Equivalentes normalizados</span>
-      </div>
-      <canvas id="chart-cartera" height="120"></canvas>
-    </div> -->
-
-    <!-- Flujo global -->
-    <!-- <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="text-lg font-semibold">Ingreso / Egreso — Totales (ARS)</h2>
-        <span class="text-sm text-gray-600">Entradas (depósitos) vs Salidas (retiros)</span>
-      </div>
-      <canvas id="chart-flujo" height="120"></canvas>
-      <p class="text-xs text-gray-600 mt-2">
-        Entradas: $ {{ total_entradas|money }} • Salidas: $ {{ total_salidas|money }}
-      </p>
+<!-- Apuntes -->
+<section class="mt-8 aparece" style="--d:.36s" aria-labelledby="t-apuntes">
+  <div class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h2 id="t-apuntes" class="text-xl font-bold text-gray-900">Apuntes contables</h2>
+      <p class="text-sm text-gray-500">Cada depósito, retiro, spread y comisión del período. Renta del filtro: <span class="num font-semibold text-gray-900">$ {{ renta_ars|money }}</span>.</p>
     </div>
-  </div> -->
-
-  <!-- Totales -->
-  <div class="grid gap-6 lg:grid-cols-2">
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-0 overflow-x-auto">
-      <h3 class="px-4 pt-4 text-lg font-semibold">Totales por categoría</h3>
-      <table class="w-full text-sm mt-2">
-        <thead class="bg-gray-50 text-gray-800 border-b border-gray-200">
-          <tr>
-            <th class="px-3 py-2 text-left">Categoría</th>
-            <th class="px-3 py-2 text-left">Total ARS</th>
-            <th class="px-3 py-2 text-left">#</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for t in totales_cat %}
-          <tr class="hover:bg-gray-50">
-            <td class="px-3 py-2">{{ t.categoria }}</td>
-            <td class="px-3 py-2">$ {{ t.total_ars|money }}</td>
-            <td class="px-3 py-2">{{ t.n }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="3" class="px-3 py-4 text-center text-gray-600">Sin datos.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-
-    <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-0 overflow-x-auto">
-      <h3 class="px-4 pt-4 text-lg font-semibold">Totales por moneda</h3>
-      <table class="w-full text-sm mt-2">
-        <thead class="bg-gray-50 text-gray-800 border-b border-gray-200">
-          <tr>
-            <th class="px-3 py-2 text-left">Moneda</th>
-            <th class="px-3 py-2 text-left">Total (moneda)</th>
-            <th class="px-3 py-2 text-left">Total ARS</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for t in totales_mon %}
-          <tr class="hover:bg-gray-50">
-            <td class="px-3 py-2">{{ t.moneda }}</td>
-            <td class="px-3 py-2">
-              {% if t.moneda == 'USDT' %}
-                {{ t.total_mon|floatformat:6 }}
-              {% else %}
-                {{ t.total_mon|money }}
-              {% endif %}
-            </td>
-            <td class="px-3 py-2">$ {{ t.total_ars|money }}</td>
-          </tr>
-          {% empty %}
-          <tr><td colspan="3" class="px-3 py-4 text-center text-gray-600">Sin datos.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
+    <a href="{% url 'exchange_export_csv' %}{% if query_filtros %}?{{ query_filtros }}{% endif %}" class="btn btn-sm btn-secundario">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Descargar CSV
+    </a>
   </div>
 
-  <!-- Últimos apuntes -->
-  <div class="bg-white rounded-2xl border border-gray-200 shadow-card p-0 overflow-x-auto">
-    <h3 class="px-4 pt-4 text-lg font-semibold">Últimos apuntes</h3>
-    <table class="w-full text-sm mt-2">
-      <thead class="bg-gray-50 text-gray-800 border-b border-gray-200">
-        <tr>
-          <th class="px-3 py-2 text-left">Fecha</th>
-          <th class="px-3 py-2 text-left">Categoría</th>
-          <th class="px-3 py-2 text-left">Moneda</th>
-          <th class="px-3 py-2 text-left">Monto (moneda)</th>
-          <th class="px-3 py-2 text-left">Valuación ARS</th>
-          <th class="px-3 py-2 text-left">Usuario</th>
-          <th class="px-3 py-2 text-left">Detalle</th>
-          <th class="px-3 py-2 text-left">Ref</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for a in apuntes %}
-        <tr class="hover:bg-gray-50">
-          <td class="px-3 py-2 whitespace-nowrap">{{ a.fecha|date:"Y-m-d H:i" }}</td>
-          <td class="px-3 py-2">{{ a.categoria }}</td>
-          <td class="px-3 py-2">{{ a.moneda }}</td>
-          <td class="px-3 py-2">{{ a.monto_moneda|money }}</td>
-          <td class="px-3 py-2">$ {{ a.monto_ars|money }}</td>
-          <td class="px-3 py-2">{% if a.usuario %}{{ a.usuario.username }}{% else %}<span class="text-gray-500">—</span>{% endif %}</td>
-          <td class="px-3 py-2">{{ a.detalle|default:"—" }}</td>
-          <td class="px-3 py-2 text-xs">{{ a.ref_movimiento|default:"—" }}</td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="8" class="px-3 py-6 text-center text-gray-600">Sin registros.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Export -->
-  <form method="GET" action="{% url 'exchange_export_csv' %}" class="bg-white rounded-2xl border border-gray-200 shadow-card p-4">
-    <div class="flex flex-wrap items-center gap-3">
-      <input type="hidden" name="desde" value="{{ params.desde|default:'' }}">
-      <input type="hidden" name="hasta" value="{{ params.hasta|default:'' }}">
-      <input type="hidden" name="cat"   value="{{ params.cat|default:'' }}">
-      <input type="hidden" name="mon"   value="{{ params.mon|default:'' }}">
-      <button class="rounded-lg border border-primary/30 text-primary px-4 py-2 hover:bg-primary/5">📥 Exportar CSV</button>
-      <span class="text-xs text-gray-600">Se aplica el filtro actual.</span>
-    </div>
+  <form method="get" class="mt-4 flex flex-wrap items-end gap-3">
+    <input type="hidden" name="desde" value="{{ params.desde }}"><input type="hidden" name="hasta" value="{{ params.hasta }}">
+    <label class="min-w-[12rem]">
+      <span class="etiqueta">Categoría</span>
+      <select name="cat" class="campo">
+        <option value="">Todas</option>
+        {% for valor, nombre in categorias %}<option value="{{ valor }}" {% if params.cat == valor %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="min-w-[9rem]">
+      <span class="etiqueta">Moneda</span>
+      <select name="mon" class="campo">
+        <option value="">Todas</option>
+        <option value="ARS" {% if params.mon == 'ARS' %}selected{% endif %}>Pesos</option>
+        <option value="USDT" {% if params.mon == 'USDT' %}selected{% endif %}>USDT</option>
+        <option value="USD" {% if params.mon == 'USD' %}selected{% endif %}>Dólares</option>
+      </select>
+    </label>
+    <button class="btn btn-secundario">Filtrar</button>
   </form>
 
+  <div class="mt-4 grid gap-4 lg:grid-cols-3">
+    <div class="card overflow-hidden p-0">
+      <h3 class="px-5 pb-2 pt-4 font-semibold text-gray-900">Totales por categoría</h3>
+      <table class="w-full text-sm">
+        <tbody class="divide-y divide-gray-200 border-t border-gray-200">
+          {% for t in totales_cat %}
+          <tr>
+            <td class="px-5 py-2.5 text-gray-700">{{ t.nombre }} <span class="text-gray-400">({{ t.n }})</span></td>
+            <td class="num whitespace-nowrap px-5 py-2.5 text-right text-gray-900">{% if t.total_ars < 0 %}−{% endif %}$ {{ t.total_ars|absoluto|money }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="2" class="px-5 py-6 text-center text-gray-500">Sin apuntes.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card overflow-hidden p-0 lg:col-span-2">
+      <h3 class="px-5 pb-2 pt-4 font-semibold text-gray-900">Últimos apuntes</h3>
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[36rem] text-sm">
+          <thead class="border-y border-gray-200 bg-gray-50 text-left text-gray-600">
+            <tr>
+              <th class="px-5 py-2.5 font-semibold">Fecha</th>
+              <th class="px-5 py-2.5 font-semibold">Concepto</th>
+              <th class="px-5 py-2.5 text-right font-semibold">Monto</th>
+              <th class="px-5 py-2.5 text-right font-semibold">En pesos</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200">
+            {% for a in apuntes %}
+            <tr class="align-top hover:bg-gray-50">
+              <td class="num whitespace-nowrap px-5 py-2.5 text-gray-600">{{ a.fecha|date:"d/m/Y H:i" }}</td>
+              <td class="px-5 py-2.5">
+                <span class="font-semibold text-gray-900">{{ a.nombre_categoria }}</span>
+                <div class="text-gray-500">{% if a.usuario %}{{ a.usuario.username }}{% if a.detalle %}: {% endif %}{% endif %}{{ a.detalle|default:"" }}</div>
+              </td>
+              <td class="num whitespace-nowrap px-5 py-2.5 text-right text-gray-900">{% if a.monto_moneda < 0 %}−{% endif %}{% if a.moneda == 'ARS' %}$ {% endif %}{{ a.monto_moneda|absoluto|money }}{% if a.moneda != 'ARS' %} <span class="text-xs text-gray-500">{{ a.moneda }}</span>{% endif %}</td>
+              <td class="num whitespace-nowrap px-5 py-2.5 text-right text-gray-600">{% if a.monto_ars < 0 %}−{% endif %}$ {{ a.monto_ars|absoluto|money }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="px-5 py-8 text-center text-gray-500">Sin apuntes en este período.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </section>
+
+{{ r.serie.labels|json_script:"cxLabels" }}
+{{ r.serie.entradas|json_script:"cxEntradas" }}
+{{ r.serie.salidas|json_script:"cxSalidas" }}
+{% endwith %}
 {% endblock %}
 
 {% block scripts %}{{ block.super }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
-(function(){
-  // --- Datos de servidor ---
-  const serie = {{ serie_diaria|safe|default:"[]" }};
-  const compL   = {{ comp_labels|safe|default:"[]" }};   // ['ARS','USDT','USD']
-  const compARS = {{ comp_ars|safe|default:"[]" }};      // valores normalizados en ARS
-  const compU   = {{ comp_units|safe|default:"[]" }};    // unidades originales para tooltip
-
-  // --- Composición de caja ---
-  const $cartera = document.getElementById('chart-cartera');
-  if ($cartera && window.Chart){
-    new Chart($cartera, {
-      type: 'doughnut',
-      data: {
-        labels: compL,
-        datasets: [{
-          data: compARS,
-          borderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        plugins: {
-          legend: { position: 'bottom' },
-          tooltip: {
-            callbacks: {
-              label: (ctx) => {
-                const i = ctx.dataIndex;
-                const label = compL[i] ?? '';
-                const ars   = Number(compARS[i] ?? 0);
-                const unit  = Number(compU[i] ?? 0);
-                const unitFmt = (label === 'USDT') ? unit.toFixed(6) : unit.toFixed(2);
-                return `${label}: ${unitFmt} • $${ars.toFixed(2)} ARS`;
-              }
-            }
-          }
-        },
-        cutout: '58%'
-      }
-    });
+(function () {
+  const c = document.getElementById('cx-flujo');
+  if (!c || !window.Chart) return;
+  const leer = (id) => JSON.parse(document.getElementById(id)?.textContent || '[]');
+  const entradas = leer('cxEntradas'), salidas = leer('cxSalidas');
+  if (!entradas.some(Boolean) && !salidas.some(Boolean)) {
+    c.parentElement.classList.add('hidden');
+    document.getElementById('cx-flujo-vacio').classList.remove('hidden');
+    return;
   }
+  const css = getComputedStyle(document.documentElement);
+  const rgb = (v) => `rgb(${css.getPropertyValue(v).trim().replace(/ /g, ',')})`;
+  const etiquetas = leer('cxLabels').map(d => d.slice(8, 10) + '/' + d.slice(5, 7));
+  const pesos = (v) => '$ ' + Number(v).toLocaleString('es-AR', { maximumFractionDigits: 0 });
 
-  // --- Flujo global (entradas vs salidas) ---
-  const entradas = Number("{{ total_entradas|default:'0' }}");
-  const salidas  = Number("{{ total_salidas|default:'0' }}");
-  const $flujo = document.getElementById('chart-flujo');
-  if ($flujo && window.Chart){
-    new Chart($flujo, {
-      type: 'bar',
-      data: {
-        labels: ['Entradas', 'Salidas'],
-        datasets: [{ label: 'ARS', data: [entradas, Math.abs(salidas)], borderWidth: 1 }]
+  Chart.defaults.font.family = css.getPropertyValue('--font-ui');
+  new Chart(c, {
+    type: 'bar',
+    data: {
+      labels: etiquetas,
+      datasets: [
+        { label: 'Ingresos', data: entradas, backgroundColor: rgb('--g-900'), borderRadius: 4, maxBarThickness: 16 },
+        { label: 'Retiros', data: salidas, backgroundColor: rgb('--rojo'), borderRadius: 4, maxBarThickness: 16 },
+      ]
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom', align: 'start', labels: { boxWidth: 10, boxHeight: 10, color: rgb('--g-600') } },
+        tooltip: { callbacks: { label: (x) => `${x.dataset.label}: ${pesos(x.raw)}` } }
       },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false } },
-          y: { grid: { color: 'rgba(0,0,0,.06)' } }
-        }
+      scales: {
+        x: { grid: { display: false }, ticks: { color: rgb('--g-500'), maxRotation: 0, autoSkipPadding: 12 } },
+        y: { grid: { color: rgb('--g-200') }, border: { display: false }, ticks: { color: rgb('--g-500'), callback: pesos } }
       }
-    });
-  }
+    }
+  });
 })();
 </script>
 {% endblock %}

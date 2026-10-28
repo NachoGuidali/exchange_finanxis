@@ -1094,3 +1094,43 @@ def mock_fuente(cotizaciones, precio):
     """Reemplaza las fuentes de USDT por una que devuelve `precio`."""
     from unittest import mock
     return mock.patch.dict(cotizaciones.FUENTES, {"USDT": (lambda: (Decimal(precio), "test"),)})
+
+
+class ContabilidadResumenTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+        self.client.force_login(self.admin)
+        crear_cotizaciones()
+        self.cli = crear_usuario()
+
+    def resumen(self, **params):
+        resp = self.client.get(reverse("exchange_dashboard"), params)
+        self.assertEqual(resp.status_code, 200)
+        return resp.context["resumen"]
+
+    def test_ingresado_retirado_y_custodia(self):
+        from .services import fondos
+        with self.captureOnCommitCallbacks(execute=True):
+            dep = DepositoARS.objects.create(usuario=self.cli, monto=Decimal("100000"), comprobante="c.png")
+            fondos.aprobar_deposito_ars(dep.pk, self.admin)
+        r = self.resumen()
+        self.assertEqual(r["ingresado"]["ars"], Decimal("100000"))
+        self.assertEqual(r["ingresado"]["n"], 1)
+        self.assertEqual(r["retirado"]["ars"], 0)
+        self.assertEqual(r["neto_ars"], Decimal("100000"))
+        custodia = {c["moneda"]: c["total"] for c in r["custodia"]}
+        self.assertEqual(custodia["ARS"], Decimal("100000"))
+        self.assertEqual(sum(r["serie"]["entradas"]), 100000)
+
+        # un período sin movimientos no suma, pero la custodia sigue siendo la actual
+        r = self.resumen(desde="2020-01-01", hasta="2020-01-31")
+        self.assertEqual(r["ingresado"]["ars"], 0)
+        self.assertEqual({c["moneda"]: c["total"] for c in r["custodia"]}["ARS"], Decimal("100000"))
+
+    def test_pantalla(self):
+        resp = self.client.get(reverse("exchange_dashboard"))
+        self.assertContains(resp, "Dinero ingresado")
+        self.assertContains(resp, "En custodia ahora")
