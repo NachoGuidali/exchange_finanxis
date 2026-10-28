@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.core.paginator import Paginator
@@ -17,16 +18,17 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import localtime
 from django.views.decorators.http import require_POST
 
-from usuarios.services import fondos, onchain
+from usuarios.services import cotizaciones, fondos, onchain
 from usuarios.services.auditoria import auditar
 from usuarios.services.comun import OperacionError
 
 from ..forms import ExchangeConfigForm
-from ..utils import parse_monto
+from ..utils import cotizacion_vigente, parse_monto
 from ..models import (
     AlertaCompliance,
     ApunteExchange,
     BoletoOperacion,
+    Cotizacion,
     CuentaExchange,
     DepositoARS,
     DepositoUSDT,
@@ -92,6 +94,99 @@ def parametros_exchange(request):
     return render(request, 'usuarios/parametros_exchange.html', {
         'cfg': cfg, 'cfg_form': ExchangeConfigForm(instance=cfg),
     })
+
+
+DURACIONES_MANUAL = [('30', '30 minutos'), ('60', '1 hora'), ('240', '4 horas'), ('1440', '24 horas'),
+                     ('0', 'Hasta que lo quite')]
+NOMBRE_MONEDA = {'USDT': 'USDT', 'USD': 'Dólar'}
+
+
+@login_required
+@user_passes_test(es_admin)
+def admin_cotizaciones(request):
+    monedas = []
+    for moneda in cotizaciones.FUENTES:
+        cot = cotizaciones.ultima(moneda)
+        mercado = Cotizacion.objects.filter(moneda=moneda, manual=False).order_by('-fecha', '-id').first()
+        monedas.append({
+            'codigo': moneda,
+            'nombre': NOMBRE_MONEDA[moneda],
+            'cot': cot,
+            'vigente': cotizacion_vigente(cot),
+            'mercado': mercado,
+        })
+    historial = Cotizacion.objects.select_related('cargada_por').order_by('-fecha', '-id')[:40]
+    return render(request, 'usuarios/admin_cotizaciones.html', {
+        'monedas': monedas,
+        'historial': historial,
+        'duraciones': DURACIONES_MANUAL,
+        'max_edad': settings.COTIZACION_MAX_EDAD_MIN,
+    })
+
+
+@login_required
+@user_passes_test(es_admin)
+@require_POST
+def actualizar_cotizaciones_admin(request):
+    for moneda in cotizaciones.FUENTES:
+        try:
+            cot, fuente = cotizaciones.actualizar(moneda)
+        except cotizaciones.PrecioManualActivo:
+            messages.warning(request, f"{NOMBRE_MONEDA[moneda]}: tiene un precio manual activo, no se actualizó.")
+        except cotizaciones.FuenteNoDisponible:
+            messages.error(request, f"{NOMBRE_MONEDA[moneda]}: ninguna fuente respondió. Probá de nuevo en unos minutos.")
+        else:
+            auditar(request.user, 'cotizacion_actualizada', cot, moneda=moneda, fuente=fuente,
+                    compra=cot.compra, venta=cot.venta)
+            messages.success(request, f"{NOMBRE_MONEDA[moneda]} actualizado desde {fuente}.")
+    return redirect('admin_cotizaciones')
+
+
+@login_required
+@user_passes_test(es_admin)
+@require_POST
+def fijar_precio_manual(request):
+    moneda = request.POST.get('moneda')
+    compra, venta = parse_monto(request.POST.get('compra')), parse_monto(request.POST.get('venta'))
+    minutos = request.POST.get('duracion', '60')
+    if moneda not in cotizaciones.FUENTES or minutos not in dict(DURACIONES_MANUAL):
+        messages.error(request, "Datos inválidos.")
+        return redirect('admin_cotizaciones')
+    if compra is None or venta is None:
+        messages.error(request, "Cargá precios de compra y venta válidos.")
+        return redirect('admin_cotizaciones')
+    hasta = timezone.now() + timedelta(minutes=int(minutos)) if minutos != '0' else None
+    try:
+        cot = cotizaciones.fijar_manual(moneda, compra, venta, hasta, request.user)
+    except ValueError as e:
+        messages.error(request, str(e))
+        return redirect('admin_cotizaciones')
+    auditar(request.user, 'cotizacion_manual', cot, moneda=moneda, compra=cot.compra, venta=cot.venta,
+            hasta=hasta.isoformat() if hasta else 'hasta que la quiten')
+    messages.success(request, f"Precio manual de {NOMBRE_MONEDA[moneda]} activo.")
+    return redirect('admin_cotizaciones')
+
+
+@login_required
+@user_passes_test(es_admin)
+@require_POST
+def quitar_precio_manual(request):
+    moneda = request.POST.get('moneda')
+    if moneda not in cotizaciones.FUENTES:
+        return redirect('admin_cotizaciones')
+    cot = cotizaciones.quitar_manual(moneda)
+    if cot is None:
+        messages.info(request, f"{NOMBRE_MONEDA[moneda]} no tenía un precio manual activo.")
+        return redirect('admin_cotizaciones')
+    auditar(request.user, 'cotizacion_manual_quitada', cot, moneda=moneda)
+    # vuelve enseguida al precio de mercado
+    try:
+        _, fuente = cotizaciones.actualizar(moneda)
+        messages.success(request, f"Precio manual quitado. {NOMBRE_MONEDA[moneda]} vuelve al precio de {fuente}.")
+    except cotizaciones.FuenteNoDisponible:
+        messages.warning(request, "Precio manual quitado, pero ninguna fuente respondió: compra y venta quedan "
+                                  "pausadas hasta la próxima actualización.")
+    return redirect('admin_cotizaciones')
 
 
 @login_required

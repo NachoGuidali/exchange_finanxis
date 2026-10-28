@@ -17,6 +17,15 @@ def money(valor, decimales=2):
 
 
 @register.filter
+def bps_pct(valor):
+    """200 → '2%', 150 → '1,5%' (puntos básicos a porcentaje)."""
+    try:
+        return f"{Decimal(str(valor)) / 100:g}".replace(".", ",") + "%"
+    except (InvalidOperation, ValueError, TypeError):
+        return valor
+
+
+@register.filter
 def absoluto(valor):
     try:
         return abs(Decimal(str(valor)))

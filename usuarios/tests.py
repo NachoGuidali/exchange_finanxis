@@ -12,7 +12,7 @@ from django.utils import timezone
 from .forms import DepositoARSForm
 from .models import (
     ApunteExchange, BoletoOperacion, Cotizacion, CuentaExchange, DepositoARS,
-    Movimiento, RetiroARS, RetiroCrypto, Usuario,
+    Movimiento, RegistroAuditoria, RetiroARS, RetiroCrypto, Usuario,
 )
 from .utils import parse_monto
 
@@ -1005,3 +1005,92 @@ class AdminMovimientosTests(BaseTest):
         self.client.force_login(self.ana)
         self.assertEqual(self.client.get(reverse("admin_movimientos")).status_code, 302)
         self.assertEqual(self.client.get(reverse("exportar_movimientos_admin")).status_code, 302)
+
+
+class AdminCotizacionesTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+        self.client.force_login(self.admin)
+        crear_cotizaciones(edad=timedelta(hours=1))
+
+    def fijar(self, **datos):
+        datos = {"moneda": "USDT", "compra": "1500", "venta": "1560", "duracion": "60", **datos}
+        return self.client.post(reverse("fijar_precio_manual"), datos)
+
+    def test_pantalla(self):
+        resp = self.client.get(reverse("admin_cotizaciones"))
+        self.assertContains(resp, "Fijar un precio manual")
+        self.assertEqual(len(resp.context["monedas"]), 2)
+
+    def test_precio_manual_no_lo_pisa_la_actualizacion(self):
+        from .services import cotizaciones
+        self.fijar()
+        cot = cotizaciones.ultima("USDT")
+        self.assertTrue(cot.manual_activa)
+        self.assertEqual((cot.compra, cot.venta, cot.ref_venta), (Decimal("1500"), Decimal("1560"), Decimal("1530")))
+        self.assertEqual(cot.margin_bps, 196)
+        with self.assertRaises(cotizaciones.PrecioManualActivo):
+            cotizaciones.actualizar("USDT")
+        self.assertTrue(RegistroAuditoria.objects.filter(accion="cotizacion_manual").exists())
+
+    def test_precio_manual_no_vence_y_se_usa_para_operar(self):
+        from .services import cotizaciones
+        from .utils import cotizacion_vigente
+        self.fijar(duracion="0")
+        self.fijar(moneda="USD", compra="880", venta="920", duracion="0")
+        # horas después: las de mercado y las manuales ya pasaron los 15 minutos
+        Cotizacion.objects.filter(manual=False).update(fecha=timezone.now() - timedelta(hours=6))
+        Cotizacion.objects.filter(manual=True).update(fecha=timezone.now() - timedelta(hours=5))
+        cot = cotizaciones.ultima("USDT")
+        self.assertTrue(cot.manual and cot.manual_hasta is None)
+        self.assertTrue(cotizacion_vigente(cot))
+        self.client.force_login(crear_usuario("cli"))
+        self.assertTrue(self.client.get(reverse("operar")).context["cotizaciones_vigentes"])
+
+    def test_precio_manual_vencido_vuelve_al_mercado(self):
+        from .services import cotizaciones
+        from .utils import cotizacion_vigente
+        self.fijar(duracion="30")
+        cot = Cotizacion.objects.latest("id")
+        Cotizacion.objects.filter(pk=cot.pk).update(fecha=timezone.now() - timedelta(minutes=40),
+                                                    manual_hasta=timezone.now() - timedelta(minutes=10))
+        cot.refresh_from_db()
+        self.assertFalse(cot.manual_activa)
+        self.assertFalse(cotizacion_vigente(cot))
+        with mock_fuente(cotizaciones, 1600):
+            _, fuente = cotizaciones.actualizar("USDT")
+        self.assertEqual(fuente, "test")
+
+    def test_quitar_precio_manual(self):
+        from .services import cotizaciones
+        self.fijar(duracion="0")
+        with mock_fuente(cotizaciones, 1600):
+            self.client.post(reverse("quitar_precio_manual"), {"moneda": "USDT"})
+        cot = cotizaciones.ultima("USDT")
+        self.assertFalse(cot.manual)
+        self.assertEqual(cot.ref_venta, Decimal("1600"))
+        self.assertTrue(RegistroAuditoria.objects.filter(accion="cotizacion_manual_quitada").exists())
+
+    def test_validaciones(self):
+        antes = Cotizacion.objects.count()
+        self.fijar(compra="1600", venta="1500")
+        self.fijar(compra="abc")
+        self.fijar(moneda="BTC")
+        self.fijar(duracion="99999")
+        self.assertEqual(Cotizacion.objects.count(), antes)
+
+    def test_solo_staff(self):
+        cliente = crear_usuario("cli")
+        self.client.force_login(cliente)
+        self.assertEqual(self.client.get(reverse("admin_cotizaciones")).status_code, 302)
+        self.fijar()
+        self.assertFalse(Cotizacion.objects.filter(manual=True).exists())
+
+
+def mock_fuente(cotizaciones, precio):
+    """Reemplaza las fuentes de USDT por una que devuelve `precio`."""
+    from unittest import mock
+    return mock.patch.dict(cotizaciones.FUENTES, {"USDT": (lambda: (Decimal(precio), "test"),)})

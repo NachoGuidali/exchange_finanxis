@@ -1,0 +1,158 @@
+{% extends "usuarios/admin_base.html" %}
+{% load finanxis %}
+{% block title %}Cotizaciones — Administración Finanxis{% endblock %}
+
+{% block admin_content %}
+<div class="flex flex-wrap items-end justify-between gap-4 aparece">
+  <div>
+    <h1 class="text-3xl font-extrabold text-gray-900">Cotizaciones</h1>
+    <p class="mt-1 max-w-2xl text-gray-600">Precios con los que operan los clientes. Se actualizan solos desde el mercado; una cotización con más de {{ max_edad }} minutos pausa la compra y la venta.</p>
+  </div>
+  <form method="post" action="{% url 'actualizar_cotizaciones_admin' %}">
+    {% csrf_token %}
+    <button class="btn btn-sm btn-secundario">
+      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.7M20 4v4.7h-4.7M20 12a8 8 0 0 1-13.7 5.6L4 15.3M4 20v-4.7h4.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Actualizar ahora
+    </button>
+  </form>
+</div>
+
+<div class="mt-6 grid gap-6 xl:grid-cols-2">
+  {% for m in monedas %}
+  <section class="card p-5 sm:p-6 aparece" style="--d:{% if forloop.first %}.06s{% else %}.12s{% endif %}" aria-labelledby="cot-{{ m.codigo }}">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 id="cot-{{ m.codigo }}" class="text-xl font-bold text-gray-900">{{ m.nombre }}</h2>
+      {% if m.cot.manual_activa %}
+        <span class="etiqueta-estado bg-sky-50 text-sky-800">Precio manual {% if m.cot.manual_hasta %}hasta las {{ m.cot.manual_hasta|date:"H:i" }}{% else %}sin vencimiento{% endif %}</span>
+      {% elif m.vigente %}
+        <span class="etiqueta-estado bg-emerald-50 text-emerald-800">Vigente</span>
+      {% else %}
+        <span class="etiqueta-estado bg-rose-50 text-rose-800">Vencida: compra y venta pausadas</span>
+      {% endif %}
+    </div>
+
+    {% if m.cot %}
+      <dl class="mt-5 grid grid-cols-2 gap-3">
+        <div class="rounded-2xl bg-gray-100 px-4 py-3">
+          <dt class="text-sm text-gray-500">Compra</dt>
+          <dd class="num mt-0.5 whitespace-nowrap text-xl font-bold text-gray-900 sm:text-2xl">$ {{ m.cot.compra|money }}</dd>
+          <dd class="text-xs text-gray-500">le pagamos al cliente que vende</dd>
+        </div>
+        <div class="rounded-2xl bg-gray-100 px-4 py-3">
+          <dt class="text-sm text-gray-500">Venta</dt>
+          <dd class="num mt-0.5 whitespace-nowrap text-xl font-bold text-gray-900 sm:text-2xl">$ {{ m.cot.venta|money }}</dd>
+          <dd class="text-xs text-gray-500">le cobramos al cliente que compra</dd>
+        </div>
+      </dl>
+      <dl class="mt-4 space-y-1.5 text-sm">
+        <div class="flex justify-between gap-4"><dt class="text-gray-500">Referencia</dt><dd class="num text-gray-900">$ {{ m.cot.ref_venta|money }}</dd></div>
+        {% if m.cot.margin_bps is not None %}<div class="flex justify-between gap-4"><dt class="text-gray-500">Margen sobre la referencia</dt><dd class="num text-gray-900">{{ m.cot.margin_bps|bps_pct }}</dd></div>{% endif %}
+        <div class="flex justify-between gap-4"><dt class="text-gray-500">Fuente</dt><dd class="text-gray-900">{{ m.cot.fuente|default:"Sin dato" }}{% if m.cot.manual and m.cot.cargada_por %}, cargado por {{ m.cot.cargada_por.username }}{% endif %}</dd></div>
+        <div class="flex justify-between gap-4"><dt class="text-gray-500">Actualizada</dt><dd class="text-gray-900">{{ m.cot.fecha|date:"d/m H:i" }} <span class="text-gray-500">(hace {{ m.cot.fecha|hace }})</span></dd></div>
+      </dl>
+    {% else %}
+      <p class="mt-4 text-gray-600">Todavía no hay cotización. Tocá "Actualizar ahora" o cargá un precio manual.</p>
+    {% endif %}
+
+    {% if m.cot.manual_activa %}
+      <form method="post" action="{% url 'quitar_precio_manual' %}" class="mt-5" data-confirmar="¿Quitar el precio manual de {{ m.nombre }}? Vuelve al precio de mercado.">
+        {% csrf_token %}<input type="hidden" name="moneda" value="{{ m.codigo }}">
+        <button class="btn btn-sm btn-secundario">Quitar precio manual</button>
+      </form>
+    {% endif %}
+
+    <details class="group mt-5 border-t border-gray-200 pt-4" {% if not m.cot %}open{% endif %}>
+      <summary class="inline-flex cursor-pointer list-none items-center gap-1.5 font-semibold text-gray-900">
+        {% if m.cot.manual_activa %}Cambiar el precio manual{% else %}Fijar un precio manual{% endif %}
+        <svg class="h-4 w-4 transition group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </summary>
+      <p class="mt-2 text-sm text-gray-600">Mientras esté activo, la actualización automática no lo cambia. Queda registrado en Auditoría.</p>
+      <form method="post" action="{% url 'fijar_precio_manual' %}" class="mt-4 space-y-4" data-precio-manual
+            data-ref-mercado="{{ m.mercado.ref_venta|default:''|stringformat:'s' }}" data-nombre="{{ m.nombre }}">
+        {% csrf_token %}<input type="hidden" name="moneda" value="{{ m.codigo }}">
+        <div class="grid grid-cols-2 gap-3">
+          <label><span class="etiqueta">Compra</span><input type="number" name="compra" step="0.01" min="0.01" required inputmode="decimal" class="campo num" value="{{ m.cot.compra|stringformat:'s' }}"></label>
+          <label><span class="etiqueta">Venta</span><input type="number" name="venta" step="0.01" min="0.01" required inputmode="decimal" class="campo num" value="{{ m.cot.venta|stringformat:'s' }}"></label>
+        </div>
+        <label class="block sm:max-w-xs">
+          <span class="etiqueta">Durante</span>
+          <select name="duracion" class="campo">
+            {% for valor, nombre in duraciones %}<option value="{{ valor }}" {% if valor == '60' %}selected{% endif %}>{{ nombre }}</option>{% endfor %}
+          </select>
+        </label>
+        <p class="text-sm text-gray-500" data-resumen aria-live="polite">&nbsp;</p>
+        <button class="btn btn-sm btn-primario">Aplicar precio manual</button>
+      </form>
+    </details>
+  </section>
+  {% endfor %}
+</div>
+
+<section class="card mt-6 overflow-hidden p-0 aparece" style="--d:.18s" aria-labelledby="historial">
+  <h2 id="historial" class="px-5 pb-2 pt-5 text-lg font-bold text-gray-900">Historial</h2>
+  <div class="overflow-x-auto">
+    <table class="w-full min-w-[40rem] text-sm">
+      <thead class="border-y border-gray-200 bg-gray-50 text-left text-gray-600">
+        <tr>
+          <th class="px-5 py-2.5 font-semibold">Fecha</th>
+          <th class="px-5 py-2.5 font-semibold">Moneda</th>
+          <th class="px-5 py-2.5 text-right font-semibold">Compra</th>
+          <th class="px-5 py-2.5 text-right font-semibold">Venta</th>
+          <th class="px-5 py-2.5 text-right font-semibold">Referencia</th>
+          <th class="px-5 py-2.5 font-semibold">Fuente</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        {% for c in historial %}
+        <tr class="hover:bg-gray-50">
+          <td class="num whitespace-nowrap px-5 py-2.5 text-gray-600">{{ c.fecha|date:"d/m/Y H:i" }}</td>
+          <td class="px-5 py-2.5 font-semibold text-gray-900">{% if c.moneda == 'USD' %}Dólar{% else %}{{ c.moneda }}{% endif %}</td>
+          <td class="num whitespace-nowrap px-5 py-2.5 text-right text-gray-900">$ {{ c.compra|money }}</td>
+          <td class="num whitespace-nowrap px-5 py-2.5 text-right text-gray-900">$ {{ c.venta|money }}</td>
+          <td class="num whitespace-nowrap px-5 py-2.5 text-right text-gray-600">{% if c.ref_venta %}$ {{ c.ref_venta|money }}{% endif %}</td>
+          <td class="px-5 py-2.5 text-gray-700">
+            {% if c.manual %}
+              <span class="font-semibold text-gray-900">Manual</span>{% if c.cargada_por %}, {{ c.cargada_por.username }}{% endif %}
+              <span class="text-gray-500">{% if c.manual_activa %}(activo{% if c.manual_hasta %} hasta {{ c.manual_hasta|date:"H:i" }}{% endif %}){% elif c.manual_hasta %}(hasta {{ c.manual_hasta|date:"d/m H:i" }}){% endif %}</span>
+            {% else %}{{ c.fuente|default:"—" }}{% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="px-5 py-8 text-center text-gray-500">Todavía no hay cotizaciones.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll('form[data-confirmar]').forEach((f) => f.addEventListener('submit', (e) => {
+    if (!confirm(f.dataset.confirmar)) e.preventDefault();
+  }));
+
+  // Resumen del precio manual mientras se escribe: margen y distancia al último precio de mercado
+  document.querySelectorAll('form[data-precio-manual]').forEach((f) => {
+    const compra = f.elements.compra, venta = f.elements.venta, resumen = f.querySelector('[data-resumen]');
+    const ref = Number(f.dataset.refMercado || 0);
+    const pct = (v) => v.toLocaleString('es-AR', { maximumFractionDigits: 2 }) + '%';
+    let distancia = 0;
+    const pinta = () => {
+      const c = Number(compra.value), v = Number(venta.value);
+      if (!c || !v) { resumen.textContent = ' '; return; }
+      if (c >= v) { resumen.textContent = 'La compra tiene que ser menor que la venta.'; return; }
+      const medio = (c + v) / 2;
+      let txt = `Margen ${pct((v - c) / 2 / medio * 100)} sobre el punto medio ($ ${medio.toLocaleString('es-AR', { maximumFractionDigits: 2 })}).`;
+      distancia = ref ? (medio - ref) / ref * 100 : 0;
+      if (ref) txt += ` ${Math.abs(distancia) < 0.01 ? 'Igual al' : (distancia > 0 ? pct(distancia) + ' arriba del' : pct(-distancia) + ' abajo del')} último precio de mercado.`;
+      resumen.textContent = txt;
+    };
+    compra.addEventListener('input', pinta);
+    venta.addEventListener('input', pinta);
+    pinta();
+    f.addEventListener('submit', (e) => {
+      const aviso = Math.abs(distancia) >= 5 ? `\n\nOjo: está ${pct(Math.abs(distancia))} ${distancia > 0 ? 'arriba' : 'abajo'} del mercado.` : '';
+      if (!confirm(`¿Fijar ${f.dataset.nombre} en compra $ ${compra.value} y venta $ ${venta.value}?${aviso}`)) e.preventDefault();
+    });
+  });
+</script>
+{% endblock %}

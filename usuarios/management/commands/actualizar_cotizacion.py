@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from usuarios.services.cotizaciones import FUENTES, FuenteNoDisponible, actualizar
+from usuarios.services.cotizaciones import FUENTES, FuenteNoDisponible, PrecioManualActivo, actualizar
 
 
 class Command(BaseCommand):
@@ -10,6 +10,9 @@ class Command(BaseCommand):
         for moneda in FUENTES:
             try:
                 cot, fuente = actualizar(moneda)
+            except PrecioManualActivo:
+                self.stdout.write(f"[{moneda}] precio manual activo: no se actualiza")
+                continue
             except FuenteNoDisponible as e:
                 self.stderr.write(self.style.ERROR(f"[{moneda}] sin cotización: {e}"))
                 continue

@@ -41,9 +41,11 @@ def kyc_required(view):
 
 
 def cotizacion_vigente(cot):
-    """True si la cotización existe y no superó COTIZACION_MAX_EDAD_MIN."""
+    """True si la cotización existe y no superó COTIZACION_MAX_EDAD_MIN (un precio manual activo no vence)."""
     if cot is None:
         return False
+    if cot.manual_activa:
+        return True
     max_edad = timedelta(minutes=getattr(settings, 'COTIZACION_MAX_EDAD_MIN', 15))
     return timezone.now() - cot.fecha <= max_edad
 

@@ -391,6 +391,18 @@ class Cotizacion(models.Model):
 
     margin_bps = models.IntegerField(null=True, blank=True)
 
+    fuente = models.CharField(max_length=40, blank=True, default='')
+    # Precio cargado a mano por un admin: la actualización automática no lo pisa mientras esté activo.
+    # manual_hasta vacío = hasta que lo quiten.
+    manual = models.BooleanField(default=False)
+    manual_hasta = models.DateTimeField(null=True, blank=True)
+    cargada_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                    on_delete=models.SET_NULL, related_name='+')
+
+    @property
+    def manual_activa(self):
+        return self.manual and (self.manual_hasta is None or timezone.now() < self.manual_hasta)
+
     def __str__(self):
         return f"{self.moneda} - Compra: {self.compra} / Venta: {self.venta}"
 

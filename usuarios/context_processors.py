@@ -21,4 +21,15 @@ def pendientes_admin(request):
         "alertas": AlertaCompliance.objects.filter(estado="abierta").count(),
     }
     p["total"] = sum(p.values())
-    return {"pendientes": p}
+
+    # aviso en la barra lateral: precio manual activo o cotización vencida
+    from .services.cotizaciones import FUENTES, ultima
+    from .utils import cotizacion_vigente
+    ultimas = [ultima(m) for m in FUENTES]
+    if any(c and c.manual_activa for c in ultimas):
+        estado_cot = "manual"
+    elif not all(cotizacion_vigente(c) for c in ultimas):
+        estado_cot = "vencida"
+    else:
+        estado_cot = ""
+    return {"pendientes": p, "estado_cotizacion": estado_cot}

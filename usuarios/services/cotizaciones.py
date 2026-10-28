@@ -9,6 +9,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 import requests
 from django.core.cache import cache
+from django.utils import timezone
 
 from usuarios.models import Cotizacion, ExchangeConfig
 
@@ -84,8 +85,22 @@ FUENTES = {
 }
 
 
+class PrecioManualActivo(Exception):
+    pass
+
+
+def ultima(moneda):
+    return Cotizacion.objects.filter(moneda=moneda).order_by('-fecha', '-id').first()
+
+
 def actualizar(moneda):
-    """Crea una Cotizacion nueva desde la primera fuente que responda. Devuelve (cotizacion, fuente)."""
+    """
+    Crea una Cotizacion nueva desde la primera fuente que responda. Devuelve (cotizacion, fuente).
+    Si un admin fijó un precio manual que sigue activo, no lo pisa (PrecioManualActivo).
+    """
+    actual = ultima(moneda)
+    if actual and actual.manual_activa:
+        raise PrecioManualActivo(f"{moneda} tiene un precio manual activo")
     cfg = ExchangeConfig.current()
     bps = cfg.spread_bps_usdt if moneda == 'USDT' else cfg.spread_bps_usd
     errores = []
@@ -105,8 +120,33 @@ def actualizar(moneda):
         ref_compra=ref,  # guardamos ref para auditoría/contabilidad
         ref_venta=ref,
         margin_bps=bps,
+        fuente=nombre,
     )
     return cot, nombre
+
+
+def fijar_manual(moneda, compra, venta, hasta, admin):
+    """Precio cargado por un admin. La referencia contable es el punto medio entre compra y venta."""
+    if moneda not in FUENTES:
+        raise ValueError("Moneda inválida.")
+    if not (0 < compra < venta):
+        raise ValueError("La compra tiene que ser menor que la venta.")
+    ref = Q6((compra + venta) / 2)
+    return Cotizacion.objects.create(
+        moneda=moneda, compra=Q2(compra), venta=Q2(venta), ref_compra=ref, ref_venta=ref,
+        margin_bps=int(((venta - compra) / 2 / ref * 10000).to_integral_value(ROUND_HALF_UP)),
+        fuente='Manual', manual=True, manual_hasta=hasta, cargada_por=admin,
+    )
+
+
+def quitar_manual(moneda):
+    """Termina el precio manual activo. Devuelve la cotización que lo tenía, o None."""
+    actual = ultima(moneda)
+    if not (actual and actual.manual_activa):
+        return None
+    actual.manual_hasta = timezone.now()
+    actual.save(update_fields=['manual_hasta'])
+    return actual
 
 
 def actualizar_si_vencida(cotizaciones_vigentes):
@@ -120,6 +160,8 @@ def actualizar_si_vencida(cotizaciones_vigentes):
         for moneda in FUENTES:
             try:
                 actualizar(moneda)
+            except PrecioManualActivo:
+                pass
             except FuenteNoDisponible as e:
                 logger.warning("No se pudo actualizar la cotización %s: %s", moneda, e)
         return True
