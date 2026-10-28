@@ -1,37 +1,15 @@
 """Páginas públicas: home, FAQ, términos y verificación de boletos."""
 
-from decimal import Decimal
-
 from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 
-from ..models import BoletoOperacion, Cotizacion, ExchangeConfig
-from ..services import cotizaciones
-from ..utils import cotizacion_vigente
-
-
-def _ultimas_cotizaciones():
-    def ultimas():
-        return (Cotizacion.objects.filter(moneda="USDT").order_by("-fecha").first(),
-                Cotizacion.objects.filter(moneda="USD").order_by("-fecha").first())
-    usdt, usd = ultimas()
-    vigente = cotizacion_vigente(usdt) and cotizacion_vigente(usd)
-    if settings.COTIZACION_ACTUALIZAR_AL_VUELO and cotizaciones.actualizar_si_vencida(vigente):
-        usdt, usd = ultimas()
-        vigente = cotizacion_vigente(usdt) and cotizacion_vigente(usd)
-    return usdt, usd, vigente
+from ..models import BoletoOperacion
 
 
 def home(request):
-    cot_usdt, cot_usd, vigente = _ultimas_cotizaciones()
-    ejemplo = (Decimal(200000) / cot_usdt.venta) if cot_usdt and cot_usdt.venta else None
-    return render(request, "home.html", {
-        "ejemplo_usdt": ejemplo,
-        "cot_usdt": cot_usdt, "cot_usd": cot_usd, "cotizacion_vigente": vigente,
-        "swap_fee_pct": f"{ExchangeConfig.current().swap_fee_bps / 100:g}".replace(".", ","),
-    })
+    return render(request, "home.html")
 
 
 def faq(request):

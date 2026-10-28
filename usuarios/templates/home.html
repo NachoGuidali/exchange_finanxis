@@ -1,138 +1,500 @@
-{% extends "base.html" %}
-{% load static finanxis %}
-{% block title %}Finanxis — Comprá USDT y dólares con pesos{% endblock %}
-{% block main_class %}flex-1{% endblock %}
-{% block messages_class %}container pt-6{% endblock %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
 
-{% block content %}
-<!-- Hero: titular + pizarra -->
-<section class="franja" id="cotizacion">
-  <div class="container grid items-center gap-12 py-14 lg:grid-cols-12 lg:gap-16 lg:py-24">
-    <div class="lg:col-span-6 aparece">
-      <h1 class="text-[2.5rem] font-extrabold leading-[1.05] sm:text-6xl lg:text-[4.25rem]">
-        Tus pesos, en dólares digitales.
-      </h1>
-      <p class="mt-6 max-w-xl text-lg leading-relaxed texto-suave">
-        Comprá y vendé USDT y dólares con pesos. Ves el precio final antes de confirmar
-        y te queda el comprobante de cada operación.
-      </p>
-      <div class="mt-9 flex flex-wrap gap-3">
-        <a href="{% url 'registro' %}" class="btn btn-lg btn-primario">Crear cuenta gratis</a>
-        <a href="{% url 'login' %}" class="btn btn-lg btn-claro">Ya tengo cuenta</a>
-      </div>
-      <p class="mt-8 text-sm texto-suave">Proveedor de Servicios de Activos Virtuales inscripto en la CNV (registro N°13).</p>
-    </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Finanxis — Exchange USD ↔ USDT</title>
+  <meta name="description"
+    content="Finanxis: hacé swap entre USD y USDT al instante o convertí a efectivo en nuestras sucursales." />
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              red: '#FF1129',
+              ink: '#060606',
+              white: '#FFFFFF'
+            }
+          },
+          boxShadow: {
+            'glow': '0 0 0 3px rgba(255,17,41,0.25), 0 10px 30px rgba(0,0,0,0.45)'
+          },
+          dropShadow: {
+            'logo': '0 4px 20px rgba(255,17,41,0.35)'
+          },
+          backgroundImage: {
+            'hero-grad': 'radial-gradient(1200px 600px at 80% -10%, rgba(255,17,41,.18), transparent), radial-gradient(800px 400px at 10% 10%, rgba(255,255,255,.06), transparent)',
+            'section-grad': 'linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0.00) 100%)'
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <style>
+    html {
+      font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+    }
 
-    <div class="lg:col-span-6 aparece" style="--d:.15s">
-      {% include "includes/pizarra.html" with cot_usdt=cot_usdt cot_usd=cot_usd vigente=cotizacion_vigente %}
-      <p class="mt-3 text-sm texto-suave">“Comprás a” es lo que pagás por cada unidad; “Vendés a”, lo que recibís.</p>
-    </div>
+    .logo-wordmark::before {
+      content: 'FIN';
+    }
+
+    .logo-wordmark::after {
+      content: 'XIS';
+    }
+
+    /* ===================== Animaciones on-scroll ===================== */
+    :root {
+      --reveal-distance: 28px;
+      --reveal-duration: .70s;
+      --reveal-ease: cubic-bezier(.21, .67, .15, .99);
+      --reveal-stagger: .08s;
+    }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(var(--reveal-distance));
+      transition: opacity var(--reveal-duration) var(--reveal-ease),
+        transform var(--reveal-duration) var(--reveal-ease),
+        scale var(--reveal-duration) var(--reveal-ease);
+      will-change: opacity, transform;
+    }
+
+    .reveal[data-reveal="up"] {
+      transform: translateY(var(--reveal-distance));
+    }
+
+    .reveal[data-reveal="right"] {
+      transform: translateX(var(--reveal-distance));
+    }
+
+    .reveal[data-reveal="left"] {
+      transform: translateX(calc(var(--reveal-distance) * -1));
+    }
+
+    .reveal[data-reveal="zoom"] {
+      transform: translateY(0) scale(.96);
+    }
+
+    .reveal.show {
+      opacity: 1;
+      transform: translateX(0) translateY(0) scale(1);
+    }
+  </style>
+</head>
+
+<body class="bg-brand-ink text-brand-white antialiased selection:bg-brand-red selection:text-black">
+
+  {% if DEMO_MODE %}
+  <div class="bg-amber-400 text-black text-center text-[13px] font-semibold py-1.5 px-4">
+    Entorno de demostración: los datos y las operaciones son ficticios.
   </div>
-</section>
+  {% endif %}
 
-<!-- Cómo funciona: es una secuencia real, por eso va numerada -->
-<section id="como-funciona" class="container py-16 lg:py-24">
-  <h2 class="max-w-2xl text-3xl font-extrabold sm:text-4xl">Empezás a operar en tres pasos</h2>
-  <ol class="mt-12 grid gap-10 md:grid-cols-3 md:gap-8">
-    <li class="border-t-2 border-gray-900 pt-6">
-      <span class="num text-sm font-bold text-gray-500">1</span>
-      <h3 class="mt-2 text-xl font-bold text-gray-900">Creá tu cuenta</h3>
-      <p class="mt-2 leading-relaxed text-gray-600">Cargás tus datos y una foto de tu DNI de frente y dorso. Revisamos tu identidad y te avisamos por email.</p>
-    </li>
-    <li class="border-t-2 border-gray-900 pt-6">
-      <span class="num text-sm font-bold text-gray-500">2</span>
-      <h3 class="mt-2 text-xl font-bold text-gray-900">Ingresá dinero</h3>
-      <p class="mt-2 leading-relaxed text-gray-600">Pesos por transferencia bancaria o USDT desde tu wallet por las redes TRC20, ERC20 o BEP20.</p>
-    </li>
-    <li class="border-t-2 border-primary pt-6">
-      <span class="num text-sm font-bold text-primary">3</span>
-      <h3 class="mt-2 text-xl font-bold text-gray-900">Comprá o vendé</h3>
-      <p class="mt-2 leading-relaxed text-gray-600">Elegís el monto, ves cuánto recibís y confirmás. El precio queda fijo durante 30 segundos.</p>
-    </li>
-  </ol>
-</section>
+  <!-- Top bar -->
+  <div class="w-full bg-black/60 border-b border-white/10">
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+      <a href="#" class="flex items-center gap-3 group">
+        <img src="{% static 'img/logo.png' %}" alt="Finanxis" width="200" height="50">
+      </a>
 
-<!-- Por qué Finanxis: muestra la confirmación real en lugar de tarjetas genéricas -->
-<section class="border-y border-gray-200 bg-white">
-  <div class="container grid items-center gap-12 py-16 lg:grid-cols-2 lg:gap-20 lg:py-24">
-    <div class="order-2 lg:order-1">
-      <div class="mx-auto max-w-sm rounded-[28px] border border-gray-200 bg-gray-50 p-6 shadow-sm">
-        <div class="text-sm font-semibold text-gray-500">Confirmá tu compra</div>
-        <dl class="mt-5 space-y-3 text-[15px]">
-          <div class="flex justify-between"><dt class="text-gray-500">Pagás</dt><dd class="num font-semibold text-gray-900">$ 200.000,00</dd></div>
-          <div class="flex justify-between"><dt class="text-gray-500">Precio por USDT</dt><dd class="num text-gray-900">$ {{ cot_usdt.venta|money }}</dd></div>
-        </dl>
-        <div class="mt-5 border-t border-gray-200 pt-5">
-          <div class="text-sm text-gray-500">Recibís</div>
-          <div class="num mt-1 text-4xl font-extrabold text-gray-900">
-            {% if ejemplo_usdt %}{{ ejemplo_usdt|money }}{% else %}—{% endif %} <span class="text-xl text-gray-500">USDT</span>
+      <nav class="hidden md:flex items-center gap-8 text-sm text-white/80">
+        <a href="#activos" class="hover:text-white">Activos</a>
+        <a href="#como" class="hover:text-white">Cómo empezar</a>
+        <a href="#por-que" class="hover:text-white">Por qué Finanxis</a>
+        <!-- <a href="#sucursales" class="hover:text-white">Sucursales</a> -->
+      </nav>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Iniciar sesión -->
+        <a href="{% url 'login' %}" class="inline-flex text-center h-9 sm:h-10 items-center rounded-lg sm:rounded-xl 
+            border border-white/10 
+            px-3 sm:px-4 
+            text-xs sm:text-sm 
+            hover:bg-white/5">
+          Iniciar sesión
+        </a>
+
+        <!-- Crear cuenta -->
+        <a href="{% url 'registro' %}" class="inline-flex text-center h-9 sm:h-10 items-center rounded-lg sm:rounded-xl 
+            bg-brand-red 
+            px-3 sm:px-4 
+            text-xs sm:text-sm font-semibold 
+            text-black shadow-glow hover:opacity-90 transition">
+          Crear cuenta
+        </a>
+      </div>
+    </div>
+
+    <!-- HERO -->
+    <header
+      class="relative overflow-hidden bg-[radial-gradient(1200px_400px_at_100%_0%,rgba(255,17,41,.25),transparent)] bg-white/5">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
+        <div class="grid lg:grid-cols-12 gap-10 items-center">
+          <div class="lg:col-span-7 reveal" data-reveal="up">
+            <span
+              class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-white/70">
+              <span class="inline-block h-2 w-2 rounded-full bg-brand-red animate-pulse"></span> Swap USD ↔ USDT en
+              segundos
+            </span>
+            <h1 class="mt-5 text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-tight">
+              Operá cripto con estilo <span class="text-brand-red">Finanxis</span>
+            </h1>
+            <p class="mt-4 text-white/70 max-w-2xl">
+              Cambiá tus <strong>USD</strong> por <strong>USDT</strong> (y viceversa) al instante, o acercate a una
+              <strong>sucursal</strong> para convertir a efectivo de forma rápida y segura.
+            </p>
+
+            <div class="mt-8 flex flex-wrap gap-3">
+              <a href="{% url 'registro' %}"
+                class="inline-flex h-12 items-center rounded-xl bg-brand-red px-6 text-base font-semibold text-black shadow-glow hover:opacity-90 transition">Empezar
+                ahora</a>
+              <a href="#activos"
+                class="inline-flex h-12 items-center rounded-xl border border-white/10 bg-white/5 px-6 text-base font-semibold hover:bg-white/10 transition">Ver
+                activos</a>
+            </div>
+
+            <!-- KPIs -->
+            <dl class="mt-10 grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6" data-stagger>
+              <div class="rounded-2xl border border-white/10 bg-section-grad p-4 reveal" data-reveal="up">
+                <dt class="text-xs text-white/60">Usuarios</dt>
+                <dd class="text-2xl font-bold">+20K</dd>
+              </div>
+              <!-- <div class="rounded-2xl border border-white/10 bg-section-grad p-4 reveal" data-reveal="up">
+              <dt class="text-xs text-white/60">Sucursales</dt>
+              <dd class="text-2xl font-bold">12</dd>
+            </div> -->
+              <div class="rounded-2xl border border-white/10 bg-section-grad p-4 reveal" data-reveal="up">
+                <dt class="text-xs text-white/60">Activos</dt>
+                <dd class="text-2xl font-bold">USD • USDT</dd>
+              </div>
+            </dl>
+          </div>
+
+          <!-- Mockup -->
+          <div class="lg:col-span-5 reveal" data-reveal="right">
+            <div class="mx-auto max-w-md">
+              <div class="relative rounded-[2rem] border border-white/10 bg-black/40 p-3 shadow-glow">
+                <div class="rounded-[1.6rem] border border-white/10 bg-gradient-to-b from-white/5 to-black/60 p-5">
+                  <div class="text-sm text-white/70">Saldo total</div>
+                  <div class="mt-1 text-3xl font-extrabold">$ 1,250.45</div>
+                  <div class="mt-6 grid grid-cols-2 gap-3" data-stagger>
+                    <div class="rounded-xl border border-white/10 bg-white/5 p-3 reveal" data-reveal="up">
+                      <div class="text-xs text-white/60">USDT</div>
+                      <div class="text-xl font-bold">1,000</div>
+                    </div>
+                    <div class="rounded-xl border border-white/10 bg-white/5 p-3 reveal" data-reveal="up">
+                      <div class="text-xs text-white/60">USD</div>
+                      <div class="text-xl font-bold">250</div>
+                    </div>
+                  </div>
+                  <div class="mt-6 rounded-xl bg-black/70 border border-white/10 p-4 reveal" data-reveal="zoom">
+                    <div class="flex items-center justify-between text-sm">
+                      <span class="text-white/80">Swap</span>
+                      <span class="text-white/50">0.1% fee</span>
+                    </div>
+                    <div class="mt-3 grid grid-cols-2 gap-2">
+                      <input
+                        class="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm outline-none focus:border-brand-red"
+                        placeholder="USD 100">
+                      <input
+                        class="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm outline-none focus:border-brand-red"
+                        placeholder="USDT 99.90">
+                    </div>
+                    <button
+                      class="mt-3 w-full rounded-lg bg-brand-red py-2.5 text-sm font-semibold text-black shadow-glow hover:opacity-90">Confirmar
+                      swap</button>
+                  </div>
+                </div>
+                <div class="pointer-events-none absolute -inset-1 rounded-[2.2rem] blur-2xl"
+                  style="background: radial-gradient(60% 50% at 50% 0%, rgba(255,17,41,.25), transparent)"></div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="mt-6 flex items-center justify-between gap-4">
-          <span class="text-sm text-gray-500">Precio válido por <b class="num text-gray-900">30</b> s</span>
-          <span class="btn btn-sm btn-primario" aria-hidden="true">Confirmar</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- Activos -->
+      <section id="activos" class="py-14 lg:py-20">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div class="flex items-end justify-between gap-6 reveal" data-reveal="up">
+            <h2 class="text-2xl sm:text-3xl font-extrabold">Operá los principales activos</h2>
+            <a href="#" class="text-sm font-semibold text-brand-red hover:opacity-90">Ver más</a>
+          </div>
+          <div class="mt-6 grid sm:grid-cols-2 lg:grid-cols-2 gap-4" data-stagger>
+            <article class="rounded-2xl border border-white/10 bg-white/5 p-5 hover:bg-white/[.07] transition reveal"
+              data-reveal="up">
+              <div class="flex items-center justify-between">
+                <div class="text-sm text-white/60">USDT</div>
+                <span class="text-emerald-400 text-xs">+0.12%</span>
+              </div>
+              <div class="mt-1 text-xl font-bold">$ 1.00</div>
+              <button
+                class="mt-4 w-full rounded-lg bg-brand-red py-2 text-sm font-semibold text-black shadow-glow hover:opacity-90">Comprar</button>
+            </article>
+
+            <article class="rounded-2xl border border-white/10 bg-white/5 p-5 hover:bg-white/[.07] transition reveal"
+              data-reveal="up">
+              <div class="flex items-center justify-between">
+                <div class="text-sm text-white/60">USD</div>
+                <span class="text-emerald-400 text-xs">+0.02%</span>
+              </div>
+              <div class="mt-1 text-xl font-bold">$ 1.00</div>
+              <button
+                class="mt-4 w-full rounded-lg border border-white/10 py-2 text-sm font-semibold hover:bg-white/10">Vender</button>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Por qué Finanxis -->
+      <section id="por-que" class="py-14 lg:py-20 bg-white/[.03]">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div class="grid lg:grid-cols-2 gap-10 items-start">
+            <div class="reveal" data-reveal="up">
+              <h2 class="text-3xl font-extrabold">Elegirnos es la mejor decisión</h2>
+              <p class="mt-3 text-white/70 max-w-xl">Atención 24/7, seguridad de nivel bancario y reputación comprobada
+                en la región. Operá sin fricciones con una experiencia moderna y clara.</p>
+            </div>
+            <div class="grid gap-4" data-stagger>
+              <div class="rounded-2xl border border-white/10 bg-white/5 p-5 reveal" data-reveal="left">
+                <h3 class="font-semibold">Confianza</h3>
+                <p class="mt-1 text-white/70 text-sm">Resguardamos y potenciamos tus ahorros con infraestructura
+                  auditada.</p>
+              </div>
+              <div class="rounded-2xl border border-white/10 bg-white/5 p-5 reveal" data-reveal="left">
+                <h3 class="font-semibold">Seguridad</h3>
+                <p class="mt-1 text-white/70 text-sm">2FA, biometría y monitoreo continuo. Tu cuenta, siempre protegida.
+                </p>
+              </div>
+              <div class="rounded-2xl border border-white/10 bg-white/5 p-5 reveal" data-reveal="left">
+                <h3 class="font-semibold">Reputación</h3>
+                <p class="mt-1 text-white/70 text-sm">Equipo experiencia en el ecosistema cripto/finanzas.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cómo empezar -->
+      <section id="como" class="py-14 lg:py-20">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <h2 class="text-3xl font-extrabold text-center reveal" data-reveal="up">Iniciar es muy fácil</h2>
+          <p class="mt-3 text-white/70 text-center max-w-2xl mx-auto reveal" data-reveal="up">Creá tu cuenta, depositá y
+            empezá a operar USD ↔ USDT en minutos.</p>
+
+          <ol class="mt-10 grid sm:grid-cols-3 gap-4" data-stagger>
+            <li class="rounded-2xl border border-white/10 bg-white/5 p-6 reveal" data-reveal="up">
+              <span
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-red text-black font-bold">1</span>
+              <h3 class="mt-3 font-semibold">Abrí tu cuenta</h3>
+              <p class="mt-1 text-sm text-white/70">Registrate y verificá tu identidad online.</p>
+            </li>
+            <li class="rounded-2xl border border-white/10 bg-white/5 p-6 reveal" data-reveal="up">
+              <span
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-red text-black font-bold">2</span>
+              <h3 class="mt-3 font-semibold">Realizá un depósito</h3>
+              <p class="mt-1 text-sm text-white/70">Ingresá USD o USDT por tus métodos preferidos.</p>
+            </li>
+            <li class="rounded-2xl border border-white/10 bg-white/5 p-6 reveal" data-reveal="up">
+              <span
+                class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-brand-red text-black font-bold">3</span>
+              <h3 class="mt-3 font-semibold">Comenzá a operar</h3>
+              <p class="mt-1 text-sm text-white/70">Hacé swap al instante o convertí a efectivo.</p>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- Rendimientos / Banner -->
+      <section class="py-14 lg:py-20">
+        <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div
+            class="rounded-3xl border border-white/10 bg-[radial-gradient(1200px_400px_at_100%_0%,rgba(255,17,41,.25),transparent)] bg-white/5 p-8 lg:p-12 flex flex-col lg:flex-row items-center gap-10 reveal"
+            data-reveal="zoom">
+            <div class="flex-1">
+              <h3 class="text-2xl font-extrabold">Protegé tus ahorros, pasalos a USDT/USD</h3>
+              <p class="mt-2 text-white/70">No dejes que la inflación se coma tu dinero. Convertí tus pesos en dólares
+                digitales de forma fácil, rápida y segura.</p>
+              <div class="mt-6 flex gap-3">
+                <a href="{% url 'login' %}"
+                  class="inline-flex h-11 items-center rounded-xl bg-brand-red px-6 text-sm font-semibold text-black shadow-glow hover:opacity-90">Comenzar</a>
+                <!-- <a href="#" class="inline-flex h-11 items-center rounded-xl border border-white/10 px-6 text-sm font-semibold hover:bg-white/10">Documentación</a> -->
+              </div>
+            </div>
+            <div class="flex-1 w-full" data-stagger>
+              <div class="grid grid-cols-2 gap-3">
+                <div class="rounded-2xl border border-white/10 bg-black/50 p-5 reveal" data-reveal="up">
+                  <div class="text-xs text-white/60">💸 Liquidez inmediata</div>
+                  <div class="mt-2 space-y-2 text-sm">
+                    <div class="flex justify-between"><span>Retirá o usá tus fondos en cualquier momento, sin esperas ni
+                        complicaciones.</span></div>
+                    <!-- <div class="flex justify-between"><span>Pago rendimientos</span><span class="text-emerald-400">+0.22 USDT</span></div>
+                  <div class="flex justify-between"><span>Pago rendimientos</span><span class="text-emerald-400">+0.19 USDT</span></div> -->
+                  </div>
+                </div>
+                <div class="rounded-2xl border border-white/10 bg-black/50 p-5 reveal" data-reveal="up">
+                  <div class="text-xs text-white/60">⚡ Operá en minutos</div>
+                  <!-- <div class="mt-2 text-3xl font-extrabold">5.2%</div> -->
+                  <p class="text-sm ">Registrate, convertí y empezá a resguardar tu dinero hoy mismo.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sucursales
+    <section id="sucursales" class="py-14 lg:py-20 bg-white/[.03]">
+      <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="grid lg:grid-cols-2 gap-8 items-center">
+          <div class="reveal" data-reveal="up">
+            <h2 class="text-3xl font-extrabold">¿Preferís efectivo?</h2>
+            <p class="mt-2 text-white/70">Convertí tus USD o USDT en nuestras sucursales de atención al público. Pedí tu código y retiralo al instante.</p>
+            <div class="mt-6 flex gap-3">
+              <a href="#" class="inline-flex h-11 items-center rounded-xl bg-brand-red px-6 text-sm font-semibold text-black shadow-glow hover:opacity-90">Ver sucursales</a>
+              <a href="#" class="inline-flex h-11 items-center rounded-xl border border-white/10 px-6 text-sm font-semibold hover:bg-white/10">Cómo funciona</a>
+            </div>
+          </div>
+          <div class="rounded-3xl border border-white/10 bg-white/5 p-6 reveal" data-reveal="left">
+            <div class="grid sm:grid-cols-2 gap-4" data-stagger>
+              <div class="rounded-xl border border-white/10 bg-black/50 p-4 reveal" data-reveal="up">
+                <div class="text-sm font-semibold">Microcentro</div>
+                <div class="text-xs text-white/60 mt-1">Lun a Vie 10:00–18:00</div>
+              </div>
+              <div class="rounded-xl border border-white/10 bg-black/50 p-4 reveal" data-reveal="up">
+                <div class="text-sm font-semibold">Palermo</div>
+                <div class="text-xs text-white/60 mt-1">Lun a Sáb 10:00–19:00</div>
+              </div>
+              <div class="rounded-xl border border-white/10 bg-black/50 p-4 reveal" data-reveal="up">
+                <div class="text-sm font-semibold">Córdoba Centro</div>
+                <div class="text-xs text-white/60 mt-1">Lun a Vie 09:00–17:00</div>
+              </div>
+              <div class="rounded-xl border border-white/10 bg-black/50 p-4 reveal" data-reveal="up">
+                <div class="text-sm font-semibold">Rosario</div>
+                <div class="text-xs text-white/60 mt-1">Lun a Vie 10:00–18:00</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </section> -->
 
-    <div class="order-1 lg:order-2">
-      <h2 class="text-3xl font-extrabold sm:text-4xl">Sabés cuánto recibís antes de confirmar</h2>
-      <dl class="mt-10 space-y-8">
-        <div>
-          <dt class="text-lg font-bold text-gray-900">Precio fijo al confirmar</dt>
-          <dd class="mt-1 leading-relaxed text-gray-600">Cotizás, ves el monto exacto y tenés 30 segundos para aceptarlo. Si el mercado se mueve, tu precio no.</dd>
+      <!-- FAQ -->
+      <section class="py-14 lg:py-20">
+        <div class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+          <h2 class="text-3xl font-extrabold text-center reveal" data-reveal="up">Preguntas frecuentes</h2>
+          <div class="mt-8 divide-y divide-white/10 rounded-2xl border border-white/10 bg-white/5 reveal"
+            data-reveal="zoom">
+            <details class="group p-6">
+              <summary class="flex cursor-pointer list-none items-center justify-between">
+                <span class="font-semibold">¿Cuál es la comisión del swap?</span>
+                <span class="transition group-open:rotate-180">⌄</span>
+              </summary>
+              <p class="mt-3 text-sm text-white/70">La comisión estándar es 0.1% por operación. Puede variar según
+                volumen o condiciones de mercado.</p>
+            </details>
+            <!-- <details class="group p-6">
+            <summary class="flex cursor-pointer list-none items-center justify-between">
+              <span class="font-semibold">¿Puedo retirar efectivo?</span>
+              <span class="transition group-open:rotate-180">⌄</span>
+            </summary>
+            <p class="mt-3 text-sm text-white/70">Sí, generás un código desde la app y retirás en sucursales habilitadas.</p>
+          </details> -->
+            <details class="group p-6">
+              <summary class="flex cursor-pointer list-none items-center justify-between">
+                <span class="font-semibold">¿Cómo protegen mis fondos?</span>
+                <span class="transition group-open:rotate-180">⌄</span>
+              </summary>
+              <p class="mt-3 text-sm text-white/70">Custodia en frío/caliente diversificada, 2FA obligatorio y monitoreo
+                antifraude 24/7.</p>
+            </details>
+          </div>
         </div>
-        <div>
-          <dt class="text-lg font-bold text-gray-900">Comprobante de cada operación</dt>
-          <dd class="mt-1 leading-relaxed text-gray-600">Cada compra o venta genera un boleto en PDF con un código que cualquiera puede verificar.</dd>
-        </div>
-        <div>
-          <dt class="text-lg font-bold text-gray-900">Depósitos verificados en la blockchain</dt>
-          <dd class="mt-1 leading-relaxed text-gray-600">Cuando enviás USDT, chequeamos en la red que la transferencia llegó completa a nuestra wallet.</dd>
-        </div>
-        <div>
-          <dt class="text-lg font-bold text-gray-900">Tu cuenta, con doble factor</dt>
-          <dd class="mt-1 leading-relaxed text-gray-600">Activá la verificación en dos pasos con Google Authenticator o Authy.</dd>
-        </div>
-      </dl>
-    </div>
-  </div>
-</section>
+      </section>
+    </main>
 
-<!-- Preguntas -->
-<section id="preguntas" class="container py-16 lg:py-24">
-  <div class="grid gap-10 lg:grid-cols-12">
-    <h2 class="text-3xl font-extrabold sm:text-4xl lg:col-span-4">Preguntas frecuentes</h2>
-    <div class="divide-y divide-gray-200 border-y border-gray-200 lg:col-span-8">
-      <details class="group py-5">
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-6 text-lg font-semibold text-gray-900">
-          ¿Cuánto cuesta operar?
-          <span class="text-2xl font-light text-gray-400 transition group-open:rotate-45" aria-hidden="true">+</span>
-        </summary>
-        <p class="mt-3 max-w-2xl leading-relaxed text-gray-600">En compra y venta el costo ya está incluido en el precio que ves en la pizarra: lo que confirmás es lo que recibís. El swap entre USD y USDT tiene una comisión de {{ swap_fee_pct }}%.</p>
-      </details>
-      <details class="group py-5">
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-6 text-lg font-semibold text-gray-900">
-          ¿Cuánto tarda en acreditarse un depósito?
-          <span class="text-2xl font-light text-gray-400 transition group-open:rotate-45" aria-hidden="true">+</span>
-        </summary>
-        <p class="mt-3 max-w-2xl leading-relaxed text-gray-600">Las transferencias en pesos se acreditan cuando validamos el comprobante. Los USDT, cuando la red confirma la transacción y verificamos que llegó a nuestra wallet.</p>
-      </details>
-      <details class="group py-5">
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-6 text-lg font-semibold text-gray-900">
-          ¿Cómo retiro mi dinero?
-          <span class="text-2xl font-light text-gray-400 transition group-open:rotate-45" aria-hidden="true">+</span>
-        </summary>
-        <p class="mt-3 max-w-2xl leading-relaxed text-gray-600">Los pesos van a tu CBU o alias. Los USDT, a la wallet que indiques. Cada retiro queda registrado con su comprobante.</p>
-      </details>
-      <details class="group py-5">
-        <summary class="flex cursor-pointer list-none items-center justify-between gap-6 text-lg font-semibold text-gray-900">
-          ¿Quién está detrás de Finanxis?
-          <span class="text-2xl font-light text-gray-400 transition group-open:rotate-45" aria-hidden="true">+</span>
-        </summary>
-        <p class="mt-3 max-w-2xl leading-relaxed text-gray-600">Finanxis opera como Proveedor de Servicios de Activos Virtuales inscripto en el registro de la CNV y es sujeto obligado ante la UIF. Los datos completos están al pie de esta página.</p>
-      </details>
-    </div>
-  </div>
-</section>
-{% endblock %}
+    <footer class="bottom-0 border-t border-white/10 bg-black/80 backdrop-blur">
+      <div class="container mx-auto px-4">
+        <div class="grid gap-4 py-6 sm:grid-cols-3 sm:items-center">
+
+          <!-- Izquierda: © -->
+          <div class="order-2 sm:order-1 text-center sm:text-left">
+            <p class="text-sm text-white/60">
+              © {% now "Y" %} Finanxis. Todos los derechos reservados.
+            </p>
+          </div>
+
+          <!-- Centro: Disclaimer obligatorio -->
+          <div class="order-1 sm:order-2">
+            <p class="text-[11px] leading-snug text-white/80 text-center">
+              Ariel Jesús Vandoni - Proveedor de Servicios de Activos Virtuales (PSAV) inscripto bajo el N°13 de la
+              fecha 25 de marzo de 2025 del Registro PSAV – Personas Humanas, en el Registro de Proveedores de Servicios
+              de Activos Virtuales de CNV.
+              <span class="block sm:inline"></span>
+              Este registro es a los fines del control como Sujeto Obligado ante la Unidad de Información Financiera
+              (UIF) y de todo otro ente regulador facultado a tal efecto, en el marco de sus competencias, y no implica
+              licencia ni supervisión por parte de la COMISIÓN NACIONAL DE VALORES sobre la actividad realizada por el
+              PSAV.
+            </p>
+          </div>
+
+          <!-- Derecha: navegación -->
+          <nav class="order-3 sm:order-3 text-center sm:text-right text-sm text-white/70">
+            <a href="{% url 'operar' %}" class="hover:text-white transition">Operar</a>
+            <span class="mx-3 text-white/20 hidden sm:inline">•</span>
+            <a href="{% url 'dashboard' %}" class="hover:text-white transition">Dashboard</a>
+            <span class="mx-3 text-white/20 hidden sm:inline">•</span>
+            <a href="{% url 'soporte' %}" class="hover:text-white transition">Soporte</a>
+          </nav>
+
+        </div>
+      </div>
+    </footer>
+
+    <!-- ===================== Script: IntersectionObserver ===================== -->
+    <script>
+        (function () {
+          const els = document.querySelectorAll('.reveal');
+          const groups = document.querySelectorAll('[data-stagger]');
+          // aplicar delays escalonados a hijos directos
+          groups.forEach(g => {
+            const children = Array.from(g.children);
+            children.forEach((child, i) => {
+              child.style.transitionDelay = `calc(${getComputedStyle(document.documentElement).getPropertyValue('--reveal-stagger') || '.08s'} * ${i})`;
+            });
+          });
+
+          const io = new IntersectionObserver((entries) => {
+            entries.forEach(({ isIntersecting, target }) => {
+              if (isIntersecting) {
+                target.classList.add('show');
+
+              }
+            });
+          }, { rootMargin: '0px 0px -10% 0px', threshold: 0.08 });
+
+          els.forEach(el => io.observe(el));
+
+          // Animar hero al cargar (por si ya está en viewport)
+          window.addEventListener('load', () => {
+            document.querySelectorAll('header .reveal').forEach(el => {
+              requestAnimationFrame(() => el.classList.add('show'));
+            });
+          });
+        })();
+    </script>
+</body>
+
+</html>
