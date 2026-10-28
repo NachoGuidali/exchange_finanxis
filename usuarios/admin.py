@@ -210,9 +210,10 @@ class RetiroARSAdmin(admin.ModelAdmin):
     def aprobar_retiros(self, request, queryset):
         self._aplicar(request, queryset, lambda r: fondos.aprobar_retiro_ars(r.pk))
 
-    @admin.action(description="Marcar como enviados")
+    @admin.action(description="Marcar como enviados (verifiqué que las cuentas son de los titulares)")
     def marcar_como_enviado(self, request, queryset):
-        self._aplicar(request, queryset, lambda r: fondos.enviar_retiro_ars(r.pk, request.user))
+        self._aplicar(request, queryset,
+                      lambda r: fondos.enviar_retiro_ars(r.pk, request.user, titular_confirmado=True))
 
 
 class LineaAsientoInline(admin.TabularInline):

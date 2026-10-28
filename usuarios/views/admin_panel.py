@@ -879,7 +879,8 @@ def aprobar_retiro(request, id):
 @user_passes_test(es_admin)
 @require_POST
 def enviar_retiro(request, id):
-    return _accion_admin(request, lambda: fondos.enviar_retiro_ars(id, request.user),
+    return _accion_admin(request, lambda: fondos.enviar_retiro_ars(
+                         id, request.user, titular_confirmado=request.POST.get('titular') == '1'),
                          'panel_admin', "Retiro marcado como enviado.")
 
 
@@ -887,7 +888,7 @@ def enviar_retiro(request, id):
 @user_passes_test(es_admin)
 @require_POST
 def rechazar_retiro_ars(request, id):
-    return _accion_admin(request, lambda: fondos.rechazar_retiro_ars(id, request.user),
+    return _accion_admin(request, lambda: fondos.rechazar_retiro_ars(id, request.user, request.POST.get('motivo')),
                          'panel_retiros', "Retiro rechazado y saldo recreditado.")
 
 
@@ -907,5 +908,5 @@ def aprobar_retiro_cripto(request, id):
 @user_passes_test(es_admin)
 @require_POST
 def rechazar_retiro_cripto(request, id):
-    return _accion_admin(request, lambda: fondos.rechazar_retiro_crypto(id, request.user),
+    return _accion_admin(request, lambda: fondos.rechazar_retiro_crypto(id, request.user, request.POST.get('motivo')),
                          'panel_retiros', "Retiro rechazado y saldo recreditado.")

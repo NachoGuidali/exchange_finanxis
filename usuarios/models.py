@@ -447,6 +447,9 @@ class RetiroARS(models.Model):
     estado = models.CharField(max_length=20, choices=ESTADOS, default='pendiente')
     fecha_solicitud = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
+    # quien envía confirma que la cuenta de destino es del cliente; si no, rechaza con motivo
+    titular_verificado = models.BooleanField(default=False)
+    motivo_rechazo = models.CharField(max_length=255, blank=True)
 
     @property
     def simbolo(self):
@@ -481,6 +484,7 @@ class RetiroCrypto(models.Model):
     fecha_solicitud = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
     admin_responsable =models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='retiros_cripto_aprobados')
+    motivo_rechazo = models.CharField(max_length=255, blank=True)
 
     def __str__(self):
         return f"{self.usuario.username} - {self.moneda} - {self.monto}"

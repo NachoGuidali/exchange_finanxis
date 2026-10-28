@@ -54,3 +54,18 @@
 </div>
 {% endwith %}
 {% endblock %}
+
+{% block scripts %}{{ block.super }}
+<script>
+  // Rechazos que necesitan motivo: se pide antes de enviar y viaja en el formulario
+  document.addEventListener('submit', (e) => {
+    const f = e.target.closest('form[data-motivo]');
+    if (!f) return;
+    const motivo = (prompt(f.dataset.motivo) || '').trim();
+    if (!motivo) { e.preventDefault(); return; }
+    let campo = f.querySelector('input[name="motivo"]');
+    if (!campo) { campo = document.createElement('input'); campo.type = 'hidden'; campo.name = 'motivo'; f.appendChild(campo); }
+    campo.value = motivo;
+  }, true);
+</script>
+{% endblock %}

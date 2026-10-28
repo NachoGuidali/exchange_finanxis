@@ -137,7 +137,7 @@ class RetiroCryptoTests(BaseTest):
         r = RetiroCrypto.objects.get()
         self.assertEqual(r.red, "TRC20")
         self.client.force_login(admin)
-        self.client.post(reverse("rechazar_retiro_cripto", args=[r.id]))
+        self.client.post(reverse("rechazar_retiro_cripto", args=[r.id]), {"motivo": "Dirección inválida"})
         u.refresh_from_db()
         self.assertEqual((u.saldo_usdt, u.saldo_usd), (Decimal("100"), Decimal("0")))
 
@@ -172,7 +172,7 @@ class RetiroARSTests(BaseTest):
         self.client.force_login(admin)
         self.client.post(reverse("aprobar_retiro", args=[r.id]))
         with self.settings(BOLETOS_TOLERAR_ERROR_PDF=True), self.captureOnCommitCallbacks(execute=True):
-            self.client.post(reverse("enviar_retiro", args=[r.id]))
+            self.client.post(reverse("enviar_retiro", args=[r.id]), {"titular": "1"})
         r.refresh_from_db()
         self.assertEqual(r.estado, "enviado")
         self.assertEqual(BoletoOperacion.objects.get(usuario=u).tipo, "retiro_usd")
@@ -428,9 +428,9 @@ class LibroMayorTests(BaseTest):
 
         r1 = fondos.solicitar_retiro_ars(u, Decimal("1000"), alias="mi.alias")
         fondos.aprobar_retiro_ars(r1.pk)
-        fondos.enviar_retiro_ars(r1.pk, self.admin)
+        fondos.enviar_retiro_ars(r1.pk, self.admin, titular_confirmado=True)
         r2 = fondos.solicitar_retiro_crypto(u, "USDT", Decimal("1"), "T1", red="TRC20")
-        fondos.rechazar_retiro_crypto(r2.pk, self.admin)
+        fondos.rechazar_retiro_crypto(r2.pk, self.admin, "Red equivocada")
         self.assertConciliado()
 
     def test_doble_aprobacion_no_acredita_dos_veces(self):
@@ -1520,3 +1520,42 @@ class AvisosEmailTests(BaseTest):
         self.client.post(reverse("probar_email"))
         self.assertEqual(self.para("Prueba de email"), [[self.admin.email]])
         self.assertContains(self.client.get(reverse("parametros_exchange")), "Desde dónde salen los emails")
+
+
+
+class TitularidadRetiroTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        self.cli = crear_usuario(saldo_ars="10000")
+        self.admin = crear_usuario("admin")
+        self.admin.is_staff = True
+        self.admin.save()
+        self.client.force_login(self.cli)
+        self.client.post(reverse("solicitar_retiro"), {"monto": "4000", "alias": "otra.persona"})
+        self.r = RetiroARS.objects.get()
+        self.client.force_login(self.admin)
+        self.client.post(reverse("aprobar_retiro", args=[self.r.pk]))
+
+    def test_no_se_envia_sin_confirmar_titular(self):
+        self.client.post(reverse("enviar_retiro", args=[self.r.pk]))
+        self.r.refresh_from_db()
+        self.assertEqual(self.r.estado, "aprobado")
+        with self.settings(BOLETOS_TOLERAR_ERROR_PDF=True):
+            self.client.post(reverse("enviar_retiro", args=[self.r.pk]), {"titular": "1"})
+        self.r.refresh_from_db()
+        self.assertEqual((self.r.estado, self.r.titular_verificado), ("enviado", True))
+
+    def test_rechazo_exige_motivo_y_lo_informa(self):
+        from django.core import mail
+        self.client.post(reverse("rechazar_retiro_ars", args=[self.r.pk]))
+        self.r.refresh_from_db()
+        self.assertEqual(self.r.estado, "aprobado")
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(reverse("rechazar_retiro_ars", args=[self.r.pk]),
+                             {"motivo": "La cuenta no está a nombre del cliente"})
+        self.r.refresh_from_db()
+        self.cli.refresh_from_db()
+        self.assertEqual((self.r.estado, self.r.motivo_rechazo), ("rechazado", "La cuenta no está a nombre del cliente"))
+        self.assertEqual(self.cli.saldo_ars, Decimal("10000"))
+        self.assertIn("La cuenta no está a nombre del cliente", mail.outbox[-1].body)
+        self.assertTrue(RegistroAuditoria.objects.filter(accion="retiro_rechazado", detalle__motivo__icontains="nombre").exists())

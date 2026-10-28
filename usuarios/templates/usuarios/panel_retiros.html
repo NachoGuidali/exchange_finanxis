@@ -58,13 +58,16 @@
                   <form method="post" action="{% url 'aprobar_retiro' retiro.id %}">{% csrf_token %}
                     <button class="rounded-lg bg-primary text-dark px-3 py-1 text-sm font-semibold hover:opacity-90">Aprobar</button>
                   </form>
-                  <form method="post" action="{% url 'rechazar_retiro_ars' retiro.id %}">{% csrf_token %}
+                  {% endif %}
+                  {% if retiro.estado == 'pendiente' or retiro.estado == 'aprobado' %}
+                  <form method="post" action="{% url 'rechazar_retiro_ars' retiro.id %}" data-motivo="¿Por qué rechazás este retiro? Se lo informamos al cliente y el monto vuelve a su saldo.">{% csrf_token %}
                     <button class="rounded-lg border border-gray-200 bg-white px-3 py-1 text-sm hover:bg-gray-50">Rechazar</button>
                   </form>
                   {% endif %}
                   {% if retiro.estado == 'aprobado' %}
-                  <form method="post" action="{% url 'enviar_retiro' retiro.id %}">{% csrf_token %}
-                    <button class="rounded-lg border border-gray-200 bg-white px-3 py-1 text-sm hover:bg-gray-50">Marcar enviado</button>
+                  <form method="post" action="{% url 'enviar_retiro' retiro.id %}" class="flex flex-wrap items-center gap-2">{% csrf_token %}
+                    <label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" name="titular" value="1" required class="casilla"> Cuenta a nombre de {{ retiro.usuario.get_full_name|default:retiro.usuario.username }}{% if retiro.usuario.doc_nro %} (DNI {{ retiro.usuario.doc_nro }}){% endif %}</label>
+                    <button class="btn btn-sm btn-primario">Marcar enviado</button>
                   </form>
                   {% endif %}
                 </div>

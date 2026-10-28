@@ -274,10 +274,14 @@ def _enviar_retiro(retiro, moneda, admin, *, descripcion, tipo_bol, tasa, onchai
 
 
 @transaction.atomic
-def enviar_retiro_ars(retiro_id, admin):
+def enviar_retiro_ars(retiro_id, admin, *, titular_confirmado=False):
     retiro = _bloquear(RetiroARS, retiro_id)
     if retiro.estado != 'aprobado':
         raise OperacionError("Solo se pueden enviar retiros aprobados.")
+    if not titular_confirmado:
+        raise OperacionError("Confirmá que la cuenta de destino está a nombre del cliente. "
+                             "Si no lo está, rechazá el retiro indicando el motivo.")
+    retiro.titular_verificado = True
     retiro.estado = 'enviado'
     retiro.save()
     _enviar_retiro(
@@ -313,12 +317,16 @@ def enviar_retiro_crypto(retiro_id, admin, *, red='', txid=''):
     return retiro
 
 
-def _rechazar_retiro(retiro, moneda, admin):
+def _rechazar_retiro(retiro, moneda, admin, motivo):
+    motivo = (motivo or '').strip()
+    if not motivo:
+        raise OperacionError("Indicá el motivo del rechazo: se lo informamos al cliente.")
     u = _bloquear(Usuario, retiro.usuario_id)
     antes, despues = _acreditar(u, moneda, retiro.monto)
     retiro.estado = 'rechazado'
+    retiro.motivo_rechazo = motivo[:255]
     retiro.save()
-    descripcion = f'Retiro {moneda} rechazado. Se recredita {retiro.monto}.'
+    descripcion = f'Retiro {moneda} rechazado ({motivo}). Se recredita {retiro.monto}.'
     registrar_movimiento(
         usuario=u, tipo='ajuste', moneda=moneda, monto=retiro.monto, admin=admin,
         descripcion=descripcion, saldo_antes=antes, saldo_despues=despues
@@ -327,24 +335,24 @@ def _rechazar_retiro(retiro, moneda, admin):
         (cuenta_sistema(CuentaContable.RETIROS_PENDIENTES), moneda, -retiro.monto),
         (cuenta_usuario(u), moneda, retiro.monto),
     ], referencia=f'{type(retiro).__name__}:{retiro.pk}', creado_por=admin)
-    avisos.cliente(u, f"Rechazamos tu retiro de {_monto_fmt(moneda, retiro.monto)}. El monto volvió a tu saldo.",
+    avisos.cliente(u, f"Rechazamos tu retiro de {_monto_fmt(moneda, retiro.monto)}: {motivo}. El monto volvió a tu saldo.",
                    asunto="Retiro rechazado", detalle="Si tenés dudas, escribinos a Soporte.",
                    url=avisos.url_absoluta('soporte'), boton="Escribir a Soporte")
-    auditar(admin, 'retiro_rechazado', retiro, moneda=moneda, monto=retiro.monto)
+    auditar(admin, 'retiro_rechazado', retiro, moneda=moneda, monto=retiro.monto, motivo=motivo)
     return retiro
 
 
 @transaction.atomic
-def rechazar_retiro_ars(retiro_id, admin):
+def rechazar_retiro_ars(retiro_id, admin, motivo=''):
     retiro = _bloquear(RetiroARS, retiro_id)
     if retiro.estado not in ('pendiente', 'aprobado'):
         raise OperacionError("El retiro ya fue procesado.")
-    return _rechazar_retiro(retiro, retiro.moneda, admin)
+    return _rechazar_retiro(retiro, retiro.moneda, admin, motivo)
 
 
 @transaction.atomic
-def rechazar_retiro_crypto(retiro_id, admin):
+def rechazar_retiro_crypto(retiro_id, admin, motivo=''):
     retiro = _bloquear(RetiroCrypto, retiro_id)
     if retiro.estado != 'pendiente':
         raise OperacionError("El retiro ya fue procesado.")
-    return _rechazar_retiro(retiro, retiro.moneda, admin)
+    return _rechazar_retiro(retiro, retiro.moneda, admin, motivo)

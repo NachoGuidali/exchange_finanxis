@@ -128,13 +128,14 @@
           {% endif %}
 
         {% elif item.tipo == 'retiro_ars' %}
-          <form method="post" action="{% url 'rechazar_retiro_ars' o.pk %}" data-confirmar="¿Rechazar el retiro y devolverle {{ o.simbolo }} {{ o.monto|money }} a {{ u.username }}?">
+          <form method="post" action="{% url 'rechazar_retiro_ars' o.pk %}" data-motivo="¿Por qué rechazás el retiro de {{ o.simbolo }} {{ o.monto|money }} de {{ u.username }}? Se lo informamos al cliente y el monto vuelve a su saldo.">
             {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
             <button class="btn btn-sm btn-secundario">Rechazar</button>
           </form>
           {% if o.estado == 'aprobado' %}
-            <form method="post" action="{% url 'enviar_retiro' o.pk %}" data-confirmar="¿Ya transferiste {{ o.simbolo }} {{ o.monto|money }} a {{ o.destino }}?">
+            <form method="post" action="{% url 'enviar_retiro' o.pk %}" class="flex flex-wrap items-center gap-3" data-confirmar="¿Ya transferiste {{ o.simbolo }} {{ o.monto|money }} a {{ o.destino }}?">
               {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <label class="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" name="titular" value="1" required class="casilla"> Cuenta a nombre de {{ u.get_full_name|default:u.username }}{% if u.doc_nro %} (DNI {{ u.doc_nro }}){% endif %}</label>
               <button class="btn btn-sm btn-primario">Marcar enviado</button>
             </form>
           {% else %}
@@ -145,7 +146,7 @@
           {% endif %}
 
         {% elif item.tipo == 'retiro_crypto' %}
-          <form method="post" action="{% url 'rechazar_retiro_cripto' o.pk %}" data-confirmar="¿Rechazar el retiro y devolverle {{ o.monto|money }} {{ o.moneda }} a {{ u.username }}?">
+          <form method="post" action="{% url 'rechazar_retiro_cripto' o.pk %}" data-motivo="¿Por qué rechazás el retiro de {{ o.monto|money }} {{ o.moneda }} de {{ u.username }}? Se lo informamos al cliente y el monto vuelve a su saldo.">
             {% csrf_token %}<input type="hidden" name="next" value="{{ request.get_full_path }}">
             <button class="btn btn-sm btn-secundario">Rechazar</button>
           </form>
