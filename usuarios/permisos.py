@@ -21,6 +21,7 @@ PERMISOS = {
     'panel': {'operador', 'compliance', 'contabilidad'},   # pendientes, usuarios, movimientos, soporte
     'fondos': {'operador'},                                 # depósitos y retiros
     'cotizaciones': {'operador'},
+    'local': {'operador'},                                  # efectivo en el local físico (si está activo)
     'identidad': {'compliance'},                            # aprobar o rechazar KYC
     'compliance': {'compliance'},                           # alertas
     'auditoria': {'compliance', 'contabilidad'},

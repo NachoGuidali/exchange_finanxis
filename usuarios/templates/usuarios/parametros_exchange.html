@@ -81,6 +81,17 @@
       <p class="mt-5 text-sm text-gray-600">Al cliente le llegan por email: depósito recibido, acreditado o rechazado; pedido de retiro recibido, aprobado, enviado o rechazado; cada compra, venta o swap con su comprobante; identidad aprobada o rechazada; y las respuestas de soporte.</p>
     </section>
 
+    <section class="card p-5 sm:p-7">
+      <h2 class="text-lg font-bold text-gray-900">Secciones opcionales</h2>
+      <label class="mt-4 flex items-start gap-3">
+        <input type="checkbox" name="local_fisico_activo" class="casilla mt-0.5" {% if cfg_form.local_fisico_activo.value %}checked{% endif %}>
+        <span>
+          <span class="font-semibold text-gray-900">{{ cfg_form.local_fisico_activo.label }}</span>
+          <span class="block text-sm text-gray-600">Ingresos y retiros en efectivo cargados por un operador en el local, en pesos, dólares o USDT. Mientras esté apagada no aparece en el panel.</span>
+        </span>
+      </label>
+    </section>
+
     <div class="flex justify-end">
       <button class="btn btn-lg btn-primario">Guardar parámetros</button>
     </div>

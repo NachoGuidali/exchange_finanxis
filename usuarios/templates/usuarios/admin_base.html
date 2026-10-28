@@ -33,6 +33,11 @@
       <li><a href="{% url 'admin_tickets' %}" {% if ruta == 'admin_tickets' or ruta == 'admin_ticket' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z" stroke-linejoin="round"/><path d="M8 9.5h8M8 12.5h5" stroke-linecap="round"/></svg>
         Soporte{% if pendientes.tickets %}<span class="contador">{{ pendientes.tickets }}</span>{% endif %}</a></li>
+      {% if local_activo %}
+      <li><a href="{% url 'local_fisico' %}" {% if ruta == 'local_fisico' or ruta == 'local_fisico_cliente' %}aria-current="page"{% endif %}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 10 5.5 4h13L20 10M4 10v10h16V10M4 10h16M9 20v-5h6v5" stroke-linejoin="round"/></svg>
+        Local físico</a></li>
+      {% endif %}
       {% if 'cotizaciones' in puede %}
       <li><a href="{% url 'admin_cotizaciones' %}" {% if ruta == 'admin_cotizaciones' %}aria-current="page"{% endif %}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 17l5-5 4 4 8-8M15 8h5v5" stroke-linecap="round" stroke-linejoin="round"/></svg>

@@ -76,6 +76,10 @@ class ExchangeConfig(models.Model):
     avisos_compliance  = models.TextField(blank=True, help_text="Alertas de compliance.")
     avisos_soporte     = models.TextField(blank=True, help_text="Consultas de soporte (si está vacío, SOPORTE_TO).")
 
+    # Sección "Local físico" del panel: ingresos y retiros en efectivo. Apagada hasta que se use.
+    local_fisico_activo = models.BooleanField(
+        default=False, help_text="Muestra la sección Local físico para cargar ingresos y retiros en efectivo.")
+
     updated_at = models.DateTimeField(default=timezone.now)
     updated_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True,
@@ -508,6 +512,8 @@ class BoletoOperacion(models.Model):
         ('deposito_ars',    'Depósito ARS'),
         ('deposito_usdt',   'Depósito USDT'),
         ('deposito_usd',    'Depósito USD'),
+        ('local_ingreso',   'Ingreso en efectivo (local)'),
+        ('local_retiro',    'Retiro en efectivo (local)'),
         ('retiro_ars',      'Retiro ARS'),
         ('retiro_usdt',     'Retiro USDT'),
         ('retiro_usd',      'Retiro USD'),
@@ -701,6 +707,8 @@ class Asiento(models.Model):
         ('retiro_solicitado', 'Retiro solicitado'),
         ('retiro_enviado', 'Retiro enviado'),
         ('retiro_rechazado', 'Retiro rechazado'),
+        ('local_ingreso', 'Ingreso en efectivo (local)'),
+        ('local_retiro', 'Retiro en efectivo (local)'),
         ('ajuste', 'Ajuste manual'),
     ]
 
@@ -819,6 +827,24 @@ class ErrorRegistrado(models.Model):
     ruta    = models.CharField(max_length=255, blank=True)
     usuario_id = models.IntegerField(null=True, blank=True)
     detalle = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ['-fecha', '-id']
+
+
+class OperacionLocal(models.Model):
+    """Ingreso o retiro de efectivo que un operador carga en el local físico."""
+    TIPOS = [('ingreso', 'Ingreso'), ('retiro', 'Retiro')]
+    MONEDAS = [('ARS', 'Pesos'), ('USD', 'Dólares'), ('USDT', 'USDT')]
+
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='operaciones_local')
+    tipo = models.CharField(max_length=8, choices=TIPOS)
+    moneda = models.CharField(max_length=4, choices=MONEDAS)
+    monto = models.DecimalField(max_digits=26, decimal_places=6)
+    nota = models.CharField(max_length=255, blank=True)  # n.º de recibo, quién retiró, etc.
+    admin = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='+')
+    movimiento = models.ForeignKey('usuarios.Movimiento', on_delete=models.SET_NULL, null=True, blank=True)
+    fecha = models.DateTimeField(default=timezone.now, db_index=True)
 
     class Meta:
         ordering = ['-fecha', '-id']

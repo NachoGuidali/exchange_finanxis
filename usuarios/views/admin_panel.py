@@ -17,13 +17,14 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import localtime
 from django.views.decorators.http import require_POST
 
-from usuarios.services import avisos, cotizaciones, fondos, onchain, soporte
+from usuarios.services import avisos, compliance, cotizaciones, fondos, onchain, soporte
 from usuarios.services.auditoria import auditar
 from usuarios.services.comun import OperacionError
 
 from ..forms import CAMPOS_AVISOS, ExchangeConfigForm
 from ..permisos import ROLES, pendientes_visibles, requiere
-from ..utils import cotizacion_vigente, monto_csv, parse_monto
+from ..templatetags.finanxis import money
+from ..utils import cotizacion_vigente, decimales_de, monto_csv, parse_monto
 from ..models import (
     AlertaCompliance,
     ApunteExchange,
@@ -34,6 +35,7 @@ from ..models import (
     DepositoUSDT,
     ExchangeConfig,
     Movimiento,
+    OperacionLocal,
     RetiroARS,
     RegistroAuditoria,
     RetiroCrypto,
@@ -244,6 +246,63 @@ def admin_ticket(request, pk):
         'respuestas': ticket.respuestas.select_related('autor'),
         'otros': SupportTicket.objects.filter(usuario=ticket.usuario).exclude(pk=ticket.pk).order_by('-creado_en')[:5],
         'estados': SupportTicket.ESTADOS,
+    })
+
+
+def _local_desactivado(request):
+    if ExchangeConfig.current().local_fisico_activo:
+        return None
+    return render(request, 'usuarios/sin_permiso.html', {'desactivada': True}, status=404)
+
+
+@requiere('local')
+def local_fisico(request):
+    """Local físico: buscar al cliente para cargarle un ingreso o retiro en efectivo."""
+    if (resp := _local_desactivado(request)):
+        return resp
+    q = (request.GET.get('q') or '').strip()
+    resultados = []
+    if q:
+        resultados = Usuario.objects.filter(
+            Q(username__icontains=q) | Q(email__icontains=q) | Q(first_name__icontains=q) |
+            Q(last_name__icontains=q) | Q(doc_nro__icontains=q)
+        ).order_by('first_name', 'last_name')[:20]
+    return render(request, 'usuarios/local_fisico.html', {
+        'q': q, 'resultados': resultados,
+        'recientes': OperacionLocal.objects.select_related('usuario', 'admin', 'movimiento')[:20],
+    })
+
+
+@requiere('local')
+def local_fisico_cliente(request, user_id):
+    if (resp := _local_desactivado(request)):
+        return resp
+    cliente = get_object_or_404(Usuario, pk=user_id)
+    if request.method == 'POST':
+        tipo = request.POST.get('tipo')
+        moneda = request.POST.get('moneda')
+        monto = parse_monto(request.POST.get('monto'), decimales_de(moneda))
+        nota = (request.POST.get('nota') or '').strip()
+        if tipo not in ('ingreso', 'retiro') or monto is None:
+            messages.error(request, "Revisá el tipo y el monto.")
+        else:
+            servicio = fondos.ingreso_local if tipo == 'ingreso' else fondos.retiro_local
+            try:
+                op = servicio(cliente, moneda, monto, request.user, nota)
+            except compliance.LimiteExcedido as e:
+                compliance.alerta_limite(cliente, e, referencia='LocalFisico')
+                messages.error(request, str(e))
+            except OperacionError as e:
+                messages.error(request, str(e))
+            else:
+                messages.success(request, f"{op.get_tipo_display()} de {money(op.monto)} {op.moneda} cargado. "
+                                          "El cliente recibió el comprobante.")
+                return redirect('local_fisico_cliente', user_id=cliente.pk)
+    cliente.refresh_from_db()
+    return render(request, 'usuarios/local_fisico_cliente.html', {
+        'cliente': cliente,
+        'puede_operar': cliente.estado_verificacion == 'aprobado' and cliente.declaracion_vigente is not None,
+        'operaciones': cliente.operaciones_local.select_related('admin', 'movimiento')[:20],
     })
 
 

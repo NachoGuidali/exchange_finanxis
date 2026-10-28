@@ -49,5 +49,7 @@ def pendientes_admin(request):
         from .models import ErrorRegistrado
         errores = ErrorRegistrado.objects.filter(fecha__gte=timezone.now() - timedelta(hours=24),
                                                  nivel__in=("ERROR", "CRITICAL")).count()
+    from .models import ExchangeConfig
+    local_activo = "local" in puede and ExchangeConfig.current().local_fisico_activo
     return {"pendientes": p, "estado_cotizacion": estado_cot, "puede": puede, "rol_staff": rol_de(user),
-            "errores_24h": errores}
+            "errores_24h": errores, "local_activo": local_activo}

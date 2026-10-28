@@ -20,10 +20,12 @@ class ExchangeConfigForm(forms.ModelForm):
     class Meta:
         model = ExchangeConfig
         fields = ("spread_bps_usdt","spread_bps_usd","swap_fee_bps",
-                  "umbral_alerta_ars","limite_mensual_operado_ars","limite_diario_retiro_ars") + CAMPOS_AVISOS
+                  "umbral_alerta_ars","limite_mensual_operado_ars","limite_diario_retiro_ars") + CAMPOS_AVISOS + (
+                  "local_fisico_activo",)
         labels = {
             "avisos_depositos": "Depósitos", "avisos_retiros": "Retiros", "avisos_identidades": "Identidades",
             "avisos_compliance": "Compliance", "avisos_soporte": "Soporte",
+            "local_fisico_activo": "Habilitar la sección Local físico",
         }
         widgets = {
             **{c: forms.Textarea(attrs={"rows": 2, "class": "campo h-auto py-2.5",

@@ -1678,3 +1678,59 @@ class SaludSitioTests(BaseTest):
         niveles = list(ErrorRegistrado.objects.order_by("id").values_list("nivel", flat=True))
         self.assertEqual(niveles, ["WARNING", "ERROR"])
         self.assertIn("ZeroDivisionError", ErrorRegistrado.objects.get(nivel="ERROR").detalle)
+
+
+@override_settings(BOLETOS_TOLERAR_ERROR_PDF=True)
+class LocalFisicoTests(BaseTest):
+    def setUp(self):
+        super().setUp()
+        crear_cotizaciones()
+        self.cli = crear_usuario()
+        self.op = crear_usuario("op")
+        self.op.is_staff, self.op.rol_staff = True, "operador"
+        self.op.save()
+        self.client.force_login(self.op)
+
+    def activar(self, valor=True):
+        cfg = ExchangeConfig.current()
+        cfg.local_fisico_activo = valor
+        cfg.save()
+
+    def test_apagado_por_defecto(self):
+        self.assertEqual(self.client.get(reverse("local_fisico")).status_code, 404)
+        self.assertNotContains(self.client.get(reverse("panel_admin")), reverse("local_fisico"))
+
+    def test_ingreso_y_retiro_en_efectivo(self):
+        from .services.ledger import diferencias_de_conciliacion
+        self.activar()
+        self.assertContains(self.client.get(reverse("panel_admin")), reverse("local_fisico"))
+        self.assertContains(self.client.get(reverse("local_fisico"), {"q": "cliente"}), "cliente")
+        url = reverse("local_fisico_cliente", args=[self.cli.pk])
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(url, {"tipo": "ingreso", "moneda": "ARS", "monto": "1000"})
+            self.client.post(url, {"tipo": "ingreso", "moneda": "USD", "monto": "300", "nota": "Recibo 15"})
+            self.client.post(url, {"tipo": "retiro", "moneda": "ARS", "monto": "400"})
+        self.cli.refresh_from_db()
+        self.assertEqual((self.cli.saldo_usd, self.cli.saldo_ars), (Decimal("300"), Decimal("600")))
+        self.assertEqual(set(BoletoOperacion.objects.filter(usuario=self.cli).values_list("tipo", flat=True)),
+                         {"local_ingreso", "local_retiro"})
+        self.assertEqual(set(ApunteExchange.objects.values_list("categoria", flat=True)) & {"entrada", "salida"},
+                         {"entrada", "salida"})
+        self.assertEqual(diferencias_de_conciliacion([self.cli]), [])
+        self.assertTrue(RegistroAuditoria.objects.filter(accion="local_ingreso").exists())
+        # no se puede retirar más que el saldo
+        self.client.post(url, {"tipo": "retiro", "moneda": "USD", "monto": "301"})
+        self.cli.refresh_from_db()
+        self.assertEqual(self.cli.saldo_usd, Decimal("300"))
+
+    def test_permisos_y_cliente_sin_verificar(self):
+        self.activar()
+        nuevo = crear_usuario("nuevo", aprobado=False)
+        self.client.post(reverse("local_fisico_cliente", args=[nuevo.pk]), {"tipo": "ingreso", "moneda": "ARS", "monto": "10"})
+        nuevo.refresh_from_db()
+        self.assertEqual(nuevo.saldo_ars, Decimal("0"))
+        cont = crear_usuario("cont")
+        cont.is_staff, cont.rol_staff = True, "contabilidad"
+        cont.save()
+        self.client.force_login(cont)
+        self.assertEqual(self.client.get(reverse("local_fisico")).status_code, 403)

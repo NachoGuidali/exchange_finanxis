@@ -10,6 +10,7 @@ Ciclo de un retiro en el mayor:
 Toda acción de un admin queda en RegistroAuditoria.
 """
 import re
+from decimal import Decimal
 
 from django.conf import settings
 from django.db import transaction
@@ -356,3 +357,70 @@ def rechazar_retiro_crypto(retiro_id, admin, motivo=''):
     if retiro.estado != 'pendiente':
         raise OperacionError("El retiro ya fue procesado.")
     return _rechazar_retiro(retiro, retiro.moneda, admin, motivo)
+
+
+# ---------------- Local físico (efectivo) ----------------
+
+def _operacion_local(usuario, tipo, moneda, monto, admin, nota):
+    from usuarios.models import OperacionLocal
+    from usuarios.signals import _marcar_entrada, _marcar_salida
+
+    if moneda not in ('ARS', 'USD', 'USDT'):
+        raise OperacionError("Moneda inválida.")
+    if monto <= 0:
+        raise OperacionError("Monto inválido.")
+    u = _bloquear(Usuario, usuario.pk)
+    if u.estado_verificacion != 'aprobado' or u.declaracion_vigente is None:
+        raise OperacionError("El cliente tiene que tener la identidad verificada y la declaración jurada completa.")
+    monto_ars = compliance.valor_ars(moneda, monto)
+    signo = Decimal(1) if tipo == 'ingreso' else Decimal(-1)
+    if tipo == 'retiro':
+        if getattr(u, CAMPO_SALDO[moneda]) < monto:
+            raise OperacionError(f"Saldo {moneda} insuficiente.")
+        compliance.verificar_limite_retiro(u, monto_ars)
+
+    nombre = 'Ingreso' if tipo == 'ingreso' else 'Retiro'
+    descripcion = f"{nombre} en efectivo en el local{f' ({nota})' if nota else ''}"
+    antes, despues = _acreditar(u, moneda, signo * monto)
+    mov = registrar_movimiento(
+        usuario=u, tipo='deposito' if tipo == 'ingreso' else 'retiro', moneda=moneda, monto=signo * monto,
+        descripcion=descripcion, admin=admin, saldo_antes=antes, saldo_despues=despues,
+    )
+    op = OperacionLocal.objects.create(usuario=u, tipo=tipo, moneda=moneda, monto=monto, nota=nota[:255],
+                                       admin=admin, movimiento=mov)
+    registrar_asiento(f'local_{tipo}', descripcion, [
+        (cuenta_usuario(u), moneda, signo * monto),
+        (cuenta_sistema(CuentaContable.TESORERIA), moneda, -signo * monto),
+    ], referencia=f'OperacionLocal:{op.pk}', creado_por=admin)
+
+    fmt = _monto_fmt(moneda, monto)
+    snapshot = snapshot_boleto(u, titulo=f'{nombre} en efectivo ({moneda})', debitado=fmt, origen=fmt,
+                               destino=fmt, tasa=f"Local físico{f' — {nota}' if nota else ''}")
+    emitir_boleto(u, f'local_{tipo}', gen_numero_boleto(), snapshot, movimiento=mov)
+    if tipo == 'ingreso':
+        _marcar_entrada(importe=monto, moneda=moneda, instance=op, detalle=descripcion)
+        compliance.evaluar(u, descripcion=f'Ingreso en efectivo {moneda}', monto_ars=monto_ars,
+                           referencia=f'OperacionLocal:{op.pk}')
+        avisos.cliente(u, f"Acreditamos {fmt} que ingresaste en el local.", asunto="Ingreso en efectivo acreditado",
+                       detalle="Ya lo tenés disponible en tu saldo. El comprobante está en Comprobantes.",
+                       url=avisos.url_absoluta('comprobantes'), boton="Ver comprobante")
+    else:
+        _marcar_salida(importe=monto, moneda=moneda, instance=op, detalle=descripcion)
+        compliance.evaluar_retiro(u, descripcion=f'Retiro en efectivo {moneda}', monto_ars=monto_ars,
+                                  referencia=f'OperacionLocal:{op.pk}')
+        avisos.cliente(u, f"Retiraste {fmt} en efectivo en el local.", asunto="Retiro en efectivo",
+                       detalle="El comprobante está en Comprobantes.",
+                       url=avisos.url_absoluta('comprobantes'), boton="Ver comprobante")
+    auditar(admin, f'local_{tipo}', op, moneda=moneda, monto=monto, usuario=u.pk, nota=nota)
+    return op
+
+
+@transaction.atomic
+def ingreso_local(usuario, moneda, monto, admin, nota=''):
+    return _operacion_local(usuario, 'ingreso', moneda, monto, admin, nota)
+
+
+@transaction.atomic
+def retiro_local(usuario, moneda, monto, admin, nota=''):
+    return _operacion_local(usuario, 'retiro', moneda, monto, admin, nota)
+

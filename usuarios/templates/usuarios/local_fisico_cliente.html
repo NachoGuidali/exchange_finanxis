@@ -1,0 +1,90 @@
+{% extends "usuarios/admin_base.html" %}
+{% load finanxis %}
+{% block title %}Local físico: {{ cliente.get_full_name|default:cliente.username }} — Administración Finanxis{% endblock %}
+
+{% block admin_content %}
+<a href="{% url 'local_fisico' %}" class="text-sm font-semibold text-gray-600 hover:text-gray-900">← Local físico</a>
+<div class="mt-3 aparece">
+  <h1 class="text-3xl font-extrabold text-gray-900">{{ cliente.get_full_name|default:cliente.username }}</h1>
+  <p class="mt-1 text-gray-600">{{ cliente.username }}{% if cliente.doc_nro %} · DNI {{ cliente.doc_nro }}{% endif %} · <a href="{% url 'admin_usuario_perfil' cliente.pk %}" class="underline decoration-gray-300 underline-offset-2">ver perfil</a></p>
+</div>
+
+<dl class="mt-6 grid gap-3 sm:grid-cols-3 aparece" style="--d:.04s">
+  <div class="rounded-2xl bg-gray-100 px-4 py-3"><dt class="text-sm text-gray-500">Pesos</dt><dd class="num text-xl font-bold text-gray-900">$ {{ cliente.saldo_ars|money }}</dd></div>
+  <div class="rounded-2xl bg-gray-100 px-4 py-3"><dt class="text-sm text-gray-500">Dólares</dt><dd class="num text-xl font-bold text-gray-900">US$ {{ cliente.saldo_usd|money }}</dd></div>
+  <div class="rounded-2xl bg-gray-100 px-4 py-3"><dt class="text-sm text-gray-500">USDT</dt><dd class="num text-xl font-bold text-gray-900">{{ cliente.saldo_usdt|money }}</dd></div>
+</dl>
+
+{% if not puede_operar %}
+  <p class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900">
+    Este cliente todavía no tiene la identidad verificada{% if not cliente.declaracion_vigente %} ni la declaración jurada completa{% endif %}: no se le pueden cargar ingresos ni retiros.
+  </p>
+{% else %}
+<section class="card mt-6 p-5 sm:p-6 aparece" style="--d:.08s" aria-labelledby="t-cargar">
+  <h2 id="t-cargar" class="text-lg font-bold text-gray-900">Cargar efectivo</h2>
+  <form method="post" class="mt-4 space-y-4" id="form-local">
+    {% csrf_token %}
+    <div class="segmento max-w-sm" style="--n:2; --i:0" role="radiogroup" aria-label="Tipo de operación" id="seg-tipo">
+      <span class="segmento-pill" aria-hidden="true"></span>
+      <button type="button" role="radio" aria-checked="true" aria-selected="true" data-tipo="ingreso">Ingreso</button>
+      <button type="button" role="radio" aria-checked="false" aria-selected="false" data-tipo="retiro">Retiro</button>
+    </div>
+    <input type="hidden" name="tipo" value="ingreso">
+    <div class="grid gap-4 sm:grid-cols-3">
+      <label class="block">
+        <span class="etiqueta">Moneda</span>
+        <select name="moneda" class="campo">
+          <option value="ARS">Pesos</option><option value="USD">Dólares</option><option value="USDT">USDT</option>
+        </select>
+      </label>
+      <label class="block">
+        <span class="etiqueta">Monto</span>
+        <input type="number" name="monto" step="any" min="0" inputmode="decimal" required class="campo num" placeholder="0,00">
+      </label>
+      <label class="block">
+        <span class="etiqueta">Nota (opcional)</span>
+        <input name="nota" maxlength="255" class="campo" placeholder="N.º de recibo, observaciones">
+      </label>
+    </div>
+    <button class="btn btn-lg btn-primario" id="btn-local">Cargar ingreso</button>
+    <p class="text-sm text-gray-500">Se aplica en el saldo al instante y el cliente recibe el comprobante por email.</p>
+  </form>
+</section>
+{% endif %}
+
+<section class="card mt-6 overflow-hidden p-0 aparece" style="--d:.12s" aria-labelledby="t-hist">
+  <h2 id="t-hist" class="px-5 pb-2 pt-5 text-lg font-bold text-gray-900">Operaciones en el local de este cliente</h2>
+  <ul class="divide-y divide-gray-200 border-t border-gray-200">
+    {% for o in operaciones %}
+    <li class="flex flex-wrap items-baseline justify-between gap-2 px-5 py-3 text-sm">
+      <span><span class="font-semibold text-gray-900">{{ o.get_tipo_display }}</span> <span class="text-gray-500">· {{ o.fecha|date:"d/m/Y H:i" }} · {{ o.admin.username }}{% if o.nota %} · {{ o.nota }}{% endif %}</span></span>
+      <span class="num font-semibold {% if o.tipo == 'ingreso' %}positivo{% else %}text-gray-900{% endif %}">{% if o.tipo == 'ingreso' %}+{% else %}−{% endif %}{% if o.moneda == 'ARS' %}$ {% elif o.moneda == 'USD' %}US$ {% endif %}{{ o.monto|money }}{% if o.moneda == 'USDT' %} USDT{% endif %}</span>
+    </li>
+    {% empty %}
+    <li class="px-5 py-8 text-center text-gray-500">Sin operaciones en el local.</li>
+    {% endfor %}
+  </ul>
+</section>
+{% endblock %}
+
+{% block scripts %}{{ block.super }}
+<script>
+(function () {
+  const f = document.getElementById('form-local');
+  if (!f) return;
+  const seg = document.getElementById('seg-tipo'), boton = document.getElementById('btn-local');
+  seg.querySelectorAll('button').forEach((b, i) => b.addEventListener('click', () => {
+    seg.querySelectorAll('button').forEach((x) => { x.setAttribute('aria-checked', x === b); x.setAttribute('aria-selected', x === b); });
+    seg.style.setProperty('--i', i);
+    f.elements.tipo.value = b.dataset.tipo;
+    boton.textContent = b.dataset.tipo === 'ingreso' ? 'Cargar ingreso' : 'Cargar retiro';
+  }));
+  f.addEventListener('submit', (e) => {
+    const m = f.elements.moneda.value, monto = Number(f.elements.monto.value || 0);
+    const pref = m === 'ARS' ? '$ ' : m === 'USD' ? 'US$ ' : '', suf = m === 'USDT' ? ' USDT' : '';
+    const accion = f.elements.tipo.value === 'ingreso' ? 'el INGRESO' : 'el RETIRO';
+    if (!confirm(`¿Confirmás ${accion} en efectivo de ${pref}${monto.toLocaleString('es-AR', { maximumFractionDigits: 6 })}${suf} para {{ cliente.get_full_name|default:cliente.username|escapejs }}?`)) e.preventDefault();
+  });
+})();
+</script>
+{% endblock %}
